@@ -1,0 +1,6 @@
+[package]
+name = "immutable-avl"
+version = "0.1.0"
+authors = ["Eric Stokes <letaris@gmail.com>"]
+
+[dependencies]
