@@ -91,6 +91,7 @@ fn bal<K: Ord, V>(l: &Rc<Tree<K,V>>, x: &Rc<K>, d: &Rc<V>, r: &Rc<Tree<K,V>>)
   }
 }
 
+
 #[cfg(test)]
 mod tests {
   #[test]
