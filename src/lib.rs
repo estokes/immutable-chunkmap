@@ -1,4 +1,5 @@
 use std::rc::Rc;
+use std::cmp::Ordering;
 
 pub struct Node<K: Ord, V> {
   key: Rc<K>,
@@ -91,6 +92,32 @@ fn bal<K: Ord, V>(l: &Rc<Tree<K,V>>, x: &Rc<K>, d: &Rc<V>, r: &Rc<Tree<K,V>>)
   }
 }
 
+fn add<K: Ord, V>(t: &Rc<Tree<K,V>>, len: u64, x: &Rc<K>, data: &Rc<V>)
+                  -> (Rc<Tree<K,V>>, u64) {
+  match **t {
+    Tree::Empty => (singleton(x, data), len + 1),
+    Tree::Leaf(ref v, ref d) =>
+      match x.cmp(v) {
+        Ordering::Equal => (singleton(x, data), len),
+        Ordering::Less =>
+          (create(&singleton(x, data), v, d, &em()), len + 1),
+        Ordering::Greater =>
+          (create(&em(), v, d, &singleton(x, data)), len + 1)
+      },
+    Tree::Node(Node {left: ref l, key: ref v, val: ref d, right: ref r, height: h}) =>
+      match x.cmp(v) {
+        Ordering::Equal => (create(l, x, data, r), len),
+        Ordering::Less => {
+          let (l, len) = add(l, len, x, data);
+          (bal(&l, v, d, r), len)
+        },
+        Ordering::Greater => {
+          let (r, len) = add(r, len, x, data);
+          (bal(l, v, d, &r), len)
+        }
+      }
+  }
+}
 
 #[cfg(test)]
 mod tests {
