@@ -149,12 +149,11 @@ fn remove_min_elt<K, V>(t: &Tree<K,V>) -> Tree<K,V>
   }
 }
 
-/*
-fn max_elt<'a, K: Ord, V>(t: &'a Tree<K,V>) -> Option<(&'a Rc<K>, &'a Rc<V>)> {
+fn max_elt<'a, K, V>(t: &'a Tree<K,V>) -> Option<(&'a K, &'a V)> {
   match *t {
     Tree::Empty => Option::None,
-    Tree::Leaf(ref k, ref d) => Option::Some(k, d),
-    Tree::Node(Node {right: ref r, ..}) => max_elt(r)
+    Tree::Leaf(ref k, ref d) => Option::Some((k, d)),
+    Tree::Node(ref tn) => max_elt(&tn.right)
   }
 }
 
