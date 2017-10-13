@@ -145,7 +145,7 @@ fn remove_min_elt<K, V>(t: &Tree<K,V>) -> Tree<K,V>
     Tree::Empty => Tree::Empty,
     Tree::Leaf(_, _) => Tree::Empty,
     Tree::Node(ref tn) =>
-      bal(remove_min_elt(&tn.left), tn.k, tn.v, &tn.right)
+      bal(&remove_min_elt(&tn.left), &tn.k, &tn.v, &tn.right)
   }
 }
 
