@@ -28,10 +28,6 @@ fn height<K: Ord + Clone, V: Clone>(t: &Tree<K,V>) -> u16 {
 fn em<K: Ord + Clone, V: Clone>() -> Tree<K,V> { Tree::Empty }
 
 
-fn singleton<K: Ord + Clone, V: Clone>(k: &K, v: &V) -> Tree<K, V> {
-  Tree::Leaf(k.clone(), v.clone())
-}
-
 fn create<K, V>(l: &Tree<K, V>, k: &K, v: &V, r: &Tree<K, V>) -> Tree<K, V>
   where K: Ord + Clone, V: Clone
 {
@@ -83,7 +79,7 @@ fn bal<K, V>(l: &Tree<K, V>, k: &K, v: &V, r: &Tree<K, V>) -> Tree<K, V>
                      rlk, rlv,
                      &create(&em(), &rn.k, &rn.v, &rn.right)),
             Tree::Node(ref rln) =>
-              create(&create(l, &elt.0, &elt.1, &rln.left),
+              create(&create(l, k, v, &rln.left),
                      &rln.k, &rln.v,
                      &create(&rln.right, &rn.k, &rn.v, &rn.right))
           }
@@ -94,34 +90,45 @@ fn bal<K, V>(l: &Tree<K, V>, k: &K, v: &V, r: &Tree<K, V>) -> Tree<K, V>
   }
 }
 
-/*
-fn add<K: Ord, V>(t: &Rc<Tree<K,V>>, len: u64, x: &Rc<K>, data: &Rc<V>)
-                  -> (Rc<Tree<K,V>>, u64) {
-  match **t {
-    Tree::Empty => (singleton(x, data), len + 1),
-    Tree::Leaf(ref v, ref d) =>
-      match x.cmp(v) {
-        Ordering::Equal => (singleton(x, data), len),
-        Ordering::Less =>
-          (create(&singleton(x, data), v, d, &em()), len + 1),
-        Ordering::Greater =>
-          (create(&em(), v, d, &singleton(x, data)), len + 1)
-      },
-    Tree::Node(Node {left: ref l, key: ref v, val: ref d, right: ref r, height: h}) =>
-      match x.cmp(v) {
-        Ordering::Equal => (create(l, x, data, r), len),
+fn add<K, V>(t: &Tree<K, V>, len: usize, k: &K, v: &V) -> (Tree<K, V>, usize)
+  where K: Ord + Clone, V: Clone
+{
+  match *t {
+    Tree::Empty => (Tree::Leaf(k.clone(), v.clone()), len + 1),
+    Tree::Leaf(ref tk, ref tv) =>
+      match k.cmp(tk) {
+        Ordering::Equal => (Tree::Leaf(k.clone(), v.clone()), len),
         Ordering::Less => {
-          let (l, len) = add(l, len, x, data);
-          (bal(&l, v, d, r), len)
+          let n = Node { left: Tree::Leaf(k.clone(), v.clone()),
+                         k: tk.clone(), v: tv.clone(),
+                         right: Tree::Empty,
+                         height: 2 };
+          (Tree::Node(Rc::new(n)), len + 1)
         },
         Ordering::Greater => {
-          let (r, len) = add(r, len, x, data);
-          (bal(l, v, d, &r), len)
+          let n = Node {left: Tree::Empty,
+                        k: tk.clone(), v: tv.clone(),
+                        right: Tree::Leaf(k.clone(), v.clone()),
+                        height: 2 };
+          (Tree::Node(Rc::new(n)), len + 1)
+        }
+      },
+    Tree::Node(ref tn) =>
+      match k.cmp(&tn.k) {
+        Ordering::Equal => (create(&tn.left, k, v, &tn.right), len),
+        Ordering::Less => {
+          let (l, len) = add(&tn.left, len, k, v);
+          (bal(&l, k, v, &tn.right), len)
+        },
+        Ordering::Greater => {
+          let (r, len) = add(&tn.right, len, k, v);
+          (bal(&tn.left, k, v, &r), len)
         }
       }
   }
 }
 
+/*
 fn min_elt<'a, K: Ord, V>(t: &'a Tree<K,V>) -> Option<(&'a Rc<K>, &'a Rc<V>)> {
   match *t {
     Tree::Empty => Option::None,
