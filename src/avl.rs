@@ -159,16 +159,20 @@ fn max_elt<'a, K, V>(t: &'a Tree<K,V>) -> Option<(&'a K, &'a V)>
   }
 }
 
-/*
-fn concat<K: Ord, V>(t1: &Rc<Tree<K,V>>, t2: &Rc<Tree<K,V>>) -> Rc<Tree<K,V>> {
-  match (*t1, *t2) {
+fn concat<K, V>(l: &Tree<K, V>, r: &Tree<K, V>) -> Tree<K, V>
+  when K: Ord + Clone, V: Clone
+{
+  match (*l, *r) {
     (Tree::Empty, _) => t2.clone(),
     (_, Tree::Empty) => t1.clone(),
-    (_, _) =>
-      let
+    (_, _) => {
+      let (k, v) = min_elt(t2).unwrap();
+      bal(l, k, v, &remove_min_elt(r))
+    }
   }
 }
 
+/*
 fn remove<K: Ord, V>(t: &Rc<Tree<K,V>>, len: u64, x: &K) -> (Rc<Tree<K,V>>, u64) {
   match **t {
     Tree::Empty => (t.clone(), len),
