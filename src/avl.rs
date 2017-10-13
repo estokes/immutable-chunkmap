@@ -160,34 +160,44 @@ fn max_elt<'a, K, V>(t: &'a Tree<K,V>) -> Option<(&'a K, &'a V)>
 }
 
 fn concat<K, V>(l: &Tree<K, V>, r: &Tree<K, V>) -> Tree<K, V>
-  when K: Ord + Clone, V: Clone
+  where K: Ord + Clone, V: Clone
 {
-  match (*l, *r) {
-    (Tree::Empty, _) => t2.clone(),
-    (_, Tree::Empty) => t1.clone(),
+  match (l, r) {
+    (&Tree::Empty, _) => r.clone(),
+    (_, &Tree::Empty) => l.clone(),
     (_, _) => {
-      let (k, v) = min_elt(t2).unwrap();
+      let (k, v) = min_elt(r).unwrap();
       bal(l, k, v, &remove_min_elt(r))
     }
   }
 }
 
-/*
-fn remove<K: Ord, V>(t: &Rc<Tree<K,V>>, len: u64, x: &K) -> (Rc<Tree<K,V>>, u64) {
-  match **t {
-    Tree::Empty => (t.clone(), len),
-    Tree::Leaf(ref v, _) =>
-      match x.cmp(v) {
-        Ordering::Equal => (em(), len - 1),
+fn remove<K, V>(t: &Tree<K,V>, len: u64, k: &K) -> (Tree<K,V>, u64)
+  where K: Ord + Clone, V: Clone
+{
+  match *t {
+    Tree::Empty => (Tree::Empty, len),
+    Tree::Leaf(ref tk, _) =>
+      match k.cmp(tk) {
+        Ordering::Equal => (Tree::Empty, len - 1),
         Ordering::Greater | Ordering::Less => (t.clone(), len)
-      }
-    Tree::Node(Node {left: ref l, key: ref k, val: ref d, right: ref r, ..}) =>
-      match x.cmp(k) {
-        Ordering::Equal => 
+      },
+    Tree::Node(ref tn) =>
+      match k.cmp(&tn.k) {
+        Ordering::Equal => (concat(&tn.left, &tn.right), len - 1),
+        Ordering::Less => {
+          let (l, len) = remove(&tn.left, len, k);
+          (bal(&l, &tn.k, &tn.v, &tn.right), len)
+        },
+        Ordering::Greater => {
+          let (r, len) = remove(&tn.right, len, k);
+          (bal(&tn.left, &tn.k, &tn.v, &r), len)
+        }
       }
   }
 }
 
+/*
 fn find<'a, K: Ord, V>(t: &'a Tree<K,V>, x: &K) -> Option<&'a Rc<V>> {
   match *t {
     Tree::Empty => Option::None,
