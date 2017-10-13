@@ -128,15 +128,17 @@ fn add<K, V>(t: &Tree<K, V>, len: usize, k: &K, v: &V) -> (Tree<K, V>, usize)
   }
 }
 
-/*
-fn min_elt<'a, K: Ord, V>(t: &'a Tree<K,V>) -> Option<(&'a Rc<K>, &'a Rc<V>)> {
+fn min_elt<'a, K, V>(t: &'a Tree<K, V>) -> Option<(&'a K, &'a V)>
+  where K: Ord + Clone, V: Clone
+{
   match *t {
     Tree::Empty => Option::None,
-    Tree::Leaf(ref k, ref d) => Option::Some(k, d),
-    Tree::Node(Node {left: ref l, ..}) => min_elt(l)
+    Tree::Leaf(ref k, ref v) => Option::Some(k, v),
+    Tree::Node(ref tn) => min_elt(&tn.left)
   }
 }
 
+/*
 fn remove_min_elt<K: Ord, V>(t: &Rc<Tree<K,V>>) -> Rc<Tree<K,V>> {
   match **t {
     Tree::Empty => t.clone(),
