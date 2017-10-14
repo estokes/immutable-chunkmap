@@ -1,6 +1,6 @@
 extern crate rand;
 use avl;
-use std::iter::Iterator;
+use std::iter::{Iterator, IntoIterator};
 
 fn add<I, T>(r: I) -> avl::Tree<T, T>
   where I: Iterator<Item=T>, T: Ord + Clone
@@ -24,4 +24,13 @@ fn test_add_int_seq_asc() {
 #[test]
 fn test_add_int_seq_dec() {
   add(10000..1); ()
+}
+
+#[test]
+fn test_add_int_rand() {
+  let v = Vec<int32>::new(10000);
+  for mut i in v {
+    i = rand::random<int32>();
+  }
+  add(v.into_iterator()); ()
 }
