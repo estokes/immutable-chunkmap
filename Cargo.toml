@@ -2,5 +2,9 @@
 name = "immutable-avl"
 version = "0.1.0"
 authors = ["Eric Stokes <letaris@gmail.com>"]
+publish = false
 
 [dependencies]
+
+[dev-dependencies]
+rand = ">= 0.3"
