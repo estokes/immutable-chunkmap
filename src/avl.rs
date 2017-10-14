@@ -1,5 +1,6 @@
 use std::rc::Rc;
-use std::cmp::Ordering;
+use std::num;
+use std::cmp::{Ordering, max, min};
 
 #[derive (Clone)]
 pub(crate) struct Node<K: Ord + Clone, V: Clone> {
@@ -211,4 +212,43 @@ pub(crate) fn find<'a, K, V>(t: &'a Tree<K,V>, k: &K) -> Option<&'a V>
         Ordering::Greater => find(&tn.right, k)
       }
   }
+}
+
+pub(crate) fn invariant<K,V>(t: &Tree<K,V>) -> ()
+  where K: Ord + Clone, V: Clone
+{
+  fn in_range<K: Ord>(lower: Option<&K>, upper: Option<&K>, k: &K) -> bool {
+    (match lower {
+      Option::None => true,
+      Option::Some(lower) => lower.cmp(k) == Ordering::Less })
+      && (match upper {
+        Option::None => true,
+        Option::Some(upper) => upper.cmp(k) == Ordering::Greater })
+  }
+
+  fn check<K,V>(t: &Tree<K,V>, lower: Option<&K>, upper: Option<&K>) -> u16
+    where K: Ord + Clone, V: Clone
+  {
+    match *t {
+      Tree::Empty => 0,
+      Tree::Leaf(ref k, _) => {
+        if !in_range(lower, upper, k) { panic!("tree invariant violated") };
+        1
+      }
+      Tree::Node(ref tn) => {
+        if !in_range(lower, upper, &tn.k) { panic!("tree invariant violated") };
+        let thl = check(&tn.left, lower, Option::Some(&tn.k));
+        let thr = check(&tn.right, Option::Some(&tn.k), upper);
+        let th = 1 + max(thl, thr);
+        let (hl, hr) = (height(&tn.left), height(&tn.right));
+        if max(hl, hr) - min(hl, hr) > 2 { panic!("tree is unbalanced") };
+        if thl != hl { panic!("left node height is wrong") };
+        if thr != hr { panic!("right node height is wrong") };
+        if th != height(t) { panic!("node height is wrong") };
+        th
+      }
+    }
+  }
+
+  check(t, Option::None, Option::None); ()
 }
