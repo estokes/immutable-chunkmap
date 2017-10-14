@@ -214,7 +214,8 @@ pub(crate) fn find<'a, K, V>(t: &'a Tree<K,V>, k: &K) -> Option<&'a V>
   }
 }
 
-pub(crate) fn invariant<K,V>(t: &Tree<K,V>) -> ()
+#[allow(dead_code)]
+pub(crate) fn invariant<K,V>(t: &Tree<K,V>, len: Option<usize>) -> ()
   where K: Ord + Clone, V: Clone
 {
   fn in_range<K: Ord>(lower: Option<&K>, upper: Option<&K>, k: &K) -> bool {
@@ -226,19 +227,20 @@ pub(crate) fn invariant<K,V>(t: &Tree<K,V>) -> ()
         Option::Some(upper) => upper.cmp(k) == Ordering::Greater })
   }
 
-  fn check<K,V>(t: &Tree<K,V>, lower: Option<&K>, upper: Option<&K>) -> u16
+  fn check<K,V>(t: &Tree<K,V>, lower: Option<&K>, upper: Option<&K>, len: usize)
+                -> (u16, usize)
     where K: Ord + Clone, V: Clone
   {
     match *t {
-      Tree::Empty => 0,
+      Tree::Empty => (0, len),
       Tree::Leaf(ref k, _) => {
         if !in_range(lower, upper, k) { panic!("tree invariant violated") };
-        1
+        (1, len + 1)
       }
       Tree::Node(ref tn) => {
         if !in_range(lower, upper, &tn.k) { panic!("tree invariant violated") };
-        let thl = check(&tn.left, lower, Option::Some(&tn.k));
-        let thr = check(&tn.right, Option::Some(&tn.k), upper);
+        let (thl, len) = check(&tn.left, lower, Option::Some(&tn.k), len);
+        let (thr, len) = check(&tn.right, Option::Some(&tn.k), upper, len);
         let th = 1 + max(thl, thr);
         let (hl, hr) = (height(&tn.left), height(&tn.right));
         if max(hl, hr) - min(hl, hr) > 2 { panic!("tree is unbalanced") };
@@ -246,10 +248,15 @@ pub(crate) fn invariant<K,V>(t: &Tree<K,V>) -> ()
         if thr != hr { panic!("right node height is wrong") };
         let h = height(t);
         if th != h { panic!("node height is wrong {} vs {}", th, h) };
-        th
+        (th, len + 1)
       }
     }
   }
 
-  check(t, Option::None, Option::None); ()
+  let (_height, tlen) = check(t, Option::None, Option::None, 0);
+  match len {
+    Option::None => (),
+    Option::Some(len) =>
+      if len != tlen { panic!("len is wrong {} vs {}", len, tlen) }
+  }
 }
