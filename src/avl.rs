@@ -34,10 +34,9 @@ fn create<K, V>(l: &Tree<K, V>, k: &K, v: &V, r: &Tree<K, V>) -> Tree<K, V>
   let (hl, hr) = (height(l), height(r));
   if hl == 0 && hr == 0 { Tree::Leaf(k.clone(), v.clone()) }
   else {
-    let h = if hl >= hr { hl } else { hr };
     Tree::Node(Rc::new(Node {k: k.clone(), v: v.clone(),
                              left: l.clone(), right: r.clone(),
-                             height: h}))
+                             height: 1 + max(hl, hr)}))
   }
 }
 
@@ -245,7 +244,8 @@ pub(crate) fn invariant<K,V>(t: &Tree<K,V>) -> ()
         if max(hl, hr) - min(hl, hr) > 2 { panic!("tree is unbalanced") };
         if thl != hl { panic!("left node height is wrong") };
         if thr != hr { panic!("right node height is wrong") };
-        if th != height(t) { panic!("node height is wrong") };
+        let h = height(t);
+        if th != h { panic!("node height is wrong {} vs {}", th, h) };
         th
       }
     }
