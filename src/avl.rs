@@ -25,7 +25,7 @@ fn height<K: Ord + Clone, V: Clone>(t: &Tree<K,V>) -> u16 {
   }
 }
 
-fn em<K: Ord + Clone, V: Clone>() -> Tree<K,V> { Tree::Empty }
+pub(crate) fn empty<K: Ord + Clone, V: Clone>() -> Tree<K,V> { Tree::Empty }
 
 
 fn create<K, V>(l: &Tree<K, V>, k: &K, v: &V, r: &Tree<K, V>) -> Tree<K, V>
@@ -55,9 +55,9 @@ fn bal<K, V>(l: &Tree<K, V>, k: &K, v: &V, r: &Tree<K, V>) -> Tree<K, V>
           match ln.right {
             Tree::Empty => panic!("tree heights wrong"),
             Tree::Leaf(ref lrk, ref lrv) =>
-              create(&create(&ln.left, &ln.k, &ln.v, &em()),
+              create(&create(&ln.left, &ln.k, &ln.v, &empty()),
                      lrk, lrv,
-                     &create(&em(), k, v, r)),
+                     &create(&empty(), k, v, r)),
             Tree::Node(ref lrn) =>
               create(&create(&ln.left, &ln.k, &ln.v, &lrn.left),
                      &lrn.k, &lrn.v,
@@ -75,9 +75,9 @@ fn bal<K, V>(l: &Tree<K, V>, k: &K, v: &V, r: &Tree<K, V>) -> Tree<K, V>
           match rn.left {
             Tree::Empty => panic!("tree heights are wrong"),
             Tree::Leaf(ref rlk, ref rlv) =>
-              create(&create(l, k, v, &em()),
+              create(&create(l, k, v, &empty()),
                      rlk, rlv,
-                     &create(&em(), &rn.k, &rn.v, &rn.right)),
+                     &create(&empty(), &rn.k, &rn.v, &rn.right)),
             Tree::Node(ref rln) =>
               create(&create(l, k, v, &rln.left),
                      &rln.k, &rln.v,
@@ -118,11 +118,11 @@ pub(crate) fn add<K, V>(t: &Tree<K, V>, len: usize, k: &K, v: &V) -> (Tree<K, V>
         Ordering::Equal => (create(&tn.left, k, v, &tn.right), len),
         Ordering::Less => {
           let (l, len) = add(&tn.left, len, k, v);
-          (bal(&l, k, v, &tn.right), len)
+          (bal(&l, &tn.k, &tn.v, &tn.right), len)
         },
         Ordering::Greater => {
           let (r, len) = add(&tn.right, len, k, v);
-          (bal(&tn.left, k, v, &r), len)
+          (bal(&tn.left, &tn.k, &tn.v, &r), len)
         }
       }
   }
@@ -149,6 +149,7 @@ fn remove_min_elt<K, V>(t: &Tree<K,V>) -> Tree<K,V>
   }
 }
 
+/*
 pub(crate) fn max_elt<'a, K, V>(t: &'a Tree<K,V>) -> Option<(&'a K, &'a V)>
   where K: Ord + Clone, V: Clone
 {
@@ -158,6 +159,7 @@ pub(crate) fn max_elt<'a, K, V>(t: &'a Tree<K,V>) -> Option<(&'a K, &'a V)>
     Tree::Node(ref tn) => max_elt(&tn.right)
   }
 }
+*/
 
 fn concat<K, V>(l: &Tree<K, V>, r: &Tree<K, V>) -> Tree<K, V>
   where K: Ord + Clone, V: Clone
