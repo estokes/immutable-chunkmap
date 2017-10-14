@@ -22,3 +22,11 @@ pub fn find<'a, K, V>(t:&'a Map<K, V>, k: &K) -> Option<&'a V>
   avl::find(&t.root, k)
 }
 
+pub fn remove<K, V>(t:&Map<K, V>, k: &K) -> Map<K,V>
+  where K: Ord + Clone, V: Clone
+{
+  let (t, len) = avl::remove(&t.root, t.len, k);
+  Map {root: t, len: len}
+}
+
+pub fn length<K, V>(t:&Map<K, V>) where K: Ord + Clone, V: Clone { t.len }
