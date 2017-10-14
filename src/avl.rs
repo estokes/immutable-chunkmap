@@ -2,7 +2,7 @@ use std::rc::Rc;
 use std::cmp::Ordering;
 
 #[derive (Clone)]
-struct Node<K: Ord + Clone, V: Clone> {
+pub(crate) struct Node<K: Ord + Clone, V: Clone> {
   k: K,
   v: V,
   left: Tree<K, V>,
@@ -11,7 +11,7 @@ struct Node<K: Ord + Clone, V: Clone> {
 }
 
 #[derive (Clone)]
-enum Tree<K: Ord + Clone, V: Clone> {
+pub(crate) enum Tree<K: Ord + Clone, V: Clone> {
   Empty,
   Leaf(K, V),
   Node(Rc<Node<K,V>>)
@@ -90,7 +90,7 @@ fn bal<K, V>(l: &Tree<K, V>, k: &K, v: &V, r: &Tree<K, V>) -> Tree<K, V>
   }
 }
 
-fn add<K, V>(t: &Tree<K, V>, len: usize, k: &K, v: &V) -> (Tree<K, V>, usize)
+pub(crate) fn add<K, V>(t: &Tree<K, V>, len: usize, k: &K, v: &V) -> (Tree<K, V>, usize)
   where K: Ord + Clone, V: Clone
 {
   match *t {
@@ -128,7 +128,7 @@ fn add<K, V>(t: &Tree<K, V>, len: usize, k: &K, v: &V) -> (Tree<K, V>, usize)
   }
 }
 
-fn min_elt<'a, K, V>(t: &'a Tree<K, V>) -> Option<(&'a K, &'a V)>
+pub(crate) fn min_elt<'a, K, V>(t: &'a Tree<K, V>) -> Option<(&'a K, &'a V)>
   where K: Ord + Clone, V: Clone
 {
   match *t {
@@ -149,7 +149,7 @@ fn remove_min_elt<K, V>(t: &Tree<K,V>) -> Tree<K,V>
   }
 }
 
-fn max_elt<'a, K, V>(t: &'a Tree<K,V>) -> Option<(&'a K, &'a V)>
+pub(crate) fn max_elt<'a, K, V>(t: &'a Tree<K,V>) -> Option<(&'a K, &'a V)>
   where K: Ord + Clone, V: Clone
 {
   match *t {
@@ -172,7 +172,7 @@ fn concat<K, V>(l: &Tree<K, V>, r: &Tree<K, V>) -> Tree<K, V>
   }
 }
 
-fn remove<K, V>(t: &Tree<K,V>, len: u64, k: &K) -> (Tree<K,V>, u64)
+pub(crate) fn remove<K, V>(t: &Tree<K,V>, len: u64, k: &K) -> (Tree<K,V>, u64)
   where K: Ord + Clone, V: Clone
 {
   match *t {
@@ -197,7 +197,7 @@ fn remove<K, V>(t: &Tree<K,V>, len: u64, k: &K) -> (Tree<K,V>, u64)
   }
 }
 
-fn find<'a, K, V>(t: &'a Tree<K,V>, k: &K) -> Option<&'a V>
+pub(crate) fn find<'a, K, V>(t: &'a Tree<K,V>, k: &K) -> Option<&'a V>
   where K: Ord + Clone, V: Clone
 {
   match *t {
