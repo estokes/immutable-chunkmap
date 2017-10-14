@@ -197,18 +197,18 @@ fn remove<K, V>(t: &Tree<K,V>, len: u64, k: &K) -> (Tree<K,V>, u64)
   }
 }
 
-/*
-fn find<'a, K: Ord, V>(t: &'a Tree<K,V>, x: &K) -> Option<&'a Rc<V>> {
+fn find<'a, K, V>(t: &'a Tree<K,V>, k: &K) -> Option<&'a V>
+  where K: Ord + Clone, V: Clone
+{
   match *t {
     Tree::Empty => Option::None,
-    Tree::Leaf(ref v, ref d) => if *x == **v { Option::Some(d) } else { Option::None },
-    Tree::Node(Node {left: ref l, key: ref v, val: ref d, right: ref r, ..}) =>
-      match x.cmp(v) {
-        Ordering::Equal => Option::Some(d),
-        Ordering::Less => find(l, x),
-        Ordering::Greater => find(r, x)
+    Tree::Leaf(ref tk, ref tv) =>
+      if *k == *tk { Option::Some(tv) } else { Option::None },
+    Tree::Node(ref tn) =>
+      match k.cmp(&tn.k) {
+        Ordering::Equal => Option::Some(&tn.v),
+        Ordering::Less => find(&tn.left, k),
+        Ordering::Greater => find(&tn.right, k)
       }
   }
 }
-
-*/
