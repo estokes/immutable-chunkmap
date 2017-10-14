@@ -172,7 +172,7 @@ fn concat<K, V>(l: &Tree<K, V>, r: &Tree<K, V>) -> Tree<K, V>
   }
 }
 
-pub(crate) fn remove<K, V>(t: &Tree<K,V>, len: u64, k: &K) -> (Tree<K,V>, u64)
+pub(crate) fn remove<K, V>(t: &Tree<K,V>, len: usize, k: &K) -> (Tree<K,V>, usize)
   where K: Ord + Clone, V: Clone
 {
   match *t {

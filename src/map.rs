@@ -29,4 +29,4 @@ pub fn remove<K, V>(t:&Map<K, V>, k: &K) -> Map<K,V>
   Map {root: t, len: len}
 }
 
-pub fn length<K, V>(t:&Map<K, V>) where K: Ord + Clone, V: Clone { t.len }
+pub fn length<K, V>(t:&Map<K, V>) -> usize where K: Ord + Clone, V: Clone { t.len }
