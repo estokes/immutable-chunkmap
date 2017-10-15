@@ -144,9 +144,9 @@ fn remove_min_elt<K, V>(t: &Tree<K,V>) -> Tree<K,V>
     Tree::Empty => panic!("remove min elt"),
     Tree::Leaf(_, _) => Tree::Empty,
     Tree::Node(ref tn) =>
-      match *tn.left {
-        Tree::Empty => tn.right,
-        Tree::Leaf(_, _) => bal(Tree::Empty, &tn.k, &tn.v, &tn.right),
+      match tn.left {
+        Tree::Empty => tn.right.clone(),
+        Tree::Leaf(_, _) => bal(&Tree::Empty, &tn.k, &tn.v, &tn.right),
         Tree::Node(_) => bal(&remove_min_elt(&tn.left), &tn.k, &tn.v, &tn.right)
       }
   }
