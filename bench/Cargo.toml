@@ -1,0 +1,7 @@
+[package]
+name = "bench"
+version = "0.1.0"
+authors = ["Eric Stokes <letaris@gmail.com>"]
+
+[dependencies]
+immutable-avl = ">= 0.1"
