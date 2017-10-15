@@ -46,12 +46,19 @@ fn test_find_int_rand() {
   let v = randvec::<i32>(10000);
   let (t, _) = add(&v);
   for k in &v {
-    match avl::find(&t, &k) {
-      Option::None => panic!("key {} was added but could not be found", k),
-      Option::Some(v) =>
-        if *v != k {
-          panic!("key {} was added, and found, but has the wrong value {}", k, v)
-        }
-    }
+    assert_eq!(*avl::find(&t, &k).unwrap(), k);
+  }
+}
+
+#[test]
+fn test_int_add_remove_rand() {
+  let v = randvec::<i32>(10000);
+  let mut (t, _) = add(&v);
+  for k in &v {
+    assert_eq!(*avl::find(&t, &k).unwrap(), k);
+    let (tt, _) = avl::remove(&t, &k);
+    avl::invariant(&tt, Option::None);
+    t = tt;
+    assert_eq!(avl::find(&t, &k), Option::None);
   }
 }
