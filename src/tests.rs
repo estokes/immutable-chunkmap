@@ -53,12 +53,13 @@ fn test_find_int_rand() {
 #[test]
 fn test_int_add_remove_rand() {
   let v = randvec::<i32>(10000);
-  let mut (t, _) = add(&v);
+  let (mut t, mut len) = add(&v);
   for k in &v {
     assert_eq!(*avl::find(&t, &k).unwrap(), k);
-    let (tt, _) = avl::remove(&t, &k);
-    avl::invariant(&tt, Option::None);
+    let (tt, tlen) = avl::remove(&t, len, &k);
     t = tt;
+    len = tlen;
+    avl::invariant(&t, Option::Some(len));
     assert_eq!(avl::find(&t, &k), Option::None);
   }
 }
