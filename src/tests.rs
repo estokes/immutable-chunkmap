@@ -1,5 +1,6 @@
 extern crate rand;
 use avl;
+use map;
 use tests::rand::{random, Rand};
 use std::iter::{IntoIterator};
 use std::vec::{Vec};
@@ -66,5 +67,28 @@ fn test_int_add_remove_rand() {
 
 #[test]
 fn test_int_map_rand() {
-  let v = randvec::<i32>(10000)
+  let v = randvec::<i32>(10000);
+  let mut t = map::empty();
+  let mut i = 0;
+  for k in &v {
+    t = map::add(&t, &k, &k);
+    map::invariant(t);
+    i = i + 1;
+    for k in &v[0..i] { 
+      assert_eq!(*map::find(&t, &k).unwrap(), *k)
+    }
+  }
+  i = 0;
+  for k in &v {
+    t = map::remove(&t, &k);
+    i = i + 1;
+    let mut j = 0;
+    for k in &v {
+      if j < i {
+        assert_eq!(map::find(&t, &k), Option::None)
+      } else {
+        assert_eq!(*map::find(&t, &k).unwrap(), &k)
+      }
+    }
+  }
 }
