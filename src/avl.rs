@@ -133,7 +133,12 @@ pub(crate) fn min_elt<'a, K, V>(t: &'a Tree<K, V>) -> Option<(&'a K, &'a V)>
   match *t {
     Tree::Empty => Option::None,
     Tree::Leaf(ref k, ref v) => Option::Some((k, v)),
-    Tree::Node(ref tn) => min_elt(&tn.left)
+    Tree::Node(ref tn) => 
+    match tn.left {
+      Tree::Empty => Option::Some((&tn.k, &tn.v)),
+      Tree::Leaf(ref k, ref v) => Option::Some((k, v)),
+      Tree::Node(_) => min_elt(&tn.left)
+    }
   }
 }
 
