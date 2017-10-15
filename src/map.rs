@@ -5,7 +5,7 @@ pub struct Map<K: Ord + Clone, V: Clone> {
   root: avl::Tree<K, V>
 }
 
-pub fn create<K, V>() -> Map<K, V> where K: Ord + Clone, V: Clone {
+pub fn empty<K, V>() -> Map<K, V> where K: Ord + Clone, V: Clone {
   Map { len: 0, root: avl::Tree::Empty }
 }
 
@@ -30,3 +30,7 @@ pub fn remove<K, V>(t:&Map<K, V>, k: &K) -> Map<K,V>
 }
 
 pub fn length<K, V>(t:&Map<K, V>) -> usize where K: Ord + Clone, V: Clone { t.len }
+
+pub(crate) fn invariant<K, V>(t:&Map<K, V>) -> () where K: Ord + Clone, V: Clone {
+  avl::invariant(&t.root, t.len)
+}

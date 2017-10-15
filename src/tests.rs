@@ -63,3 +63,8 @@ fn test_int_add_remove_rand() {
     assert_eq!(avl::find(&t, &k), Option::None);
   }
 }
+
+#[test]
+fn test_int_map_rand() {
+  let v = randvec::<i32>(10000)
+}

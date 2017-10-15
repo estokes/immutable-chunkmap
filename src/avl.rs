@@ -157,7 +157,7 @@ fn remove_min_elt<K, V>(t: &Tree<K,V>) -> Tree<K,V>
   }
 }
 
-/*
+#[allow(dead_code)]
 pub(crate) fn max_elt<'a, K, V>(t: &'a Tree<K,V>) -> Option<(&'a K, &'a V)>
   where K: Ord + Clone, V: Clone
 {
@@ -167,7 +167,6 @@ pub(crate) fn max_elt<'a, K, V>(t: &'a Tree<K,V>) -> Option<(&'a K, &'a V)>
     Tree::Node(ref tn) => max_elt(&tn.right)
   }
 }
-*/
 
 fn concat<K, V>(l: &Tree<K, V>, r: &Tree<K, V>) -> Tree<K, V>
   where K: Ord + Clone, V: Clone
@@ -224,7 +223,7 @@ pub(crate) fn find<'a, K, V>(t: &'a Tree<K,V>, k: &K) -> Option<&'a V>
 }
 
 #[allow(dead_code)]
-pub(crate) fn invariant<K,V>(t: &Tree<K,V>, len: Option<usize>) -> ()
+pub(crate) fn invariant<K,V>(t: &Tree<K,V>, len: usize) -> ()
   where K: Ord + Clone, V: Clone
 {
   fn in_range<K: Ord>(lower: Option<&K>, upper: Option<&K>, k: &K) -> bool {
@@ -263,9 +262,5 @@ pub(crate) fn invariant<K,V>(t: &Tree<K,V>, len: Option<usize>) -> ()
   }
 
   let (_height, tlen) = check(t, Option::None, Option::None, 0);
-  match len {
-    Option::None => (),
-    Option::Some(len) =>
-      if len != tlen { panic!("len is wrong {} vs {}", len, tlen) }
-  }
+  if len != tlen { panic!("len is wrong {} vs {}", len, tlen) }
 }
