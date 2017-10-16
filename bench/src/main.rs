@@ -24,13 +24,12 @@ fn bench_add(len: usize) -> (map::Map<i32, i32>, Vec<i32>, Duration) {
     (m, data, begin.elapsed())
 }
 
-fn bench_find(m: &map::Map<i32, i32>, d: &Vec<i32>) -> (Vec<i32>, Duration) {
-    let mut vals = Vec::new();
+fn bench_find(m: &map::Map<i32, i32>, d: &Vec<i32>) -> Duration {
     let begin = Instant::now();
     for kv in d {
-        vals.push(*map::find(m, &kv).unwrap());
+        map::find(m, &kv).unwrap();
     }
-    (vals, begin.elapsed())
+    begin.elapsed()
 }
 
 fn bench_remove(m: map::Map<i32, i32>, d: &Vec<i32>) -> Duration {
@@ -52,7 +51,7 @@ fn main() {
         if args.len() == 2 { args[1].parse::<usize>().unwrap() }
         else { 10000 };
     let (m, d, add) = bench_add(size);
-    let (d, find) = bench_find(&m, &d);
+    let find = bench_find(&m, &d);
     let rm = bench_remove(m, &d);
     println!("add: {}, find: {}, remove: {}", 
         to_ms(add), to_ms(find), to_ms(rm));
