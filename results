@@ -1,16 +1,30 @@
+rust
 key and val i32
 
 mem use at 1e8 entries
 53.68 bytes/entry
 
 speed
-eric@Misato:~/Projects/rust-immutable-avl/bench$ target/release/bench 100000000
-add: 367781, find: 153691, remove: 397218
-eric@Misato:~/Projects/rust-immutable-avl/bench$ target/release/bench 10000000
-add: 23129, find: 8184, remove: 23774
-eric@Misato:~/Projects/rust-immutable-avl/bench$ target/release/bench 1000000
-add: 1541, find: 517, remove: 1569
-eric@Misato:~/Projects/rust-immutable-avl/bench$ target/release/bench 100000
-add: 105, find: 22, remove: 92
-eric@Misato:~/Projects/rust-immutable-avl/bench$ target/release/bench 10000
-add: 9, find: 1, remove: 7
+
+size, add, find, remove
+100000000, 367781, 153691, 397218
+10000000, 23129, 8184, 23774
+1000000, add: 1541, find: 517, 1569
+100000 add: 105, find: 22, 92
+10000 add: 9, find: 1, 7
+
+ocaml
+mem use at 1e8 entries
+118.11 bytes/entry
+
+speed
+eric@Misato:~/Projects/test-ocaml-map$ ./test 10000
+add: 4.84514ms, find: 1.47581ms, remove: 3.42298ms
+eric@Misato:~/Projects/test-ocaml-map$ ./test 100000
+add: 104.028ms, find: 26.685ms, remove: 102.331ms
+eric@Misato:~/Projects/test-ocaml-map$ ./test 1000000
+add: 1.98538s, find: 478.535ms, remove: 1.9465s
+eric@Misato:~/Projects/test-ocaml-map$ ./test 10000000
+add: 29.3968s, find: 6.87968s, remove: 29.8421s
+eric@Misato:~/Projects/test-ocaml-map$ ./test 100000000
+add: 7.3923m, find: 2.14077m, remove: 8.33854m

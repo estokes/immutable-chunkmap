@@ -206,7 +206,27 @@ pub(crate) fn remove<K, V>(t: &Tree<K,V>, len: usize, k: &K) -> (Tree<K,V>, usiz
   }
 }
 
-pub(crate) fn find<'a, K, V>(t: &'a Tree<K,V>, k: &K) -> Option<&'a V>
+pub(crate) fn find_nonrec<'a, K, V>(t: &'a Tree<K, V>, k: &K) -> Option<&'a V>
+  where K: Ord + Clone, V: Clone
+{
+  let mut t = t;
+  loop {
+    match *t {
+      Tree::Empty => return Option::None,
+      Tree::Leaf(ref tk, ref tv) =>
+        if *k == *tk { return Option::Some(tv) }
+        else { return Option::None },
+      Tree::Node(ref tn) =>
+      match k.cmp(&tn.k) {
+        Ordering::Equal => return Option::Some(&tn.v),
+        Ordering::Less => t = &tn.left,
+        Ordering::Greater => t = &tn.right
+      }
+    }
+  }
+}
+
+pub(crate) fn find<'a, K, V>(t: &'a Tree<K, V>, k: &K) -> Option<&'a V>
   where K: Ord + Clone, V: Clone
 {
   match *t {
