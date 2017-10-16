@@ -78,7 +78,7 @@ fn test_int_map_rand() {
     map::invariant(&t);
     i = i + 1;
     for k in &v[0..i] { 
-      assert_eq!(*map::find(&t, &k).unwrap(), k)
+      assert_eq!(*map::find(&t, &k).unwrap(), k);
       assert_eq!(*map::find_nonrec(&t, &k).unwrap(), k)
     }
   }
@@ -88,8 +88,8 @@ fn test_int_map_rand() {
     map::invariant(&t);
     i = i + 1;
     for k in &v[0..i] {
-      assert_eq!(map::find(&t, &k), Option::None)
-      assert_eq!(map::find_nonrec(&t, &k), Option::None)
+      assert_eq!(map::find(&t, &k), Option::None);
+      assert_eq!(map::find_nonrec(&t, &k), Option::None);
     }
   }
 }
