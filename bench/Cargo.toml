@@ -5,3 +5,4 @@ authors = ["Eric Stokes <letaris@gmail.com>"]
 
 [dependencies]
 immutable-avl = ">= 0.1"
+rand = ">= 0.3"

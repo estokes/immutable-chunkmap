@@ -1,5 +1,6 @@
 use avl;
 
+#[derive(Clone)]
 pub struct Map<K: Ord + Clone, V: Clone> {
   len: usize,
   root: avl::Tree<K, V>
@@ -31,6 +32,7 @@ pub fn remove<K, V>(t:&Map<K, V>, k: &K) -> Map<K,V>
 
 pub fn length<K, V>(t:&Map<K, V>) -> usize where K: Ord + Clone, V: Clone { t.len }
 
+#[allow(dead_code)]
 pub(crate) fn invariant<K, V>(t:&Map<K, V>) -> () where K: Ord + Clone, V: Clone {
   avl::invariant(&t.root, t.len)
 }
