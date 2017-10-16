@@ -1,0 +1,16 @@
+key and val i32
+
+mem use at 1e8 entries
+53.68 bytes/entry
+
+speed
+eric@Misato:~/Projects/rust-immutable-avl/bench$ target/release/bench 100000000
+add: 367781, find: 153691, remove: 397218
+eric@Misato:~/Projects/rust-immutable-avl/bench$ target/release/bench 10000000
+add: 23129, find: 8184, remove: 23774
+eric@Misato:~/Projects/rust-immutable-avl/bench$ target/release/bench 1000000
+add: 1541, find: 517, remove: 1569
+eric@Misato:~/Projects/rust-immutable-avl/bench$ target/release/bench 100000
+add: 105, find: 22, remove: 92
+eric@Misato:~/Projects/rust-immutable-avl/bench$ target/release/bench 10000
+add: 9, find: 1, remove: 7
