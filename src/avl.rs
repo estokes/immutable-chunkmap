@@ -12,111 +12,76 @@ use std::cmp::{Ordering, max, min};
    holes are not allowed; the None elements are always at the end.
 */
 mod elts {
+  extern crate arrayvec;
   use std::cmp::{Ordering};
+  use self::arrayvec::ArrayVec;
 
-  const size: usize = 4;
+  pub(super) const size: usize = 4;
 
-  type t<K, V> = [Option<(K, V)>; size];
+  pub(super) type t<K, V> = ArrayVec<[(K, V); size]>;
 
-  fn singleton<K: Ord + Clone, V: Clone>(k: &K, v: &V) -> t<K,V>
+  pub(super) fn singleton<K: Ord + Clone, V: Clone>(k: &K, v: &V) -> t<K,V>
   {
-    let mut t = [Option::None; size];
-    t[0] = Option::Some((k.clone(), v.clone()));
+    let mut t = ArrayVec::<[(K,V); size]>::new();
+    t[0] = (k.clone(), v.clone());
     t
   }
 
-  enum Loc {
+  pub(super) enum Loc {
     InRight,
     InLeft,
     NotPresent,
     Here(usize) // the index in the array where the equal element is
   }
 
-  fn find<K: Ord, V>(t: &t<K,V>, k: &K) -> Loc {
-    let res =
-      t.binary_search_by(|kv| {
-        match *kv {
-          Option::None => Ordering::Less,
-          Option::Some((ref tk, _)) => k.cmp(tk)
-        }
-      });
-    match res {
+  pub(super) fn find<K: Ord, V>(t: &t<K,V>, k: &K) -> Loc {
+    match t.binary_search_by(|&(ref tk, _)| k.cmp(tk)) {
       Result::Ok(i) => Loc::Here(i),
       Result::Err(i) =>
         if i == 0 { Loc::InLeft }
-        else if i >= size { Loc::InRight }
+        else if i >= t.len() { Loc::InRight }
         else { Loc::NotPresent }
     }
   }
 
-  fn ordering<K: Ord,V>(k0: (&K, &V), k1: (&K, &V)) -> Ordering {
-    match (k0, k1) {
-      (&Option::None, &Option::Some(_)) => Ordering::Greater,
-      (&Option::Some(_), &Option::None) => Ordering::Less,
-      (&Option::None, &Option::None) => Ordering::Equal,
-      (&Option::Some((k0, _)), &Option::Some((k1, _))) => k0.cmp(k1)
-    }
-  }
+  pub(super) fn ordering<K,V>(k0: &(K, V), k1: &(K, V)) -> Ordering
+    where K: Ord + Clone, V: Clone
+  { k0.0.cmp(&k1.0) }
 
-  fn add<K,V>(t: &t<K,V>, k: &K, v: &V, len: usize) 
+  pub(super) fn add<K,V>(t: &t<K,V>, k: &K, v: &V, len: usize) 
      -> Result<(t<K,V>, usize), Loc>
     where K: Ord + Clone, V: Clone
   {
     match find(t, k) {
       Loc::Here(i) => {
         let mut t = t.clone();
-        t[i] = Option::Some((k.clone(), v.clone()));
+        t[i] = (k.clone(), v.clone());
         Result::Ok((t, len))
       }
       loc @ Loc::NotPresent | loc @ Loc::InLeft | loc @ Loc::InRight =>
-        if !has_space(&t) { Result::Err(loc) } 
+        if t.len() == size { Result::Err(loc) } 
         else {
           let mut t = t.clone();
-          t[size - 1] = Option::Some((k.clone(), v.clone()));
+          t.push((k.clone(), v.clone()));
           t.sort_unstable_by(ordering);
           Result::Ok((t, len + 1))
         }
     }
   }
 
-  fn has_space(t: &t<_,_>) -> bool {
-    match t[size - 1] {
-      Option::None => true,
-      Option::Some(_) => false
-    }
-  }
-
-  fn is_empty(t: &t<_,_>) -> bool {
-    match t[0] {
-      Option::None => true,
-      Option::Some(_) => false
-    }
-  }
-
-  fn remove_elt_at<K,V>(t: &t<K,V>, i: usize) -> t<K,V> 
+  pub(super) fn remove_elt_at<K,V>(t: &t<K,V>, i: usize) -> t<K,V> 
     where K: Ord + Clone, V: Clone
   {
-    if i < 0 || i >= size { panic!("elts::remove_elt_at: index out of bounds") };
-    let mut res = t.clone();
-    res[i] = Option::None;
-    res.sort_unstable_by(ordering);
-    res
+    let mut t = t.clone();
+    t.pop_at(i);
+    t
   }
 
-  fn min_elt<'a,K,V>(t: &'a t<K,V>) -> Option<&'a (K,V)> { &t[0] }
-
-  fn max_elt<'a,K,V>(t: &'a t<K,V>) -> Option<&'a (K,V)> {
-    for i in (0..size).rev() {
-      match *t {
-        Option::None => (),
-        Option::Some(ref v) => return v
-      }
-    }
-    Option::None
-  }
+  pub(super) fn min_elt<'a,K,V>(t: &'a t<K,V>) -> Option<&'a (K,V)> { t.first() }
+  pub(super) fn max_elt<'a,K,V>(t: &'a t<K,V>) -> Option<&'a (K,V)> { t.last() }
 }
 
-#[derive (Clone)]
+#[derive(Clone)]
 pub(crate) struct Node<K: Ord + Clone, V: Clone> {
   elts: elts::t<K, V>,
   left: Tree<K, V>,
@@ -124,16 +89,18 @@ pub(crate) struct Node<K: Ord + Clone, V: Clone> {
   height: u16
 }
 
-#[derive (Clone)]
+#[derive(Clone)]
 pub(crate) enum Tree<K: Ord + Clone, V: Clone> {
   Empty,
-  Node(Rc<Node>)
+  Node(Rc<Node<K,V>>)
 }
 
 pub(crate) fn empty<K: Ord + Clone, V: Clone>() -> Tree<K, V> { Tree::Empty }
 
-fn height<K,V>(t: Tree<K,V>) {
-  match t {
+fn height<K,V>(t: &Tree<K,V>) -> u16
+  where K: Ord + Clone, V: Clone
+{
+  match *t {
     Tree::Empty => 0,
     Tree::Node(ref n) => n.height
   }
@@ -160,7 +127,7 @@ fn bal<K, V>(l: &Tree<K, V>, elts: &elts::t<K, V>, r: &Tree<K, V>) -> Tree<K, V>
         if height(&ln.left) >= height(&ln.right) {
           create(&ln.left, &ln.elts, &create(&ln.right, &elts, r))
         } else {
-          match *l.right {
+          match ln.right {
             Tree::Empty => panic!("tree heights wrong"),
             Tree::Node(ref lrn) =>
               create(&create(&ln.left, &ln.elts, &lrn.left),
@@ -194,19 +161,19 @@ pub(crate) fn add<K, V>(t: &Tree<K, V>, len: usize, k: &K, v: &V) -> (Tree<K, V>
   where K: Ord + Clone, V: Clone
 {
   match *t {
-    Tree::Empty => create(&Tree::Empty, elts::singleton(k, v), &Tree::Empty),
+    Tree::Empty => (create(&Tree::Empty, &elts::singleton(k, v), &Tree::Empty), len + 1),
     Tree::Node(ref tn) =>
-      match elts::add(&t.elts, k, v, len) {
-        Result::Ok(elts, len) => create(&tn.left, &elts, &tn.right),
+      match elts::add(&tn.elts, k, v, len) {
+        Result::Ok((elts, len)) => (create(&tn.left, &elts, &tn.right), len),
         Result::Err(elts::Loc::NotPresent) => panic!("add failed but key not present"),
         Result::Err(elts::Loc::Here(_)) => panic!("add failed but key is here"),
         Result::Err(elts::Loc::InLeft) => {
           let (l, len) = add(&tn.left, len, k, v);
-          (bal(&l, &tn.k, &tn.v, &tn.right), len)
+          (bal(&l, &tn.elts, &tn.right), len)
         }
         Result::Err(elts::Loc::InRight) => {
           let (r, len) = add(&tn.right, len, k, v);
-          (bal(&tn.left, &tn.k, &tn.v, &r), len)
+          (bal(&tn.left, &tn.elts, &r), len)
         }
       }
   }
@@ -261,7 +228,7 @@ pub(crate) fn remove<K, V>(t: &Tree<K,V>, len: usize, k: &K) -> (Tree<K,V>, usiz
         elts::Loc::NotPresent => create(&tn.left, &tn.elts, &tn.right),
         elts::Loc::Here(i) => {
           let elts = elts::remove_elt_at(&tn.elts, i);
-          if elts::is_empty(&elts) {
+          if elts.len() == 0 {
             (concat(&tn.left, &tn.right), len - 1)
           } else {
             create(&tn.left, &elts, &tn.right)

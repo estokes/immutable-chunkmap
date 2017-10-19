@@ -5,6 +5,7 @@ authors = ["Eric Stokes <letaris@gmail.com>"]
 publish = false
 
 [dependencies]
+arrayvec = ">= 0.4"
 
 [dev-dependencies]
 rand = ">= 0.3"
