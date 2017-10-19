@@ -100,6 +100,18 @@ mod elts {
     res.sort_unstable_by(ordering);
     res
   }
+
+  fn min_elt<'a,K,V>(t: &'a t<K,V>) -> Option<&'a (K,V)> { &t[0] }
+
+  fn max_elt<'a,K,V>(t: &'a t<K,V>) -> Option<&'a (K,V)> {
+    for i in (0..size).rev() {
+      match *t {
+        Option::None => (),
+        Option::Some(ref v) => return v
+      }
+    }
+    Option::None
+  }
 }
 
 #[derive (Clone)]
@@ -289,13 +301,29 @@ pub(crate) fn find<'a, K, V>(t: &'a Tree<K, V>, k: &K) -> Option<&'a V>
 pub(crate) fn invariant<K,V>(t: &Tree<K,V>, len: usize) -> ()
   where K: Ord + Clone, V: Clone
 {
-  fn in_range<K: Ord>(lower: Option<&K>, upper: Option<&K>, k: &K) -> bool {
+  fn in_range<K, V>(lower: Option<&K>, upper: Option<&K>, elts: &elts::t<K,V>) -> bool
+    where K: Ord + Clone, V: Clone
+  {
     (match lower {
       Option::None => true,
-      Option::Some(lower) => lower.cmp(k) == Ordering::Less })
+      Option::Some(lower) =>
+        elts.all(|(ref k, _)| lower.cmp(k) == Ordering::Less) })
       && (match upper {
         Option::None => true,
-        Option::Some(upper) => upper.cmp(k) == Ordering::Greater })
+        Option::Some(upper) =>
+          elts.all(|ref k, _| upper.cmp(k) == Ordering::Greater) })
+  }
+
+  fn sorted<K, V>(elts: &elts::t<K,V>) -> bool 
+    where K: Ord + Clone, V: Clone
+  {
+    for i in 0..(elts::size - 1) {
+      match elts::ordering(&elts[i], &elts[i + 1]) {
+        Ordering::Greater => return false,
+        Ordering::Less | Ordering::Equal => ()
+      }
+    }
+    true
   }
 
   fn check<K,V>(t: &Tree<K,V>, lower: Option<&K>, upper: Option<&K>, len: usize)
@@ -304,14 +332,11 @@ pub(crate) fn invariant<K,V>(t: &Tree<K,V>, len: usize) -> ()
   {
     match *t {
       Tree::Empty => (0, len),
-      Tree::Leaf(ref k, _) => {
-        if !in_range(lower, upper, k) { panic!("tree invariant violated") };
-        (1, len + 1)
-      }
       Tree::Node(ref tn) => {
-        if !in_range(lower, upper, &tn.k) { panic!("tree invariant violated") };
-        let (thl, len) = check(&tn.left, lower, Option::Some(&tn.k), len);
-        let (thr, len) = check(&tn.right, Option::Some(&tn.k), upper, len);
+        if !in_range(lower, upper, &tn.elts) { panic!("tree invariant violated") };
+        if not sorted(&tn.elts) { panic!("elements isn't sorted") };
+        let (thl, len) = check(&tn.left, lower, elts::min_elt(&tn.elts), len);
+        let (thr, len) = check(&tn.right, elts::max_elt(&tn.elts), upper, len);
         let th = 1 + max(thl, thr);
         let (hl, hr) = (height(&tn.left), height(&tn.right));
         if max(hl, hr) - min(hl, hr) > 2 { panic!("tree is unbalanced") };
