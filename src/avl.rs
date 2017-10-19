@@ -16,13 +16,13 @@ mod elts {
   use std::cmp::{Ordering};
   use self::arrayvec::ArrayVec;
 
-  pub(super) const size: usize = 4;
+  pub(super) const SIZE: usize = 4;
 
-  pub(super) type t<K, V> = ArrayVec<[(K, V); size]>;
+  pub(super) type T<K, V> = ArrayVec<[(K, V); SIZE]>;
 
-  pub(super) fn singleton<K: Ord + Clone, V: Clone>(k: &K, v: &V) -> t<K,V>
+  pub(super) fn singleton<K: Ord + Clone, V: Clone>(k: &K, v: &V) -> T<K,V>
   {
-    let mut t = ArrayVec::<[(K,V); size]>::new();
+    let mut t = ArrayVec::<[(K,V); SIZE]>::new();
     t[0] = (k.clone(), v.clone());
     t
   }
@@ -34,7 +34,7 @@ mod elts {
     Here(usize) // the index in the array where the equal element is
   }
 
-  pub(super) fn find<K: Ord, V>(t: &t<K,V>, k: &K) -> Loc {
+  pub(super) fn find<K: Ord, V>(t: &T<K,V>, k: &K) -> Loc {
     match t.binary_search_by(|&(ref tk, _)| k.cmp(tk)) {
       Result::Ok(i) => Loc::Here(i),
       Result::Err(i) =>
@@ -48,8 +48,8 @@ mod elts {
     where K: Ord + Clone, V: Clone
   { k0.0.cmp(&k1.0) }
 
-  pub(super) fn add<K,V>(t: &t<K,V>, k: &K, v: &V, len: usize) 
-     -> Result<(t<K,V>, usize), Loc>
+  pub(super) fn add<K,V>(t: &T<K,V>, k: &K, v: &V, len: usize) 
+     -> Result<(T<K,V>, usize), Loc>
     where K: Ord + Clone, V: Clone
   {
     match find(t, k) {
@@ -59,7 +59,7 @@ mod elts {
         Result::Ok((t, len))
       }
       loc @ Loc::NotPresent | loc @ Loc::InLeft | loc @ Loc::InRight =>
-        if t.len() == size { Result::Err(loc) } 
+        if t.len() == SIZE { Result::Err(loc) } 
         else {
           let mut t = t.clone();
           t.push((k.clone(), v.clone()));
@@ -69,7 +69,7 @@ mod elts {
     }
   }
 
-  pub(super) fn remove_elt_at<K,V>(t: &t<K,V>, i: usize) -> t<K,V> 
+  pub(super) fn remove_elt_at<K,V>(t: &T<K,V>, i: usize) -> T<K,V> 
     where K: Ord + Clone, V: Clone
   {
     let mut t = t.clone();
@@ -77,13 +77,13 @@ mod elts {
     t
   }
 
-  pub(super) fn min_elt<'a,K,V>(t: &'a t<K,V>) -> Option<&'a (K,V)> { t.first() }
-  pub(super) fn max_elt<'a,K,V>(t: &'a t<K,V>) -> Option<&'a (K,V)> { t.last() }
+  pub(super) fn min_elt<'a,K,V>(t: &'a T<K,V>) -> Option<&'a (K,V)> { t.first() }
+  pub(super) fn max_elt<'a,K,V>(t: &'a T<K,V>) -> Option<&'a (K,V)> { t.last() }
 }
 
 #[derive(Clone)]
 pub(crate) struct Node<K: Ord + Clone, V: Clone> {
-  elts: elts::t<K, V>,
+  elts: elts::T<K, V>,
   left: Tree<K, V>,
   right: Tree<K, V>,
   height: u16
@@ -106,7 +106,7 @@ fn height<K,V>(t: &Tree<K,V>) -> u16
   }
 }
 
-fn create<K, V>(l: &Tree<K, V>, elts: &elts::t<K, V>, r: &Tree<K, V>) -> Tree<K, V>
+fn create<K, V>(l: &Tree<K, V>, elts: &elts::T<K, V>, r: &Tree<K, V>) -> Tree<K, V>
   where K: Ord + Clone, V: Clone
 {
   let n = 
@@ -116,7 +116,7 @@ fn create<K, V>(l: &Tree<K, V>, elts: &elts::t<K, V>, r: &Tree<K, V>) -> Tree<K,
   Tree::Node(Rc::new(n))
 }
 
-fn bal<K, V>(l: &Tree<K, V>, elts: &elts::t<K, V>, r: &Tree<K, V>) -> Tree<K, V>
+fn bal<K, V>(l: &Tree<K, V>, elts: &elts::T<K, V>, r: &Tree<K, V>) -> Tree<K, V>
   where K: Ord + Clone, V: Clone
 {
   let (hl, hr) = (height(l), height(r));
@@ -179,7 +179,7 @@ pub(crate) fn add<K, V>(t: &Tree<K, V>, len: usize, k: &K, v: &V) -> (Tree<K, V>
   }
 }
 
-pub(crate) fn min_elts<'a, K, V>(t: &'a Tree<K, V>) -> Option<&'a elts::t<K,V>>
+pub(crate) fn min_elts<'a, K, V>(t: &'a Tree<K, V>) -> Option<&'a elts::T<K,V>>
   where K: Ord + Clone, V: Clone
 {
   match *t {
@@ -200,7 +200,7 @@ fn remove_min_elts<K, V>(t: &Tree<K,V>) -> Tree<K,V>
     Tree::Node(ref tn) =>
       match tn.left {
         Tree::Empty => tn.right.clone(),
-        Tree::Node(_) => bal(&remove_min_elts(&tn.left), &tn.k, &tn.v, &tn.right)
+        Tree::Node(_) => bal(&remove_min_elts(&tn.left), &tn.elts, &tn.right)
       }
   }
 }
@@ -225,22 +225,23 @@ pub(crate) fn remove<K, V>(t: &Tree<K,V>, len: usize, k: &K) -> (Tree<K,V>, usiz
     Tree::Empty => (Tree::Empty, len),
     Tree::Node(ref tn) =>
       match elts::find(&tn.elts, k) {
-        elts::Loc::NotPresent => create(&tn.left, &tn.elts, &tn.right),
+        elts::Loc::NotPresent => (create(&tn.left, &tn.elts, &tn.right), len),
         elts::Loc::Here(i) => {
           let elts = elts::remove_elt_at(&tn.elts, i);
+          let len = len - 1;
           if elts.len() == 0 {
-            (concat(&tn.left, &tn.right), len - 1)
+            (concat(&tn.left, &tn.right), len)
           } else {
-            create(&tn.left, &elts, &tn.right)
+            (create(&tn.left, &elts, &tn.right), len)
           }
         }
         elts::Loc::InLeft => {
           let (l, len) = remove(&tn.left, len, k);
-          (bal(&l, &tn.k, &tn.v, &tn.right), len)
+          (bal(&l, &tn.elts, &tn.right), len)
         }
         elts::Loc::InRight => {
           let (r, len) = remove(&tn.right, len, k);
-          (bal(&tn.left, &tn.k, &tn.v, &r), len)
+          (bal(&tn.left, &tn.elts, &r), len)
         }
       }
   }
@@ -253,7 +254,7 @@ pub(crate) fn find<'a, K, V>(t: &'a Tree<K, V>, k: &K) -> Option<&'a V>
     Tree::Empty => Option::None,
     Tree::Node(ref tn) =>
       match elts::find(&tn.elts, k) {
-        elts::Loc::Here(i) => Option::Some(&tn.elts[i]),
+        elts::Loc::Here(i) => Option::Some(&tn.elts[i].1),
         elts::Loc::NotPresent => Option::None,
         elts::Loc::InLeft => find(&tn.left, k),
         elts::Loc::InRight => find(&tn.right, k)
@@ -265,23 +266,23 @@ pub(crate) fn find<'a, K, V>(t: &'a Tree<K, V>, k: &K) -> Option<&'a V>
 pub(crate) fn invariant<K,V>(t: &Tree<K,V>, len: usize) -> ()
   where K: Ord + Clone, V: Clone
 {
-  fn in_range<K, V>(lower: Option<&K>, upper: Option<&K>, elts: &elts::t<K,V>) -> bool
+  fn in_range<K, V>(lower: Option<&K>, upper: Option<&K>, elts: &elts::T<K,V>) -> bool
     where K: Ord + Clone, V: Clone
   {
     (match lower {
       Option::None => true,
       Option::Some(lower) =>
-        elts.all(|(ref k, _)| lower.cmp(k) == Ordering::Less) })
+        elts.into_iter().all(|&(ref k, _)| lower.cmp(k) == Ordering::Less) })
       && (match upper {
         Option::None => true,
         Option::Some(upper) =>
-          elts.all(|ref k, _| upper.cmp(k) == Ordering::Greater) })
+          elts.into_iter().all(|&(ref k, _)| upper.cmp(k) == Ordering::Greater) })
   }
 
-  fn sorted<K, V>(elts: &elts::t<K,V>) -> bool 
+  fn sorted<K, V>(elts: &elts::T<K,V>) -> bool 
     where K: Ord + Clone, V: Clone
   {
-    for i in 0..(elts::size - 1) {
+    for i in 0..(elts::SIZE - 1) {
       match elts::ordering(&elts[i], &elts[i + 1]) {
         Ordering::Greater => return false,
         Ordering::Less | Ordering::Equal => ()
@@ -299,8 +300,10 @@ pub(crate) fn invariant<K,V>(t: &Tree<K,V>, len: usize) -> ()
       Tree::Node(ref tn) => {
         if !in_range(lower, upper, &tn.elts) { panic!("tree invariant violated") };
         if !sorted(&tn.elts) { panic!("elements isn't sorted") };
-        let (thl, len) = check(&tn.left, lower, elts::min_elt(&tn.elts), len);
-        let (thr, len) = check(&tn.right, elts::max_elt(&tn.elts), upper, len);
+        let (thl, len) = 
+          check(&tn.left, lower, elts::min_elt(&tn.elts).map(|&(ref k, _)| k), len);
+        let (thr, len) = 
+          check(&tn.right, elts::max_elt(&tn.elts).map(|&(ref k, _)| k), upper, len);
         let th = 1 + max(thl, thr);
         let (hl, hr) = (height(&tn.left), height(&tn.right));
         if max(hl, hr) - min(hl, hr) > 2 { panic!("tree is unbalanced") };

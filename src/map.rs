@@ -7,7 +7,7 @@ pub struct Map<K: Ord + Clone, V: Clone> {
 }
 
 pub fn empty<K, V>() -> Map<K, V> where K: Ord + Clone, V: Clone {
-  Map { len: 0, root: avl::Tree::Empty }
+  Map { len: 0, root: avl::empty() }
 }
 
 pub fn add<K, V>(t:&Map<K, V>, k: &K, v: &V) -> Map<K, V>
