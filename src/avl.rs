@@ -12,9 +12,11 @@ use std::cmp::{Ordering, max, min};
    holes are not allowed; the None elements are always at the end.
 */
 mod elts {
-  const size 4;
+  use std::cmp::{Ordering};
 
-  type t<K, V> = [Option<(K, V)>; size]
+  const size: usize = 4;
+
+  type t<K, V> = [Option<(K, V)>; size];
 
   fn singleton<K: Ord + Clone, V: Clone>(k: &K, v: &V) -> t<K,V>
   {
@@ -35,7 +37,7 @@ mod elts {
       t.binary_search_by(|kv| {
         match *kv {
           Option::None => Ordering::Less,
-          Option::Some((ref tk), _) => k.cmp(tk)
+          Option::Some((ref tk, _)) => k.cmp(tk)
         }
       });
     match res {
@@ -56,23 +58,23 @@ mod elts {
     }
   }
 
-  fn add<K,V>(t: &t<K,V>, k: &K, v: &v, len: usize) 
-     -> Option<(t<K,V>, usize)>
+  fn add<K,V>(t: &t<K,V>, k: &K, v: &V, len: usize) 
+     -> Result<(t<K,V>, usize), Loc>
     where K: Ord + Clone, V: Clone
   {
     match find(t, k) {
       Loc::Here(i) => {
         let mut t = t.clone();
         t[i] = Option::Some((k.clone(), v.clone()));
-        Option::Some(t, len)
+        Result::Ok((t, len))
       }
-      Loc::NotPresent | Loc::InLeft | Loc::InRight =>
-        if !has_space(&t) { Option::None } 
+      loc @ Loc::NotPresent | loc @ Loc::InLeft | loc @ Loc::InRight =>
+        if !has_space(&t) { Result::Err(loc) } 
         else {
           let mut t = t.clone();
-          t[size - 1] = Option::Some((k.clone(), v.clone()))
+          t[size - 1] = Option::Some((k.clone(), v.clone()));
           t.sort_unstable_by(ordering);
-          Option::Some((t, len + 1))
+          Result::Ok((t, len + 1))
         }
     }
   }
@@ -130,7 +132,7 @@ pub(crate) enum Tree<K: Ord + Clone, V: Clone> {
 
 pub(crate) fn empty<K: Ord + Clone, V: Clone>() -> Tree<K, V> { Tree::Empty }
 
-fn height(t: Tree<K,V>) {
+fn height<K,V>(t: Tree<K,V>) {
   match t {
     Tree::Empty => 0,
     Tree::Node(ref n) => n.height
@@ -143,7 +145,7 @@ fn create<K, V>(l: &Tree<K, V>, elts: &elts::t<K, V>, r: &Tree<K, V>) -> Tree<K,
   let n = 
     Node { elts: elts.clone(), 
            left: l.clone(), right: r.clone(), 
-           height: 1 + max(height(l), height(r) };
+           height: 1 + max(height(l), height(r)) };
   Tree::Node(Rc::new(n))
 }
 
@@ -193,25 +195,20 @@ pub(crate) fn add<K, V>(t: &Tree<K, V>, len: usize, k: &K, v: &V) -> (Tree<K, V>
 {
   match *t {
     Tree::Empty => create(&Tree::Empty, elts::singleton(k, v), &Tree::Empty),
-    Tree::Node(ref tn) => {
-      let res = elts::find(&t.elts, k);
-      match elts::add(&t.elts, k, v, res, len) {
-        Option::Some(elts, len) => create(&tn.left, &elts, &tn.right),
-        Option::None => {
-          match elts::localize(res) {
-            Loc::NotPresent => panic!("add failed but key not present"),
-            Loc::InLeft => {
-              let (l, len) = add(&tn.left, len, k, v);
-              (bal(&l, &tn.k, &tn.v, &tn.right), len)
-            }
-            Loc:InRight => {
-              let (r, len) = add(&tn.right, len, k, v);
-              (bal(&tn.left, &tn.k, &tn.v, &r), len)
-            }
-          }
+    Tree::Node(ref tn) =>
+      match elts::add(&t.elts, k, v, len) {
+        Result::Ok(elts, len) => create(&tn.left, &elts, &tn.right),
+        Result::Err(elts::Loc::NotPresent) => panic!("add failed but key not present"),
+        Result::Err(elts::Loc::Here(_)) => panic!("add failed but key is here"),
+        Result::Err(elts::Loc::InLeft) => {
+          let (l, len) = add(&tn.left, len, k, v);
+          (bal(&l, &tn.k, &tn.v, &tn.right), len)
+        }
+        Result::Err(elts::Loc::InRight) => {
+          let (r, len) = add(&tn.right, len, k, v);
+          (bal(&tn.left, &tn.k, &tn.v, &r), len)
         }
       }
-    }
   }
 }
 
@@ -223,7 +220,7 @@ pub(crate) fn min_elts<'a, K, V>(t: &'a Tree<K, V>) -> Option<&'a elts::t<K,V>>
     Tree::Node(ref tn) => 
       match tn.left {
         Tree::Empty => Option::Some(&tn.elts),
-        Tree::Node(_) => min_elt(&tn.left)
+        Tree::Node(_) => min_elts(&tn.left)
       }
   }
 }
@@ -260,7 +257,7 @@ pub(crate) fn remove<K, V>(t: &Tree<K,V>, len: usize, k: &K) -> (Tree<K,V>, usiz
   match *t {
     Tree::Empty => (Tree::Empty, len),
     Tree::Node(ref tn) =>
-      match elts::localize(elts::index_of(&tn.elts, k)) {
+      match elts::find(&tn.elts, k) {
         elts::Loc::NotPresent => create(&tn.left, &tn.elts, &tn.right),
         elts::Loc::Here(i) => {
           let elts = elts::remove_elt_at(&tn.elts, i);
@@ -334,7 +331,7 @@ pub(crate) fn invariant<K,V>(t: &Tree<K,V>, len: usize) -> ()
       Tree::Empty => (0, len),
       Tree::Node(ref tn) => {
         if !in_range(lower, upper, &tn.elts) { panic!("tree invariant violated") };
-        if not sorted(&tn.elts) { panic!("elements isn't sorted") };
+        if !sorted(&tn.elts) { panic!("elements isn't sorted") };
         let (thl, len) = check(&tn.left, lower, elts::min_elt(&tn.elts), len);
         let (thr, len) = check(&tn.right, elts::max_elt(&tn.elts), upper, len);
         let th = 1 + max(thl, thr);
