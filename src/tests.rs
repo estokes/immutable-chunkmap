@@ -48,7 +48,6 @@ fn test_find_int_rand() {
   let (t, _) = add(&v);
   for k in &v {
     assert_eq!(*avl::find(&t, &k).unwrap(), k);
-    assert_eq!(*avl::find_nonrec(&t, &k).unwrap(), k);
   }
 }
 
@@ -58,13 +57,11 @@ fn test_int_add_remove_rand() {
   let (mut t, mut len) = add(&v);
   for k in &v {
     assert_eq!(*avl::find(&t, &k).unwrap(), k);
-    assert_eq!(*avl::find_nonrec(&t, &k).unwrap(), k);
     let (tt, tlen) = avl::remove(&t, len, &k);
     t = tt;
     len = tlen;
     avl::invariant(&t, len);
     assert_eq!(avl::find(&t, &k), Option::None);
-    assert_eq!(avl::find_nonrec(&t, &k), Option::None);
   }
 }
 
@@ -79,7 +76,6 @@ fn test_int_map_rand() {
     i = i + 1;
     for k in &v[0..i] { 
       assert_eq!(*map::find(&t, &k).unwrap(), k);
-      assert_eq!(*map::find_nonrec(&t, &k).unwrap(), k)
     }
   }
   i = 0;
@@ -89,7 +85,6 @@ fn test_int_map_rand() {
     i = i + 1;
     for k in &v[0..i] {
       assert_eq!(map::find(&t, &k), Option::None);
-      assert_eq!(map::find_nonrec(&t, &k), Option::None);
     }
   }
 }

@@ -27,7 +27,7 @@ fn bench_add(len: usize) -> (map::Map<i32, i32>, Vec<i32>, Duration) {
 fn bench_find(m: &map::Map<i32, i32>, d: &Vec<i32>) -> Duration {
     let begin = Instant::now();
     for kv in d {
-        map::find_nonrec(m, &kv).unwrap();
+        map::find(m, &kv).unwrap();
     }
     begin.elapsed()
 }
