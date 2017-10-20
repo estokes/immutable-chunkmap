@@ -18,7 +18,7 @@ mod elts {
   use std::fmt::Debug;
   use self::arrayvec::ArrayVec;
 
-  pub(crate) const SIZE: usize = 7;
+  pub(crate) const SIZE: usize = 6;
 
   #[derive(Clone, Debug)]
   pub(crate) struct T<K: Ord + Clone + Debug, V: Clone + Debug>(pub ArrayVec<[(K, V); SIZE]>);
@@ -38,6 +38,7 @@ mod elts {
     Here(usize) // the index in the array where the equal element is
   }
 
+  /*
   pub(super) fn find<K, V>(t: &T<K,V>, k: &K) -> Loc 
     where K: Ord + Clone + Debug, V: Clone + Debug
   {
@@ -48,6 +49,22 @@ mod elts {
         else if i >= t.0.len() { Loc::InRight }
         else { Loc::NotPresent(i) }
     }
+  }
+  */
+
+  pub(super) fn find<K, V>(t: &T<K,V>, k: &K) -> Loc 
+    where K: Ord + Clone + Debug, V: Clone + Debug
+  {
+    for i in 0..t.0.len() {
+      match k.cmp(&t.0[i].0) {
+        Ordering::Equal => return Loc::Here(i),
+        Ordering::Greater => (),
+        Ordering::Less =>
+          if i == 0 { return Loc::InLeft }
+          else { return Loc::NotPresent(i) }
+      }
+    }
+    Loc::InRight
   }
 
   pub(super) fn ordering<K,V>(k0: &(K, V), k1: &(K, V)) -> Ordering
