@@ -34,19 +34,19 @@ mod elts {
   pub(super) enum Loc {
     InRight,
     InLeft,
-    NotPresent,
+    NotPresent(usize), // the index in the array where the element would be if it was present
     Here(usize) // the index in the array where the equal element is
   }
 
   pub(super) fn find<K, V>(t: &T<K,V>, k: &K) -> Loc 
     where K: Ord + Clone + Debug, V: Clone + Debug
   {
-    match t.0.binary_search_by(|&(ref tk, _)| k.cmp(tk)) {
+    match t.0.binary_search_by(|&(ref tk, _)| tk.cmp(k)) {
       Result::Ok(i) => Loc::Here(i),
       Result::Err(i) =>
         if i == 0 { Loc::InLeft }
         else if i >= t.0.len() { Loc::InRight }
-        else { Loc::NotPresent }
+        else { Loc::NotPresent(i) }
     }
   }
 
@@ -54,23 +54,40 @@ mod elts {
     where K: Ord + Clone + Debug, V: Clone + Debug
   { k0.0.cmp(&k1.0) }
 
+  // add to T, if possible. Otherwise say where in the tree the
+  // element should be added. Possibly if add places the element in
+  // the middle of a full vector, then there will be overflow that must
+  // be added right
   pub(super) fn add<K,V>(t: &T<K,V>, k: &K, v: &V, len: usize) 
-     -> Result<(T<K,V>, usize), Loc>
+     -> Result<(T<K,V>, Option<(K,V)>, usize), Loc>
     where K: Ord + Clone + Debug, V: Clone + Debug
   {
     match find(t, k) {
       Loc::Here(i) => {
         let mut t = t.clone();
         t.0[i] = (k.clone(), v.clone());
-        Result::Ok((t, len))
+        Result::Ok((t, Option::None, len))
       }
-      loc @ Loc::NotPresent | loc @ Loc::InLeft | loc @ Loc::InRight =>
+      Loc::NotPresent(i) => 
+        if t.0.len() < SIZE {
+          let mut t = t.clone();
+          t.0.insert(i, (k.clone(), v.clone()));
+          Result::Ok((t, Option::None, len + 1))
+        } else {
+          // we need to add it here, but to do that we have
+          // to take an element out, so we return that
+          let mut t = t.clone();
+          let overflow = t.0.pop().unwrap().clone();
+          t.0.push((k.clone(), v.clone()));
+          Result::Ok((t, Option::Some(overflow), len))
+        },
+      loc @ Loc::InLeft | loc @ Loc::InRight =>
         if t.0.len() == SIZE { Result::Err(loc) } 
         else {
           let mut t = t.clone();
           t.0.push((k.clone(), v.clone()));
           t.0.sort_unstable_by(ordering);
-          Result::Ok((t, len + 1))
+          Result::Ok((t, Option::None, len + 1))
         }
     }
   }
@@ -176,8 +193,13 @@ pub(crate) fn add<K, V>(t: &Tree<K, V>, len: usize, k: &K, v: &V) -> (Tree<K, V>
     Tree::Empty => (create(&Tree::Empty, &elts::singleton(k, v), &Tree::Empty), len + 1),
     Tree::Node(ref tn) =>
       match elts::add(&tn.elts, k, v, len) {
-        Result::Ok((elts, len)) => (create(&tn.left, &elts, &tn.right), len),
-        Result::Err(elts::Loc::NotPresent) => panic!("add failed but key not present"),
+        Result::Ok((elts, Option::None, len)) => 
+          (create(&tn.left, &elts, &tn.right), len),
+        Result::Ok((elts, Option::Some((ovk, ovv)), len)) => {
+          let (r, len) = add(&tn.right, len, &ovk, &ovv);
+          (bal(&tn.left, &elts, &r), len)
+        }
+        Result::Err(elts::Loc::NotPresent(_)) => panic!("add failed but key not present"),
         Result::Err(elts::Loc::Here(_)) => panic!("add failed but key is here"),
         Result::Err(elts::Loc::InLeft) => {
           let (l, len) = add(&tn.left, len, k, v);
@@ -237,7 +259,7 @@ pub(crate) fn remove<K, V>(t: &Tree<K,V>, len: usize, k: &K) -> (Tree<K,V>, usiz
     Tree::Empty => (Tree::Empty, len),
     Tree::Node(ref tn) =>
       match elts::find(&tn.elts, k) {
-        elts::Loc::NotPresent => (create(&tn.left, &tn.elts, &tn.right), len),
+        elts::Loc::NotPresent(_) => (create(&tn.left, &tn.elts, &tn.right), len),
         elts::Loc::Here(i) => {
           let elts = elts::remove_elt_at(&tn.elts, i);
           let len = len - 1;
@@ -267,7 +289,7 @@ pub(crate) fn find<'a, K, V>(t: &'a Tree<K, V>, k: &K) -> Option<&'a V>
     Tree::Node(ref tn) =>
       match elts::find(&tn.elts, k) {
         elts::Loc::Here(i) => Option::Some(&tn.elts.0[i].1),
-        elts::Loc::NotPresent => Option::None,
+        elts::Loc::NotPresent(_) => Option::None,
         elts::Loc::InLeft => find(&tn.left, k),
         elts::Loc::InRight => find(&tn.right, k)
       }
@@ -319,9 +341,9 @@ pub(crate) fn invariant<K,V>(t: &Tree<K,V>, len: usize) -> ()
         };
         if !sorted(&tn.elts) { panic!("elements isn't sorted") };
         let (thl, len) = 
-          check(&tn.left, lower, elts::min_elt(&tn.elts).map(|&(ref k, _)| k), len);
+          check(&tn.left, lower, elts::max_elt(&tn.elts).map(|&(ref k, _)| k), len);
         let (thr, len) = 
-          check(&tn.right, elts::max_elt(&tn.elts).map(|&(ref k, _)| k), upper, len);
+          check(&tn.right, elts::min_elt(&tn.elts).map(|&(ref k, _)| k), upper, len);
         let th = 1 + max(thl, thr);
         let (hl, hr) = (height(&tn.left), height(&tn.right));
         if max(hl, hr) - min(hl, hr) > 2 { panic!("tree is unbalanced") };
@@ -334,6 +356,7 @@ pub(crate) fn invariant<K,V>(t: &Tree<K,V>, len: usize) -> ()
     }
   }
 
+  println!("{:?}", t);
   let (_height, tlen) = check(t, Option::None, Option::None, 0);
   if len != tlen { panic!("len is wrong {} vs {}", len, tlen) }
 }
