@@ -38,20 +38,6 @@ mod elts {
     Here(usize) // the index in the array where the equal element is
   }
 
-  /*
-  pub(super) fn find<K, V>(t: &T<K,V>, k: &K) -> Loc 
-    where K: Ord + Clone + Debug, V: Clone + Debug
-  {
-    match t.0.binary_search_by(|&(ref tk, _)| tk.cmp(k)) {
-      Result::Ok(i) => Loc::Here(i),
-      Result::Err(i) =>
-        if i == 0 { Loc::InLeft }
-        else if i >= t.0.len() { Loc::InRight }
-        else { Loc::NotPresent(i) }
-    }
-  }
-  */
-
   pub(super) fn find<K, V>(t: &T<K,V>, k: &K) -> Loc 
     where K: Ord + Clone + Debug, V: Clone + Debug
   {
@@ -304,9 +290,9 @@ pub(crate) fn remove<K, V>(t: &Tree<K,V>, len: usize, k: &K) -> (Tree<K,V>, usiz
 pub(crate) fn find<'a, K, V>(t: &'a Tree<K, V>, k: &K) -> Option<&'a V>
   where K: Ord + Clone + Debug, V: Clone + Debug
 {
-  match *t {
-    Tree::Empty => Option::None,
-    Tree::Node(ref tn) =>
+  match t {
+    &Tree::Empty => Option::None,
+    &Tree::Node(ref tn) =>
       match elts::find(&tn.elts, k) {
         elts::Loc::Here(i) => Option::Some(&tn.elts.0[i].1),
         elts::Loc::NotPresent(_) => Option::None,
