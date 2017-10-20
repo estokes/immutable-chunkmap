@@ -28,24 +28,23 @@ fn randvec<T: Rand>(len: usize) -> Vec<T> {
 
 #[test]
 fn test_add_int_seq_asc() {
-  let size = 100;
+  let size = 10000;
   let (_, len) = add(0..size);
   if len != size { panic!("length is wrong expected 10000 got {}", len) }
 }
 
 #[test]
 fn test_add_int_seq_dec() {
-  let size = 100;
+  let size = 10000;
   let (_, len) = add((0..size).rev());
   if len != size {panic!("length is wrong expected 10000 got {}", len)}
 }
 
 #[test]
 fn test_add_int_rand() {
-  add(randvec::<i32>(16)); ()
+  add(randvec::<i32>(10000)); ()
 }
 
-/*
 #[test]
 fn test_find_int_rand() {
   let v = randvec::<i32>(10000);
@@ -71,7 +70,7 @@ fn test_int_add_remove_rand() {
 
 #[test]
 fn test_int_map_rand() {
-  let v = randvec::<i32>(4000);
+  let v = randvec::<i32>(2000);
   let mut t = map::empty();
   let mut i = 0;
   for k in &v {
@@ -92,4 +91,3 @@ fn test_int_map_rand() {
     }
   }
 }
-*/

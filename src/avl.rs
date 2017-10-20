@@ -18,7 +18,7 @@ mod elts {
   use std::fmt::Debug;
   use self::arrayvec::ArrayVec;
 
-  pub(crate) const SIZE: usize = 4;
+  pub(crate) const SIZE: usize = 7;
 
   #[derive(Clone, Debug)]
   pub(crate) struct T<K: Ord + Clone + Debug, V: Clone + Debug>(pub ArrayVec<[(K, V); SIZE]>);
@@ -85,8 +85,11 @@ mod elts {
         if t.0.len() == SIZE { Result::Err(loc) } 
         else {
           let mut t = t.clone();
-          t.0.push((k.clone(), v.clone()));
-          t.0.sort_unstable_by(ordering);
+          match loc {
+            Loc::InLeft => t.0.insert(0, (k.clone(), v.clone())),
+            Loc::InRight => t.0.push((k.clone(), v.clone())),
+            _ => panic!("impossible")
+          };
           Result::Ok((t, Option::None, len + 1))
         }
     }
@@ -356,7 +359,7 @@ pub(crate) fn invariant<K,V>(t: &Tree<K,V>, len: usize) -> ()
     }
   }
 
-  println!("{:?}", t);
+  //println!("{:?}", t);
   let (_height, tlen) = check(t, Option::None, Option::None, 0);
   if len != tlen { panic!("len is wrong {} vs {}", len, tlen) }
 }
