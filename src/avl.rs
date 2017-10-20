@@ -78,7 +78,7 @@ mod elts {
           // to take an element out, so we return that
           let mut t = t.clone();
           let overflow = t.0.pop().unwrap().clone();
-          t.0.push((k.clone(), v.clone()));
+          t.0.insert(i, (k.clone(), v.clone()));
           Result::Ok((t, Option::Some(overflow), len))
         },
       loc @ Loc::InLeft | loc @ Loc::InRight =>
