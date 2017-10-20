@@ -9,13 +9,13 @@ use std::fmt::Debug;
 fn add<I, T>(r: I) -> (avl::Tree<T, T>, usize)
   where I: IntoIterator<Item=T>, T: Ord + Clone + Debug
 {
-  let mut t = avl::empty();
+  let mut t = avl::Tree::new();
   let mut len = 0;
   for i in r {
-    let (tt, tlen) = avl::add(&t, len, &i, &i);
+    let (tt, tlen) = t.add(len, &i, &i);
     t = tt;
     len = tlen;
-    avl::invariant(&t, len);
+    t.invariant(len);
   }
   (t, len)
 }
@@ -50,7 +50,7 @@ fn test_find_int_rand() {
   let v = randvec::<i32>(10000);
   let (t, _) = add(&v);
   for k in &v {
-    assert_eq!(*avl::find(&t, &k).unwrap(), k);
+    assert_eq!(*t.find(&k).unwrap(), k);
   }
 }
 
@@ -59,35 +59,35 @@ fn test_int_add_remove_rand() {
   let v = randvec::<i32>(7000);
   let (mut t, mut len) = add(&v);
   for k in &v {
-    assert_eq!(*avl::find(&t, &k).unwrap(), k);
-    let (tt, tlen) = avl::remove(&t, len, &k);
+    assert_eq!(*t.find(&k).unwrap(), k);
+    let (tt, tlen) = t.remove(len, &k);
     t = tt;
     len = tlen;
-    avl::invariant(&t, len);
-    assert_eq!(avl::find(&t, &k), Option::None);
+    t.invariant(len);
+    assert_eq!(t.find(&k), Option::None);
   }
 }
 
 #[test]
 fn test_int_map_rand() {
   let v = randvec::<i32>(2000);
-  let mut t = map::empty();
+  let mut t = map::Map::new();
   let mut i = 0;
   for k in &v {
-    t = map::add(&t, &k, &k);
-    map::invariant(&t);
+    t = t.add(&k, &k);
+    t.invariant();
     i = i + 1;
     for k in &v[0..i] { 
-      assert_eq!(*map::find(&t, &k).unwrap(), k);
+      assert_eq!(*t.find(&k).unwrap(), k);
     }
   }
   i = 0;
   for k in &v {
-    t = map::remove(&t, &k);
-    map::invariant(&t);
+    t = t.remove(&k);
+    t.invariant();
     i = i + 1;
     for k in &v[0..i] {
-      assert_eq!(map::find(&t, &k), Option::None);
+      assert_eq!(t.find(&k), Option::None);
     }
   }
 }

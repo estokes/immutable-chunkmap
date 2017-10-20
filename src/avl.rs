@@ -41,16 +41,19 @@ impl<K,V> Elts<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
       Ordering::Greater => Loc::InRight,
       Ordering::Equal => Loc::Here(len - 1),
       Ordering::Less => {
-        for i in 0..(len - 1) {
-          match k.cmp(&self.0[i].0) {
-            Ordering::Equal => return Loc::Here(i),
-            Ordering::Greater => (),
-            Ordering::Less =>
-              if i == 0 { return Loc::InLeft }
-              else { return Loc::NotPresent(i) }
+        if len == 1 { return Loc::InLeft }
+        else {
+          for i in 0..(len - 1) {
+            match k.cmp(&self.0[i].0) {
+              Ordering::Equal => return Loc::Here(i),
+              Ordering::Greater => (),
+              Ordering::Less =>
+                if i == 0 { return Loc::InLeft }
+                else { return Loc::NotPresent(i) }
+            }
           }
         }
-        panic!("already checked the last element!")
+        return Loc::NotPresent(len - 1)
       }
     }
   }
