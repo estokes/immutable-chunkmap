@@ -18,7 +18,7 @@ mod elts {
   use std::fmt::Debug;
   use self::arrayvec::ArrayVec;
 
-  pub(crate) const SIZE: usize = 6;
+  pub(crate) const SIZE: usize = 8;
 
   #[derive(Clone, Debug)]
   pub(crate) struct T<K: Ord + Clone + Debug, V: Clone + Debug>(pub ArrayVec<[(K, V); SIZE]>);
