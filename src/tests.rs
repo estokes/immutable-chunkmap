@@ -81,6 +81,7 @@ fn test_int_map_rand() {
       assert_eq!(*t.find(&k).unwrap(), k);
     }
   }
+  
   i = 0;
   for k in &v {
     t = t.remove(&k);

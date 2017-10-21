@@ -14,30 +14,24 @@ fn randvec<T: Rand>(len: usize) -> Vec<T> {
   v
 }
 
-fn bench_add(len: usize) -> (map::Map<i32, i32>, Vec<i32>, Duration) {
-    let mut m = map::empty();
-    let data = randvec::<i32>(len);
+fn bench_add(len: usize) -> (map::Map<i64, i64>, Vec<i64>, Duration) {
+    let mut m = map::Map::new();
+    let data = randvec::<i64>(len);
     let begin = Instant::now();
-    for kv in &data {
-        m = map::add(&m, kv, kv);
-    }
+    for kv in &data { m = m.add(kv, kv) }
     (m, data, begin.elapsed())
 }
 
-fn bench_find(m: &map::Map<i32, i32>, d: &Vec<i32>) -> Duration {
+fn bench_find(m: &map::Map<i64, i64>, d: &Vec<i64>) -> Duration {
     let begin = Instant::now();
-    for kv in d {
-        map::find(m, &kv).unwrap();
-    }
+    for kv in d { m.find(&kv).unwrap(); }
     begin.elapsed()
 }
 
-fn bench_remove(m: map::Map<i32, i32>, d: &Vec<i32>) -> Duration {
+fn bench_remove(m: map::Map<i64, i64>, d: &Vec<i64>) -> Duration {
     let mut m = m;
     let begin = Instant::now();
-    for kv in d {
-        m = map::remove(&m, &kv);
-    }
+    for kv in d { m = m.remove(&kv) }
     begin.elapsed()
 }
 
@@ -50,6 +44,7 @@ fn main() {
     let size =
         if args.len() == 2 { args[1].parse::<usize>().unwrap() }
         else { 10000 };
+    map::print_size();
     let (m, d, add) = bench_add(size);
     let find = bench_find(&m, &d);
     let rm = bench_remove(m, &d);

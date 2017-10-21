@@ -27,3 +27,5 @@ impl<K,V> Map<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
   #[allow(dead_code)]
   pub(crate) fn invariant(&self) -> () { self.root.invariant(self.len) }
 }
+
+pub fn print_size() { avl::print_size(); }
