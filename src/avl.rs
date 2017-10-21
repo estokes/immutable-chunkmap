@@ -38,23 +38,22 @@ impl<K,V> Elts<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
   // the algorithm is still log(N), we're just playing with constants.
   fn find(&self, k: &K) -> Loc {
     let len = self.0.len();
-    match k.cmp(&self.0[len - 1].0) {
-      Ordering::Greater => Loc::InRight,
-      Ordering::Equal => Loc::Here(len - 1),
-      Ordering::Less => {
-        if len == 1 { return Loc::InLeft }
-        else {
-          for i in 0..(len - 1) {
-            match k.cmp(&self.0[i].0) {
-              Ordering::Equal => return Loc::Here(i),
-              Ordering::Greater => (),
-              Ordering::Less =>
-                if i == 0 { return Loc::InLeft }
-                else { return Loc::NotPresent(i) }
-            }
+    let first = k.cmp(&self.0[0].0);
+    let last = k.cmp(&self.0[len - 1].0);
+    match (first, last) {
+      (Ordering::Equal, _) => Loc::Here(0),
+      (_, Ordering::Equal) => Loc::Here(len - 1),
+      (Ordering::Less, _) => Loc::InLeft,
+      (_, Ordering::Greater) => Loc::InRight,
+      (_, _) => {
+        for i in 1..(len - 1) {
+          match k.cmp(&self.0[i].0) {
+            Ordering::Equal => return Loc::Here(i),
+            Ordering::Greater => (),
+            Ordering::Less => return Loc::NotPresent(i)
           }
         }
-        return Loc::NotPresent(len - 1)
+        Loc::NotPresent(len - 1)
       }
     }
   }
