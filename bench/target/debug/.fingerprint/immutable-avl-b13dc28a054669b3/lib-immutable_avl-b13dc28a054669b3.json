@@ -1,0 +1,1 @@
+{"rustc":4122851168452794038,"features":"[]","target":18245247128004439680,"profile":731176819336294830,"deps":[["arrayvec v0.4.3",5835963453158309789]],"local":[{"MtimeBased":[[1509121566,906493555],"/home/eric/Projects/rust-immutable-avl/bench/target/debug/.fingerprint/immutable-avl-b13dc28a054669b3/dep-lib-immutable_avl-b13dc28a054669b3"]}],"rustflags":[]}

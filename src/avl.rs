@@ -1,5 +1,5 @@
 extern crate arrayvec;
-use std::rc::Rc;
+use std::sync::Arc;
 use std::cmp::{Ordering, max, min};
 use std::fmt::Debug;
 use std::mem;
@@ -45,16 +45,11 @@ impl<K,V> Elts<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
       (_, Ordering::Equal) => Loc::Here(len - 1),
       (Ordering::Less, _) => Loc::InLeft,
       (_, Ordering::Greater) => Loc::InRight,
-      (_, _) => {
-        for i in 1..(len - 1) {
-          match k.cmp(&self.0[i].0) {
-            Ordering::Equal => return Loc::Here(i),
-            Ordering::Greater => (),
-            Ordering::Less => return Loc::NotPresent(i)
-          }
+      (_, _) =>
+        match self.0.binary_search_by(|&(ref k1, _)| k1.cmp(k)) {
+          Result::Ok(i) => Loc::Here(i),
+          Result::Err(i) => Loc::NotPresent(i)
         }
-        Loc::NotPresent(len - 1)
-      }
     }
   }
 
@@ -119,7 +114,7 @@ pub(crate) struct Node<K: Ord + Clone + Debug, V: Clone + Debug> {
 #[derive(Clone, Debug)]
 pub(crate) enum Tree<K: Ord + Clone + Debug, V: Clone + Debug> {
   Empty,
-  Node(Rc<Node<K,V>>)
+  Node(Arc<Node<K,V>>)
 }
 
 impl<K,V> Tree<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
@@ -137,7 +132,7 @@ impl<K,V> Tree<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
       Node { elts: elts.clone(), 
             left: l.clone(), right: r.clone(), 
             height: 1 + max(l.height(), r.height()) };
-    Tree::Node(Rc::new(n))
+    Tree::Node(Arc::new(n))
   }
 
   fn bal(l: &Tree<K, V>, elts: &Elts<K, V>, r: &Tree<K, V>) -> Self {
