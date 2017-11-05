@@ -2,7 +2,7 @@ use avl;
 use std::fmt::Debug;
 use std::borrow::Borrow;
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Map<K: Ord + Clone + Debug, V: Clone + Debug> {
   len: usize,
   root: avl::Tree<K, V>

@@ -1,6 +1,6 @@
 extern crate arrayvec;
 use std::sync::Arc;
-use std::cmp::{Ordering, max, min};
+use std::cmp::{Ord, Ordering, max, min};
 use std::fmt::Debug;
 use std::borrow::Borrow;
 use self::arrayvec::ArrayVec;
@@ -22,7 +22,7 @@ enum Loc {
 */
 const SIZE: usize = 16;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct Elts<K: Ord + Clone + Debug, V: Clone + Debug>(pub ArrayVec<[(K, V); SIZE]>);
 
 impl<K,V> Elts<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
@@ -99,7 +99,7 @@ impl<K,V> Elts<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
   fn max_elt<'a>(&'a self) -> Option<&'a (K,V)> { self.0.last() }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct Node<K: Ord + Clone + Debug, V: Clone + Debug> {
   elts: Elts<K, V>,
   left: Tree<K, V>,
@@ -107,7 +107,7 @@ pub(crate) struct Node<K: Ord + Clone + Debug, V: Clone + Debug> {
   height: u16,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum Tree<K: Ord + Clone + Debug, V: Clone + Debug> {
   Empty,
   Node(Arc<Node<K,V>>)
