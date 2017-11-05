@@ -1,5 +1,6 @@
 use avl;
 use std::fmt::Debug;
+use std::borrow::Borrow;
 
 #[derive(Clone)]
 pub struct Map<K: Ord + Clone + Debug, V: Clone + Debug> {
@@ -15,9 +16,13 @@ impl<K,V> Map<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
     Map { len: len, root: t }
   }
 
-  pub fn find<'a>(&'a self, k: &K) -> Option<&'a V> { self.root.find(k) }
+  pub fn find<'a, Q: ?Sized + Ord>(&'a self, k: &Q) -> Option<&'a V> 
+    where K: Borrow<Q>
+  { self.root.find(k) }
 
-  pub fn remove(&self, k: &K) -> Self {
+  pub fn remove<Q: ?Sized + Ord>(&self, k: &Q) -> Self 
+    where K: Borrow<Q>
+  {
     let (t, len) = self.root.remove(self.len, k);
     Map {root: t, len: len}
   }
@@ -27,5 +32,3 @@ impl<K,V> Map<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
   #[allow(dead_code)]
   pub(crate) fn invariant(&self) -> () { self.root.invariant(self.len) }
 }
-
-pub fn print_size() { avl::print_size(); }

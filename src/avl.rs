@@ -2,16 +2,15 @@ extern crate arrayvec;
 use std::sync::Arc;
 use std::cmp::{Ordering, max, min};
 use std::fmt::Debug;
-use std::mem;
+use std::borrow::Borrow;
 use self::arrayvec::ArrayVec;
 
-pub enum Loc {
+enum Loc {
   InRight,
   InLeft,
   NotPresent(usize), // the index in the array where the element would be if it was present
   Here(usize) // the index in the array where the equal element is
 }
-
 
 /* 
    elts is a sorted array of pairs, increasing the SIZE has several effects; 
@@ -21,7 +20,7 @@ pub enum Loc {
    -- increases the size of each allocation
    -- icreases the overall amount of memory allocated for each change to the tree
 */
-pub const SIZE: usize = 16;
+const SIZE: usize = 16;
 
 #[derive(Clone, Debug)]
 struct Elts<K: Ord + Clone + Debug, V: Clone + Debug>(pub ArrayVec<[(K, V); SIZE]>);
@@ -33,20 +32,17 @@ impl<K,V> Elts<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
     Elts(t)
   }
 
-  // This is faster than binary search because processors are really good
-  // at scanning lineraly through contiguous memory. Since SIZE is a constant
-  // the algorithm is still log(N), we're just playing with constants.
-  fn find(&self, k: &K) -> Loc {
+  fn find<Q: ?Sized + Ord>(&self, k: &Q) -> Loc where K: Borrow<Q> {
     let len = self.0.len();
-    let first = k.cmp(&self.0[0].0);
-    let last = k.cmp(&self.0[len - 1].0);
+    let first = k.cmp(&self.0[0].0.borrow());
+    let last = k.cmp(&self.0[len - 1].0.borrow());
     match (first, last) {
       (Ordering::Equal, _) => Loc::Here(0),
       (_, Ordering::Equal) => Loc::Here(len - 1),
       (Ordering::Less, _) => Loc::InLeft,
       (_, Ordering::Greater) => Loc::InRight,
       (_, _) =>
-        match self.0.binary_search_by(|&(ref k1, _)| k1.cmp(k)) {
+        match self.0.binary_search_by(|&(ref k1, _)| k1.borrow().cmp(k)) {
           Result::Ok(i) => Loc::Here(i),
           Result::Err(i) => Loc::NotPresent(i)
         }
@@ -234,7 +230,9 @@ impl<K,V> Tree<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
     }
   }
 
-  pub(crate) fn remove(&self, len: usize, k: &K) -> (Self, usize) {
+  pub(crate) fn remove<Q: ?Sized + Ord>(&self, len: usize, k: &Q) -> (Self, usize) 
+    where K: Borrow<Q>
+  {
     match self {
       &Tree::Empty => (Tree::Empty, len),
       &Tree::Node(ref tn) =>
@@ -262,7 +260,9 @@ impl<K,V> Tree<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
     }
   }
 
-  pub(crate) fn find<'a>(&'a self, k: &K) -> Option<&'a V> {
+  pub(crate) fn find<'a, Q: ?Sized + Ord>(&'a self, k: &Q) -> Option<&'a V> 
+    where K: Borrow<Q>
+  {
     match self {
       &Tree::Empty => Option::None,
       &Tree::Node(ref tn) =>
@@ -338,8 +338,4 @@ impl<K,V> Tree<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
     let (_height, tlen) = check(self, Option::None, Option::None, 0);
     if len != tlen { panic!("len is wrong {} vs {}", len, tlen) }
   }
-}
-
-pub(crate) fn print_size() {
-  println!("node: {}", mem::size_of::<Node<i64,i64>>())
 }
