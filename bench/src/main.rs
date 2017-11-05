@@ -44,7 +44,6 @@ fn main() {
     let size =
         if args.len() == 2 { args[1].parse::<usize>().unwrap() }
         else { 10000 };
-    map::print_size();
     let (m, d, add) = bench_add(size);
     let find = bench_find(&m, &d);
     let rm = bench_remove(m, &d);

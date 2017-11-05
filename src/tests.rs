@@ -1,10 +1,39 @@
 extern crate rand;
 use avl;
 use map;
-use tests::rand::{random, Rand};
+use tests::rand::Rng;
 use std::iter::{IntoIterator};
 use std::vec::{Vec};
 use std::fmt::Debug;
+
+const STRSIZE: usize = 80;
+
+trait Rand: Sized {
+  fn rand<R: Rng>(r: &mut R) -> Self;
+}
+
+impl Rand for String {
+  fn rand<R: Rng>(r: &mut R) -> Self {
+    let mut s = String::new();
+    for _ in 0..STRSIZE { s.push(r.gen()) }
+    s
+  }
+}
+
+impl Rand for i32 {
+  fn rand<R: Rng>(r: &mut R) -> Self { r.gen() }
+}
+
+fn random<T: Rand>() -> T {
+  let mut rng = rand::thread_rng();
+  T::rand(&mut rng)
+}
+
+fn randvec<T: Rand>(len: usize) -> Vec<T> {
+  let mut v: Vec<T> = Vec::new();
+  for _ in 0..len { v.push(random()) }
+  v
+}
 
 fn add<I, T>(r: I) -> (avl::Tree<T, T>, usize)
   where I: IntoIterator<Item=T>, T: Ord + Clone + Debug
@@ -18,12 +47,6 @@ fn add<I, T>(r: I) -> (avl::Tree<T, T>, usize)
     t.invariant(len);
   }
   (t, len)
-}
-
-fn randvec<T: Rand>(len: usize) -> Vec<T> {
-  let mut v: Vec<T> = Vec::new();
-  for _ in 0..len { v.push(random()) }
-  v
 }
 
 #[test]
@@ -45,9 +68,8 @@ fn test_add_int_rand() {
   add(randvec::<i32>(10000)); ()
 }
 
-#[test]
-fn test_find_int_rand() {
-  let v = randvec::<i32>(10000);
+fn test_find_rand<T: Ord + Clone + Debug + Rand>() {
+  let v = randvec::<T>(10000);
   let (t, _) = add(&v);
   for k in &v {
     assert_eq!(*t.find(&k).unwrap(), k);
@@ -55,8 +77,13 @@ fn test_find_int_rand() {
 }
 
 #[test]
-fn test_int_add_remove_rand() {
-  let v = randvec::<i32>(7000);
+fn test_find_int_rand() { test_find_rand::<i32>() }
+
+#[test]
+fn test_find_str_rand() { test_find_rand::<String>() }
+
+fn test_add_remove_rand<T: Ord + Clone + Debug + Rand>() {
+  let v = randvec::<T>(7000);
   let (mut t, mut len) = add(&v);
   for k in &v {
     assert_eq!(*t.find(&k).unwrap(), k);
@@ -69,8 +96,13 @@ fn test_int_add_remove_rand() {
 }
 
 #[test]
-fn test_int_map_rand() {
-  let v = randvec::<i32>(2000);
+fn test_int_add_remove_rand() { test_add_remove_rand::<i32>() }
+
+#[test]
+fn test_str_add_remove_rand() { test_add_remove_rand::<String>() }
+
+fn test_map_rand<T: Ord + Clone + Debug + Rand>() {
+  let v = randvec::<T>(2000);
   let mut t = map::Map::new();
   let mut i = 0;
   for k in &v {
@@ -92,3 +124,9 @@ fn test_int_map_rand() {
     }
   }
 }
+
+#[test]
+fn test_int_map_rand() { test_map_rand::<i32>() }
+
+#[test]
+fn test_str_map_rand() { test_map_rand::<String>() }
