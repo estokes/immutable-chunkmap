@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::cmp::{Ord, Ordering, max, min};
 use std::fmt::Debug;
 use std::borrow::Borrow;
+use std::slice;
 use self::arrayvec::ArrayVec;
 
 enum Loc {
@@ -97,6 +98,22 @@ impl<K,V> Elts<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
 
   fn min_elt<'a>(&'a self) -> Option<&'a (K,V)> { self.0.first() }
   fn max_elt<'a>(&'a self) -> Option<&'a (K,V)> { self.0.last() }
+}
+
+impl<K, V> IntoIterator for Elts<K, V> 
+  where K: Ord + Clone + Debug, V: Clone + Debug 
+{
+  type Item = (K, V);
+  type IntoIter = arrayvec::IntoIter<[(K, V); SIZE]>;
+  fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
+}
+
+impl<'a, K, V> IntoIterator for &'a Elts<K, V>
+  where K: 'a + Ord + Clone + Debug, V: 'a + Clone + Debug
+{
+  type Item = &'a (K, V);
+  type IntoIter = slice::Iter<'a, (K, V)>;
+  fn into_iter(self) -> Self::IntoIter { (&self.0).into_iter() }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
