@@ -8,6 +8,14 @@ pub struct Map<K: Ord + Clone + Debug, V: Clone + Debug> {
   root: avl::Tree<K, V>
 }
 
+impl<'a,K,V> IntoIterator for &'a Map<K,V>
+  where K: 'a + Ord + Clone + Debug, V: 'a + Clone + Debug
+{
+  type Item = &'a (K, V);
+  type IntoIter = avl::Iter<'a, K, V>;
+  fn into_iter(self) -> Self::IntoIter { self.root.into_iter() }
+}
+
 impl<K,V> Map<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
   pub fn new() -> Self { Map { len: 0, root: avl::Tree::new() } }
 

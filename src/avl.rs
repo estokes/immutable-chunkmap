@@ -130,7 +130,7 @@ pub(crate) enum Tree<K: Ord + Clone + Debug, V: Clone + Debug> {
   Node(Arc<Node<K,V>>)
 }
 
-pub(crate) struct Iter<'a, K: 'a + Ord + Clone + Debug, V: 'a + Clone + Debug> {
+pub struct Iter<'a, K: 'a + Ord + Clone + Debug, V: 'a + Clone + Debug> {
   stack: Vec<&'a Node<K,V>>,
   elts: Option<slice::Iter<'a, (K, V)>>
 }
@@ -182,8 +182,8 @@ impl<'a, K, V> IntoIterator for &'a Tree<K, V>
         loop {
           stack.push(current);
           match current.left {
-            Tree::Empty => break,
-            Tree::Node(ref n) => current = n
+            Tree::Node(ref n) => current = n,
+            Tree::Empty => break
           }
         };
         Iter {stack: stack, elts: Option::Some((&current.elts).into_iter())}
