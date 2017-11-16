@@ -130,6 +130,68 @@ pub(crate) enum Tree<K: Ord + Clone + Debug, V: Clone + Debug> {
   Node(Arc<Node<K,V>>)
 }
 
+pub(crate) struct Iter<'a, K: 'a + Ord + Clone + Debug, V: 'a + Clone + Debug> {
+  stack: Vec<&'a Node<K,V>>,
+  elts: Option<slice::Iter<'a, (K, V)>>
+}
+
+impl<'a, K, V> Iterator for Iter<'a, K, V>
+  where K: 'a + Ord + Clone + Debug, V: 'a + Clone + Debug
+{
+  type Item = &'a (K, V);
+  fn next(&mut self) -> Option<Self::Item> {
+    loop {
+      let next =
+        match &mut self.elts {
+          &mut Option::None => None,
+          &mut Option::Some(ref mut s) => s.next()
+        };
+      match next {
+        res @ Option::Some(_) => return res,
+        Option::None =>
+          if self.stack.is_empty() { return None }
+          else {
+            let current = self.stack[self.stack.len() - 1];
+            match current.left {
+              Tree::Node(ref n) => self.stack.push(n),
+              Tree::Empty => {
+                self.elts = Option::Some((&current.elts).into_iter());
+                match current.right {
+                  Tree::Empty => { self.stack.pop(); ()},
+                  Tree::Node(ref n) => self.stack.push(n)
+                }
+              }
+            }
+          }
+      }
+    }
+  }
+}
+
+impl<'a, K, V> IntoIterator for &'a Tree<K, V> 
+  where K: 'a + Ord + Clone + Debug, V: 'a + Clone + Debug
+{
+  type Item = &'a (K, V);
+  type IntoIter = Iter<'a, K, V>;
+  fn into_iter(self) -> Self::IntoIter {
+    match self {
+      &Tree::Empty => Iter { stack: Vec::new(), elts: Option::None },
+      &Tree::Node(ref n) => {
+        let mut stack = Vec::<&'a Node<K,V>>::with_capacity((n.height + 2) as usize);
+        let mut current = n;
+        loop {
+          stack.push(current);
+          match current.left {
+            Tree::Empty => break,
+            Tree::Node(ref n) => current = n
+          }
+        };
+        Iter {stack: stack, elts: Option::Some((&current.elts).into_iter())}
+      }
+    }
+  }
+}
+
 impl<K,V> Tree<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
   pub(crate) fn new() -> Self { Tree::Empty }
 
