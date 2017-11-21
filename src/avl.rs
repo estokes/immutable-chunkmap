@@ -148,7 +148,8 @@ impl<'a, K, V> Iterator for Iter<'a, K, V>
         };
       match next {
         res @ Option::Some(_) => return res,
-        Option::None =>
+        Option::None => {
+          self.elts = Option::None;
           if self.stack.is_empty() { return None }
           else {
             let current = self.stack[self.stack.len() - 1];
@@ -163,6 +164,7 @@ impl<'a, K, V> Iterator for Iter<'a, K, V>
               }
             }
           }
+        }
       }
     }
   }
