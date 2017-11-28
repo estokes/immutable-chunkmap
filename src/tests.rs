@@ -149,5 +149,5 @@ fn test_map_iter<T: Ord + Clone + Debug + Rand>() {
 #[test]
 fn test_int_map_iter() { test_map_iter::<i32>() }
 
-//#[test]
-//fn test_string_map_iter() { test_map_iter::<String>() }
+#[test]
+fn test_string_map_iter() { test_map_iter::<String>() }
