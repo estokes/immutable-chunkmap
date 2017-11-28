@@ -49,7 +49,6 @@ fn add<I, T>(r: I) -> (avl::Tree<T, T>, usize)
   (t, len)
 }
 
-/*
 #[test]
 fn test_add_int_seq_asc() {
   let size = 10000;
@@ -131,10 +130,9 @@ fn test_int_map_rand() { test_map_rand::<i32>() }
 
 #[test]
 fn test_str_map_rand() { test_map_rand::<String>() }
-*/
 
 fn test_map_iter<T: Ord + Clone + Debug + Rand>() {
-  let mut v = randvec::<i32>(4000);
+  let v = randvec::<i32>(4000);
   let mut t = map::Map::new();
   for k in &v { t = t.add(&k, &k) };
   t.invariant();
