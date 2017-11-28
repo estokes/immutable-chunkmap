@@ -131,7 +131,7 @@ pub(crate) enum Tree<K: Ord + Clone + Debug, V: Clone + Debug> {
 }
 
 pub struct Iter<'a, K: 'a + Ord + Clone + Debug, V: 'a + Clone + Debug> {
-  stack: Vec<&'a Node<K,V>>,
+  stack: Vec<(bool, &'a Node<K,V>)>,
   elts: Option<slice::Iter<'a, (K, V)>>
 }
 
@@ -141,29 +141,30 @@ impl<'a, K, V> Iterator for Iter<'a, K, V>
   type Item = &'a (K, V);
   fn next(&mut self) -> Option<Self::Item> {
     loop {
-      let next =
-        match &mut self.elts {
-          &mut Option::None => None,
-          &mut Option::Some(ref mut s) => s.next()
-        };
-      match next {
-        res @ Option::Some(_) => return res,
-        Option::None => {
-          self.elts = Option::None;
-          if self.stack.is_empty() { return None }
-          else {
-            let current = self.stack[self.stack.len() - 1];
-            match current.left {
-              Tree::Node(ref n) => self.stack.push(n),
-              Tree::Empty => {
-                self.elts = Option::Some((&current.elts).into_iter());
-                match current.right {
-                  Tree::Empty => { self.stack.pop(); ()},
-                  Tree::Node(ref n) => self.stack.push(n)
-                }
-              }
-            }
+      match &mut self.elts {
+        &mut Option::None => (),
+        &mut Option::Some(ref mut s) => 
+          match s.next() {
+            Option::None => self.elts = Option::None,
+            res @ Option::Some(_) => return res
           }
+      };
+      if self.stack.is_empty() { return None }
+      let top = self.stack.len() - 1;
+      let (visited, current) = self.stack[top];
+      if visited {
+        self.elts = Option::Some((&current.elts).into_iter());
+        stack.pop();
+      }
+      else {
+        self.stack[top].0 = true;
+        match current.right {
+          Tree::Empty => (),
+          Tree::Node(ref n) => self.stack.push((false, n))
+        };
+        match current.left {
+          Tree::Empty => (),
+          Tree::Node(ref n) => self.stack.push((false, n))
         }
       }
     }
@@ -179,16 +180,9 @@ impl<'a, K, V> IntoIterator for &'a Tree<K, V>
     match self {
       &Tree::Empty => Iter { stack: Vec::new(), elts: Option::None },
       &Tree::Node(ref n) => {
-        let mut stack = Vec::<&'a Node<K,V>>::with_capacity((n.height + 2) as usize);
-        let mut current = n;
-        loop {
-          stack.push(current);
-          match current.left {
-            Tree::Node(ref n) => current = n,
-            Tree::Empty => break
-          }
-        };
-        Iter {stack: stack, elts: Option::Some((&current.elts).into_iter())}
+        let mut stack = Vec::<(bool, &'a Node<K,V>)>::with_capacity((n.height + 2) as usize);
+        stack.push((false, n));
+        Iter {stack: stack, elts: Option::None}
       }
     }
   }
