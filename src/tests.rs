@@ -5,8 +5,6 @@ use tests::rand::Rng;
 use std::iter::{IntoIterator};
 use std::vec::{Vec};
 use std::fmt::Debug;
-use std::io::stdout;
-use std::io::Write;
 
 const STRSIZE: usize = 80;
 
@@ -136,19 +134,13 @@ fn test_str_map_rand() { test_map_rand::<String>() }
 */
 
 fn test_map_iter<T: Ord + Clone + Debug + Rand>() {
-  let v = randvec::<T>(32);
+  let mut v = randvec::<i32>(4000);
   let mut t = map::Map::new();
   for k in &v { t = t.add(&k, &k) };
   t.invariant();
   let mut vs = v.clone(); 
   vs.sort_unstable();
   let mut i = 0;
-  println!("{:?}", vs);
-  for &(k0, _) in &t {
-    println!("{:?}, ", k0);
-    stdout().flush();
-  }
-  println!("");
   for &(k0, k1) in &t {
     assert_eq!(*k0, *k1);
     assert_eq!(*k0, vs[i]);

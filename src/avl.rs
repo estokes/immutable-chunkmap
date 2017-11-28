@@ -145,23 +145,24 @@ impl<'a, K, V> Iterator for Iter<'a, K, V>
         &mut Option::None => (),
         &mut Option::Some(ref mut s) => 
           match s.next() {
-            Option::None => self.elts = Option::None,
+            Option::None => (),
             res @ Option::Some(_) => return res
           }
       };
       if self.stack.is_empty() { return None }
+      self.elts = Option::None;
       let top = self.stack.len() - 1;
       let (visited, current) = self.stack[top];
       if visited {
         self.elts = Option::Some((&current.elts).into_iter());
-        stack.pop();
-      }
-      else {
-        self.stack[top].0 = true;
+        self.stack.pop();
         match current.right {
           Tree::Empty => (),
           Tree::Node(ref n) => self.stack.push((false, n))
         };
+      }
+      else {
+        self.stack[top].0 = true;
         match current.left {
           Tree::Empty => (),
           Tree::Node(ref n) => self.stack.push((false, n))
