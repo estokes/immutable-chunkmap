@@ -16,7 +16,7 @@ mod arc {
     avltree!(std::sync::Arc, Arc, Arc::new, 32);
   }
 
-  mod map {
+  pub mod map {
     map!(arc::avl);
   }
 }
