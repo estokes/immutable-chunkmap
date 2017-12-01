@@ -1,5 +1,5 @@
 macro_rules! avltree {
-  ($pimport:path, $ptyp:ty, $pinit:path, $chunksize:expr) => {
+  ($pimport:path, $ptyp:ident, $pinit:path, $chunksize:expr) => {
     extern crate arrayvec;
     use $pimport;
     use std::cmp::{Ord, Ordering, max, min};
@@ -129,7 +129,7 @@ macro_rules! avltree {
     #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
     pub(crate) enum Tree<K: Ord + Clone + Debug, V: Clone + Debug> {
       Empty,
-      Node($ptyp)
+      Node($ptyp<Node<K,V>>)
     }
 
     pub struct Iter<'a, K: 'a + Ord + Clone + Debug, V: 'a + Clone + Debug> {
@@ -419,5 +419,3 @@ macro_rules! avltree {
     }
   };
 }
-
-avltree!(std::rc::Rc, Rc<Node<K,V>>, Rc::new, 16);

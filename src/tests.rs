@@ -1,6 +1,6 @@
 extern crate rand;
-use avl;
-use map;
+use rc::avl;
+use rc::map;
 use tests::rand::Rng;
 use std::iter::{IntoIterator};
 use std::vec::{Vec};

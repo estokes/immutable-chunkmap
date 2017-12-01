@@ -4,7 +4,6 @@ use immutable_avl::map;
 use std::time::{Duration, Instant};
 use rand::{random, Rand};
 use std::env;
-use std::str;
 use std::iter::FromIterator;
 use std::vec::{Vec};
 
