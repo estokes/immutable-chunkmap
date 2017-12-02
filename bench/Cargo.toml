@@ -4,5 +4,6 @@ version = "0.1.0"
 authors = ["Eric Stokes <letaris@gmail.com>"]
 
 [dependencies]
-immutable-avl = {path = "../"}
+immutable = {path = "../"}
 rand = ">= 0.3"
+num_cpus = ">= 1.0"

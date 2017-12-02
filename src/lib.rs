@@ -11,7 +11,7 @@ pub mod rc {
   }
 }
 
-mod arc {
+pub mod arc {
   pub(crate) mod avl {
     avltree!(std::sync::Arc, Arc, Arc::new, 32);
   }

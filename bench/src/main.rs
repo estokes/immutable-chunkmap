@@ -1,44 +1,29 @@
-extern crate immutable_avl;
-use immutable_avl::map;
-use std::time::{Duration, Instant};
-use std::env;
+use std::vec::Vec;
 use std::iter::FromIterator;
-use std::vec::{Vec};
-use utils::*;
+use std::env;
+mod rc;
+mod arc;
+mod utils;
 
-fn bench_add(len: usize) -> (map::Map<i64, i64>, Vec<i64>, Duration) {
-    let mut m = map::Map::new();
-    let data = randvec::<i64>(len);
-    let begin = Instant::now();
-    for kv in &data { m = m.add(kv, kv) }
-    (m, data, begin.elapsed())
-}
-
-fn bench_find(m: &map::Map<i64, i64>, d: &Vec<i64>) -> Duration {
-    let begin = Instant::now();
-    for kv in d { m.find(&kv).unwrap(); }
-    begin.elapsed()
-}
-
-fn bench_remove(m: map::Map<i64, i64>, d: &Vec<i64>) -> Duration {
-    let mut m = m;
-    let begin = Instant::now();
-    for kv in d { m = m.remove(&kv) }
-    begin.elapsed()
-}
-
-fn to_ms(t: Duration) -> u64 {
-    t.as_secs() * 1000 + ((t.subsec_nanos() / 1000000) as u64)
+enum Kind {
+  Rc,
+  Arc
 }
 
 fn main() {
-    let args = Vec::from_iter(env::args());
-    let size =
-        if args.len() == 2 { args[1].parse::<usize>().unwrap() }
-        else { 10000 };
-    let (m, d, add) = bench_add(size);
-    let find = bench_find(&m, &d);
-    let rm = bench_remove(m, &d);
-    println!("add: {}, find: {}, remove: {}", 
-        to_ms(add), to_ms(find), to_ms(rm));
+  let args = Vec::from_iter(env::args());
+  let (typ, size) =
+    if args.len() != 3 { (Kind::Rc, 10000) }
+    else {
+      (match args[1].as_ref() {
+         "rc" => Kind::Rc,
+         "arc" => Kind::Arc,
+         typ => panic!("invalid test type, {}, use rc or arc", typ)
+       },
+       args[2].parse::<usize>().unwrap())
+    } ;
+  match typ {
+    Kind::Rc => rc::run(size),
+    Kind::Arc => arc::run(size)
+  }
 }
