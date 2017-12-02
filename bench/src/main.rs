@@ -1,17 +1,10 @@
 extern crate immutable_avl;
-extern crate rand;
 use immutable_avl::map;
 use std::time::{Duration, Instant};
-use rand::{random, Rand};
 use std::env;
 use std::iter::FromIterator;
 use std::vec::{Vec};
-
-fn randvec<T: Rand>(len: usize) -> Vec<T> {
-  let mut v: Vec<T> = Vec::new();
-  for _ in 0..len { v.push(random()) }
-  v
-}
+use utils::*;
 
 fn bench_add(len: usize) -> (map::Map<i64, i64>, Vec<i64>, Duration) {
     let mut m = map::Map::new();
