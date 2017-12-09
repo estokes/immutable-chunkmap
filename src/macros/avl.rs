@@ -54,6 +54,57 @@ macro_rules! avltree {
 
       fn ordering(k0: &(K, V), k1: &(K, V)) -> Ordering { k0.0.cmp(&k1.0) }
 
+      fn add_multi(&self, kv: &[(&K, &V)], len: usize) 
+        -> (Option<(Self, usize)>, Vec<(&K, &V)>, Vec<(&K, &V)>) 
+      {
+        let mut il = Vec::new();
+        let mut ir = Vec::new();
+        let mut res = Option::None;
+        for (k, v) in kv {
+          match res {
+            Option::Some((ref mut t, ref mut len)) => {
+              match t.find(k) {
+                Loc::Here(i) => t.0[i] = (k.clone(), v.clone()),
+                Loc::NotPresent(i) => {
+                  if t.0.len() < SIZE {
+                    len = len + 1;
+                    t.0.insert(i, (k.clone(), v.clone()))
+                  } else {
+                    ir.push(t.pop().unwrap());
+                    t.0.insert(i, (k.clone(), v.clone()))
+                  }
+                },
+                Loc::InLeft => il.push((k, v)),
+                Loc::InRight => ir.push((k, v))
+              }
+            },
+            Option::None => {
+              match self.find(k) {
+                Loc::Here(i) => {
+                  let mut t = self.clone();
+                  res = Option::Some((t, len));
+                  t.0[i] = (k.clone(), v.clone());
+                },
+                Loc::NotPresent(i) => {
+                  let mut t = self.clone();
+                  if self.0.len() < SIZE {
+                    res = Option::Some((t, len + 1));
+                    t.0.insert(i, (k.clone(), v.clone()));
+                  } else {
+                    res = Option::Some((t, len));
+                    ir.push(t.pop().unwrap());
+                    t.0.insert(i, (k.clone(), v.clone()));
+                  }
+                },
+                Loc::InLeft => il.push((k, v)),
+                Loc.InRight => ir.push((k, v))
+              }
+            }
+          }
+        }
+        (res, il, ir)
+      }
+
       // add to T, if possible. Otherwise say where in the tree the
       // element should be added. If add places the element in the middle 
       // of a full vector, then there will be overflow that must
