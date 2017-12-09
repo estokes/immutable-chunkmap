@@ -1,1 +1,1 @@
-/home/eric/Projects/rust-immutable-avl/bench_imap/target/release/bench_imap: /home/eric/Projects/rust-immutable-avl/bench_imap/src/main.rs
+C:\Users\Eric\Projects\immutable-rs\bench_imap\target\release\bench_imap.exe: C:\Users\Eric\Projects\immutable-rs\bench_imap\src\main.rs
