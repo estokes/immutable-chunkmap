@@ -64,6 +64,8 @@ macro_rules! avltree {
           match res {
             Option::Some((ref mut t, ref mut len)) => {
               match t.find(k) {
+                Loc::InLeft => il.push((k.clone(), v.clone())),
+                Loc::InRight => ir.push((k.clone(), v.clone())),
                 Loc::Here(i) => t.0[i] = (k.clone(), v.clone()),
                 Loc::NotPresent(i) => {
                   if t.0.len() < SIZE {
@@ -73,13 +75,13 @@ macro_rules! avltree {
                     ir.push(t.0.pop().unwrap());
                     t.0.insert(i, (k.clone(), v.clone()))
                   }
-                },
-                Loc::InLeft => il.push((k.clone(), v.clone())),
-                Loc::InRight => ir.push((k.clone(), v.clone()))
+                }
               }
             },
             Option::None => {
               match self.find(k) {
+                Loc::InLeft => il.push((k.clone(), v.clone())),
+                Loc::InRight => ir.push((k.clone(), v.clone())),
                 Loc::Here(i) => {
                   let mut t = self.clone();
                   t.0[i] = (k.clone(), v.clone());
@@ -96,9 +98,7 @@ macro_rules! avltree {
                     t.0.insert(i, (k.clone(), v.clone()));
                     res = Option::Some((t, len));
                   }
-                },
-                Loc::InLeft => il.push((k.clone(), v.clone())),
-                Loc::InRight => ir.push((k.clone(), v.clone()))
+                }
               }
             }
           }
