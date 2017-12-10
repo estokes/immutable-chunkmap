@@ -35,6 +35,8 @@ macro_rules! avltree {
         Elts(t)
       }
 
+      fn empty() -> Self { Elts(ArrayVec::<[(K,V); SIZE]>::new()) }
+
       #[allow(dead_code)]
       fn is_empty(&self) -> bool { self.0.len() == 0 }
 
@@ -61,7 +63,7 @@ macro_rules! avltree {
       fn ordering(k0: &(K, V), k1: &(K, V)) -> Ordering { k0.0.cmp(&k1.0) }
 
       #[allow(dead_code)]
-      fn add_multi<'a>(&self, kv: &[(&'a K, &'a V)], len: usize) 
+      fn add_multi<'a>(&self, kv: &[(&'a K, &'a V)], len: usize, leaf: bool) 
         -> (Option<(Self, usize)>, 
             Vec<(&'a K, &'a V)>, 
             Vec<(&'a K, &'a V)>, 
@@ -75,8 +77,21 @@ macro_rules! avltree {
           match res {
             Option::Some((ref mut t, ref mut len)) => {
               match t.find(k) {
-                Loc::InLeft => il.push((k, v)),
-                Loc::InRight => ir.push((k, v)),
+                loc @ Loc::InLeft | loc @ Loc::InRight => {
+                  if !leaf || self.0.len() == SIZE {
+                    match loc {
+                      Loc::InLeft => il.push((k, v)),
+                      Loc::InRight => il.push((k, v)),
+                      _ => panic!("bug")
+                    }
+                  } else {
+                    match loc {
+                      Loc::InLeft => t.0.insert(0, (k.clone(), v.clone())),
+                      Loc::InRight => t.0.push((k.clone(), v.clone())),
+                      _ => panic!("bug")
+                    }
+                  }
+                },
                 Loc::Here(i) => t.0[i] = (k.clone(), v.clone()),
                 Loc::NotPresent(i) => {
                   if t.0.len() < SIZE {
@@ -91,8 +106,23 @@ macro_rules! avltree {
             },
             Option::None => {
               match self.find(k) {
-                Loc::InLeft => il.push((k, v)),
-                Loc::InRight => ir.push((k, v)),
+                loc @ Loc::InLeft | loc @ Loc::InRight => {
+                  if !leaf || self.0.len() == SIZE {
+                    match loc {
+                      Loc::InLeft => il.push((k, v)),
+                      Loc::InRight => ir.push((k, v)),
+                      _ => panic!("bug")
+                    }
+                  } else {
+                    let mut t = self.clone();
+                    match loc {
+                      Loc::InLeft => t.0.insert(0, (k.clone(), v.clone())),
+                      Loc::InRight => t.0.push((k.clone(), v.clone())),
+                      _ => panic!("bug")
+                    };
+                    res = Option::Some((t, len + 1))
+                  }
+                },
                 Loc::Here(i) => {
                   let mut t = self.clone();
                   t.0[i] = (k.clone(), v.clone());
@@ -308,6 +338,50 @@ macro_rules! avltree {
           }
         } else {
           Tree::create(l, elts, r)
+        }
+      }
+
+      pub(crate) fn add_multi(&self, len: usize, kv: &[(&K, &V)]) -> (Self, usize) {
+        match self {
+          &Tree::Empty => {
+            match Elts::empty().add_multi(kv, len, true) {
+              (Option::Some((elts, len)), il, ir, _) => {
+                let (left, len) = Tree::Empty.add_multi(len, &il);
+                let (right, len) = Tree::Empty.add_multi(len, &ir);
+                (Tree::bal(&left, &$pinit(elts), &right), len)
+              },
+              (Option::None, il, ir, _) => {
+                if il.len() == 0 && ir.len() == 0 { (Tree::Empty, len) }
+                else { panic!("bug") }
+              }
+            }
+          },
+          &Tree::Node(ref tn) => {
+            let leaf =
+              match (&tn.left, &tn.right) {
+                (&Tree::Empty, &Tree::Empty) => true,
+                (_, _) => false
+              };
+            let (el, ir, il, ev) = tn.elts.add_multi(kv, len, leaf);
+            let (elts, len) = 
+              match el {
+                Option::Some((elts, len)) => ($pinit(elts), len),
+                Option::None => (tn.elts.clone(), len)
+              };
+            let (left, len) = 
+              if il.len() > 0 { tn.left.add_multi(len, &il) }
+              else { (tn.left.clone(), len) };
+            let (right, len) = 
+              if ir.len() > 0 { tn.right.add_multi(len, &ir) }
+              else { (tn.right.clone(), len) };
+            let (right, len) = {
+              if ev.len() > 0 { 
+                let evr : Vec<(&K, &V)> = ev.iter().map(|&(ref k, ref v)| (k, v)).collect();
+                tn.right.add_multi(len, &evr)
+              } else { (right, len) }
+            };
+            (Tree::bal(&left, &elts, &right), len)
+          }
         }
       }
 
