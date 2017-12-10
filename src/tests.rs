@@ -38,7 +38,6 @@ macro_rules! tests {
         v
       }
 
-      /*
       fn add<I, T>(r: I) -> (avl::Tree<T, T>, usize)
         where I: IntoIterator<Item=T>, T: Ord + Clone + Debug
       {
@@ -107,8 +106,7 @@ macro_rules! tests {
       #[test]
       fn test_str_add_remove_rand() { test_add_remove_rand::<String>() }
       
-      */
-
+      /*
       #[test]
       fn test_add_multi() {
         let v = vec![0i32, 1i32, 22i32, 9i32, -1i32, 50i32, 112i32, 32i32, 108i32, 11i32, 8i32, 7i32, 4i32, 42i32];
@@ -119,16 +117,38 @@ macro_rules! tests {
           assert_eq!(t.0.find(&k).unwrap(), k)
         }
       }
+      */
 
-      /*
       fn test_add_multi<T: Ord + Clone + Debug + Rand>() {
-        let v = randvec::<T>(12);
+        let v = randvec::<T>(1000);
         let pairs: Vec<(&T, &T)> = v.iter().map(|k| (k, k)).collect();
-        let t = avl::Tree::new().add_multi(0usize, &pairs);
+        let mut t = avl::Tree::new().add_multi(0usize, &pairs);
         t.0.invariant(t.1);
-        for k in &v {
-          assert_eq!(t.0.find(&k).unwrap(), k)
-        }
+        for k in &v { assert_eq!(t.0.find(&k).unwrap(), k) }
+        {
+          let mut i = 0;
+          for k in &v {
+            if i % 10 == 0 {
+              t = t.0.remove(t.1, &k);
+              t.0.invariant(t.1);
+            }
+            i = i + 1;
+          }
+          i = 0;
+          for k in &v {
+            if i % 10 == 0 {
+              assert_eq!(t.0.find(&k), Option::None);
+            } else {
+              assert_eq!(t.0.find(&k).unwrap(), k);
+            }
+            i = i + 1;
+          }
+        };
+        let v2 = randvec::<T>(1000);
+        let pairs2 : Vec<(&T, &T)> = v.iter().map(|k| (k, k)).collect();
+        t = t.0.add_multi(t.1, &pairs2);
+        t.0.invariant(t.1);
+        for k in &v2 { assert_eq!(t.0.find(&k).unwrap(), k); }
       }
 
       #[test]
@@ -187,10 +207,9 @@ macro_rules! tests {
 
       #[test]
       fn test_string_map_iter() { test_map_iter::<String>() }
-    */
     }
   };
 }
 
 tests!(rc);
-//tests!(arc);
+tests!(arc);

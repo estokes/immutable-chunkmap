@@ -350,7 +350,6 @@ macro_rules! avltree {
           &Tree::Empty => {
             match Elts::empty().add_multi(kv, len, true) {
               (Option::Some((elts, len)), il, mut ir, ev) => {
-                println!("elts: {:?}, il: {:?}, ir: {:?}, ev: {:?}", elts, il, ir, ev);
                 let (left, len) = Tree::Empty.add_multi(len, &il);
                 if ev.len() > 0 {
                   let mut evr : Vec<(&K, &V)> = ev.iter().map(|&(ref k, ref v)| (k, v)).collect();
@@ -562,7 +561,7 @@ macro_rules! avltree {
           }
         }
 
-        println!("{:?}", self);
+        //println!("{:?}", self);
         let (_height, tlen) = check(self, Option::None, Option::None, 0);
         if len != tlen { panic!("len is wrong {} vs {}", len, tlen) }
       }
