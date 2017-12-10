@@ -35,6 +35,9 @@ macro_rules! avltree {
         Elts(t)
       }
 
+      fn is_empty(&self) { self.0.len() == 0 }
+      fn is_full(&self) { self.0.len() == SIZE }
+
       fn find<Q: ?Sized + Ord>(&self, k: &Q) -> Loc where K: Borrow<Q> {
         let len = self.0.len();
         let first = k.cmp(&self.0[0].0.borrow());
@@ -115,7 +118,7 @@ macro_rules! avltree {
       // element should be added. If add places the element in the middle 
       // of a full vector, then there will be overflow that must
       // be added right
-      fn add(&self, k: &K, v: &V, len: usize) -> Result<(Self, Option<(K,V)>, usize), Loc> {
+      fn add(&self, k: &K, v: &V, len: usize, leaf: bool) -> Result<(Self, Option<(K,V)>, usize), Loc> {
         match self.find(k) {
           Loc::Here(i) => {
             let mut t = self.clone();
@@ -136,7 +139,7 @@ macro_rules! avltree {
               Result::Ok((t, Option::Some(overflow), len))
             },
           loc @ Loc::InLeft | loc @ Loc::InRight =>
-            if self.0.len() == SIZE { Result::Err(loc) } 
+            if !leaf || self.0.len() == SIZE { Result::Err(loc) } 
             else {
               let mut t = self.clone();
               match loc {
@@ -268,7 +271,7 @@ macro_rules! avltree {
 
       fn bal(l: &Tree<K, V>, elts: &$ptyp<Elts<K, V>>, r: &Tree<K, V>) -> Self {
         let (hl, hr) = (l.height(), r.height());
-        if hl > hr + 2 {
+        if hl > hr + 1 {
           match *l {
             Tree::Empty => panic!("tree heights wrong"),
             Tree::Node(ref ln) =>
@@ -284,7 +287,7 @@ macro_rules! avltree {
                 }
               }
           }
-        } else if hr > hl + 2 {
+        } else if hr > hl + 1 {
           match *r {
             Tree::Empty => panic!("tree heights are wrong"),
             Tree::Node(ref rn) =>
@@ -309,8 +312,13 @@ macro_rules! avltree {
         match self {
           &Tree::Empty => 
             (Tree::create(&Tree::Empty, &$pinit(Elts::singleton(k, v)), &Tree::Empty), len + 1),
-          &Tree::Node(ref tn) =>
-            match tn.elts.add(k, v, len) {
+          &Tree::Node(ref tn) => {
+            let leaf = 
+              match (tn.left, tn.right) {
+                (Tree::Empty, Tree::Empty) => true,
+                (_, _) => false
+              };
+            match tn.elts.add(k, v, len, leaf) {
               Result::Ok((elts, Option::None, len)) => 
                 (Tree::create(&tn.left, &$pinit(elts), &tn.right), len),
               Result::Ok((elts, Option::Some((ovk, ovv)), len)) => {
@@ -328,6 +336,7 @@ macro_rules! avltree {
                 (Tree::bal(&tn.left, &tn.elts, &r), len)
               }
             }
+          }
         }
       }
 
@@ -449,14 +458,14 @@ macro_rules! avltree {
             Tree::Empty => (0, len),
             Tree::Node(ref tn) => {
               if !in_range(lower, upper, &tn.elts) { 
-                panic!("tree invariant violated lower {:?} upper {:?} elts {:?}", 
-                  lower, upper, &tn.elts)
+                panic!("tree invariant violated lower {:?} upper {:?} elts {:?}, tree {:?}", 
+                  lower, upper, &tn.elts, t)
               };
               if !sorted(&tn.elts) { panic!("elements isn't sorted") };
               let (thl, len) = 
-                check(&tn.left, lower, tn.elts.max_elt().map(|&(ref k, _)| k), len);
+                check(&tn.left, lower, tn.elts.min_elt().map(|&(ref k, _)| k), len);
               let (thr, len) = 
-                check(&tn.right, tn.elts.min_elt().map(|&(ref k, _)| k), upper, len);
+                check(&tn.right, tn.elts.max_elt().map(|&(ref k, _)| k), upper, len);
               let th = 1 + max(thl, thr);
               let (hl, hr) = (tn.left.height(), tn.right.height());
               if max(hl, hr) - min(hl, hr) > 2 { panic!("tree is unbalanced") };

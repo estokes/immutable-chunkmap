@@ -45,6 +45,7 @@ macro_rules! tests {
         let mut len = 0;
         for i in r {
           let (tt, tlen) = t.add(len, &i, &i);
+          println!("{:?}", t);
           t = tt;
           len = tlen;
           t.invariant(len);
@@ -54,25 +55,25 @@ macro_rules! tests {
 
       #[test]
       fn test_add_int_seq_asc() {
-        let size = 10000;
+        let size = 1000;
         let (_, len) = add(0..size);
         if len != size { panic!("length is wrong expected 10000 got {}", len) }
       }
 
       #[test]
       fn test_add_int_seq_dec() {
-        let size = 10000;
+        let size = 1000;
         let (_, len) = add((0..size).rev());
         if len != size {panic!("length is wrong expected 10000 got {}", len)}
       }
 
       #[test]
       fn test_add_int_rand() {
-        add(randvec::<i32>(10000)); ()
+        add(randvec::<i32>(1000)); ()
       }
 
       fn test_find_rand<T: Ord + Clone + Debug + Rand>() {
-        let v = randvec::<T>(10000);
+        let v = randvec::<T>(500);
         let (t, _) = add(&v);
         for k in &v {
           assert_eq!(*t.find(&k).unwrap(), k);
@@ -86,15 +87,22 @@ macro_rules! tests {
       fn test_find_str_rand() { test_find_rand::<String>() }
 
       fn test_add_remove_rand<T: Ord + Clone + Debug + Rand>() {
-        let v = randvec::<T>(7000);
-        let (mut t, mut len) = add(&v);
+        let v = randvec::<T>(700);
+        let mut t = avl::Tree::new();
+        let mut len = 0;
         for k in &v {
-          assert_eq!(*t.find(&k).unwrap(), k);
-          let (tt, tlen) = t.remove(len, &k);
+          let (tt, ll) = t.add(len, &k, &k);
           t = tt;
-          len = tlen;
+          len = ll;
           t.invariant(len);
-          assert_eq!(t.find(&k), Option::None);
+          assert_eq!(*t.find(&k).unwrap(), k);
+          if len % 10 == 0 {
+            let (tt, ll) = t.remove(len, &k);
+            t = tt;
+            len = ll;
+            assert_eq!(t.find(&k), Option::None);
+          }
+          t.invariant(len);
         }
       }
 
@@ -105,7 +113,7 @@ macro_rules! tests {
       fn test_str_add_remove_rand() { test_add_remove_rand::<String>() }
 
       fn test_map_rand<T: Ord + Clone + Debug + Rand>() {
-        let v = randvec::<T>(2000);
+        let v = randvec::<T>(200);
         let mut t = map::Map::new();
         let mut i = 0;
         for k in &v {
@@ -135,7 +143,7 @@ macro_rules! tests {
       fn test_str_map_rand() { test_map_rand::<String>() }
 
       fn test_map_iter<T: Ord + Clone + Debug + Rand>() {
-        let v = randvec::<i32>(4000);
+        let v = randvec::<i32>(400);
         let mut t = map::Map::new();
         for k in &v { t = t.add(&k, &k) };
         t.invariant();
@@ -160,4 +168,3 @@ macro_rules! tests {
 
 tests!(rc);
 tests!(arc);
-
