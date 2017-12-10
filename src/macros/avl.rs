@@ -88,6 +88,7 @@ macro_rules! avltree {
                       _ => panic!("bug")
                     }
                   } else {
+                    *len = *len + 1;
                     match loc {
                       Loc::InLeft => t.0.insert(0, (k.clone(), v.clone())),
                       Loc::InRight => t.0.push((k.clone(), v.clone())),
@@ -356,7 +357,7 @@ macro_rules! avltree {
                   ir.append(&mut evr);
                 };
                 let (right, len) = Tree::Empty.add_multi(len, &ir);
-                (Tree::create(&left, &$pinit(elts), &right), len)
+                (Tree::bal(&left, &$pinit(elts), &right), len)
               },
               (Option::None, il, ir, _) => {
                 if il.len() == 0 && ir.len() == 0 { (Tree::Empty, len) }
@@ -386,7 +387,7 @@ macro_rules! avltree {
             let (right, len) = 
               if ir.len() > 0 { tn.right.add_multi(len, &ir) }
               else { (tn.right.clone(), len) };
-            (Tree::create(&left, &elts, &right), len)
+            (Tree::bal(&left, &elts, &right), len)
           }
         }
       }
