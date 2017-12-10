@@ -45,7 +45,6 @@ macro_rules! tests {
         let mut len = 0;
         for i in r {
           let (tt, tlen) = t.add(len, &i, &i);
-          println!("{:?}", t);
           t = tt;
           len = tlen;
           t.invariant(len);

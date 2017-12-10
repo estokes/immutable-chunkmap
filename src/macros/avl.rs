@@ -35,8 +35,11 @@ macro_rules! avltree {
         Elts(t)
       }
 
-      fn is_empty(&self) { self.0.len() == 0 }
-      fn is_full(&self) { self.0.len() == SIZE }
+      #[allow(dead_code)]
+      fn is_empty(&self) -> bool { self.0.len() == 0 }
+
+      #[allow(dead_code)]
+      fn is_full(&self) -> bool { self.0.len() == SIZE }
 
       fn find<Q: ?Sized + Ord>(&self, k: &Q) -> Loc where K: Borrow<Q> {
         let len = self.0.len();
@@ -314,8 +317,8 @@ macro_rules! avltree {
             (Tree::create(&Tree::Empty, &$pinit(Elts::singleton(k, v)), &Tree::Empty), len + 1),
           &Tree::Node(ref tn) => {
             let leaf = 
-              match (tn.left, tn.right) {
-                (Tree::Empty, Tree::Empty) => true,
+              match (&tn.left, &tn.right) {
+                (&Tree::Empty, &Tree::Empty) => true,
                 (_, _) => false
               };
             match tn.elts.add(k, v, len, leaf) {
