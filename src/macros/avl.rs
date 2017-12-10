@@ -81,7 +81,7 @@ macro_rules! avltree {
             Option::Some((ref mut t, ref mut len)) => {
               match t.find(k) {
                 loc @ Loc::InLeft | loc @ Loc::InRight => {
-                  if !leaf || self.0.len() == SIZE {
+                  if !leaf || t.0.len() == SIZE {
                     match loc {
                       Loc::InLeft => il.push((k, v)),
                       Loc::InRight => il.push((k, v)),
