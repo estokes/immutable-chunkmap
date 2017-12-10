@@ -108,11 +108,11 @@ macro_rules! tests {
 
       fn test_add_multi<T: Ord + Clone + Debug + Rand>() {
         let v = randvec::<T>(1000);
-        let pairs : Vec<(&T, &T)> = v.iter().map(|ref k| (k, k)).collect();
+        let pairs: Vec<(&T, &T)> = v.iter().map(|k| (k, k)).collect();
         let mut t = avl::Tree::new().add_multi(0usize, &pairs);
         t.0.invariant(t.1);
         for k in &v {
-          assert_eq!(*t.0.find(&k).unwrap(), k)
+          assert_eq!(t.0.find(&k).unwrap(), k)
         }
       }
 

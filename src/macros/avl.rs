@@ -45,18 +45,21 @@ macro_rules! avltree {
 
       fn find<Q: ?Sized + Ord>(&self, k: &Q) -> Loc where K: Borrow<Q> {
         let len = self.0.len();
-        let first = k.cmp(&self.0[0].0.borrow());
-        let last = k.cmp(&self.0[len - 1].0.borrow());
-        match (first, last) {
-          (Ordering::Equal, _) => Loc::Here(0),
-          (_, Ordering::Equal) => Loc::Here(len - 1),
-          (Ordering::Less, _) => Loc::InLeft,
-          (_, Ordering::Greater) => Loc::InRight,
-          (_, _) =>
-            match self.0.binary_search_by(|&(ref k1, _)| k1.borrow().cmp(k)) {
-              Result::Ok(i) => Loc::Here(i),
-              Result::Err(i) => Loc::NotPresent(i)
-            }
+        if len == 0 { Loc::NotPresent(0) } 
+        else {
+          let first = k.cmp(&self.0[0].0.borrow());
+          let last = k.cmp(&self.0[len - 1].0.borrow());
+          match (first, last) {
+            (Ordering::Equal, _) => Loc::Here(0),
+            (_, Ordering::Equal) => Loc::Here(len - 1),
+            (Ordering::Less, _) => Loc::InLeft,
+            (_, Ordering::Greater) => Loc::InRight,
+            (_, _) =>
+              match self.0.binary_search_by(|&(ref k1, _)| k1.borrow().cmp(k)) {
+                Result::Ok(i) => Loc::Here(i),
+                Result::Err(i) => Loc::NotPresent(i)
+              }
+          }
         }
       }
 
