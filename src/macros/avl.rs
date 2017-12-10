@@ -84,7 +84,7 @@ macro_rules! avltree {
                   if !leaf || t.0.len() == SIZE {
                     match loc {
                       Loc::InLeft => il.push((k, v)),
-                      Loc::InRight => il.push((k, v)),
+                      Loc::InRight => ir.push((k, v)),
                       _ => panic!("bug")
                     }
                   } else {
@@ -114,14 +114,14 @@ macro_rules! avltree {
                     match loc {
                       Loc::InLeft => il.push((k, v)),
                       Loc::InRight => ir.push((k, v)),
-                      _ => panic!("bug")
+                      _ => unreachable!("bug")
                     }
                   } else {
                     let mut t = self.clone();
                     match loc {
                       Loc::InLeft => t.0.insert(0, (k.clone(), v.clone())),
                       Loc::InRight => t.0.push((k.clone(), v.clone())),
-                      _ => panic!("bug")
+                      _ => unreachable!("bug")
                     };
                     res = Option::Some((t, len + 1))
                   }
@@ -181,7 +181,7 @@ macro_rules! avltree {
               match loc {
                 Loc::InLeft => t.0.insert(0, (k.clone(), v.clone())),
                 Loc::InRight => t.0.push((k.clone(), v.clone())),
-                _ => panic!("impossible")
+                _ => unreachable!("bug")
               };
               Result::Ok((t, Option::None, len + 1))
             }
@@ -348,10 +348,15 @@ macro_rules! avltree {
         match self {
           &Tree::Empty => {
             match Elts::empty().add_multi(kv, len, true) {
-              (Option::Some((elts, len)), il, ir, _) => {
+              (Option::Some((elts, len)), il, mut ir, ev) => {
+                println!("elts: {:?}, il: {:?}, ir: {:?}, ev: {:?}", elts, il, ir, ev);
                 let (left, len) = Tree::Empty.add_multi(len, &il);
+                if ev.len() > 0 {
+                  let mut evr : Vec<(&K, &V)> = ev.iter().map(|&(ref k, ref v)| (k, v)).collect();
+                  ir.append(&mut evr);
+                };
                 let (right, len) = Tree::Empty.add_multi(len, &ir);
-                (Tree::bal(&left, &$pinit(elts), &right), len)
+                (Tree::create(&left, &$pinit(elts), &right), len)
               },
               (Option::None, il, ir, _) => {
                 if il.len() == 0 && ir.len() == 0 { (Tree::Empty, len) }
@@ -365,7 +370,7 @@ macro_rules! avltree {
                 (&Tree::Empty, &Tree::Empty) => true,
                 (_, _) => false
               };
-            let (el, ir, il, ev) = tn.elts.add_multi(kv, len, leaf);
+            let (el, il, mut ir, ev) = tn.elts.add_multi(kv, len, leaf);
             let (elts, len) = 
               match el {
                 Option::Some((elts, len)) => ($pinit(elts), len),
@@ -374,16 +379,14 @@ macro_rules! avltree {
             let (left, len) = 
               if il.len() > 0 { tn.left.add_multi(len, &il) }
               else { (tn.left.clone(), len) };
+            if ev.len() > 0 {
+              let mut evr : Vec<(&K, &V)> = ev.iter().map(|&(ref k, ref v)| (k, v)).collect();
+              ir.append(&mut evr)
+            };
             let (right, len) = 
               if ir.len() > 0 { tn.right.add_multi(len, &ir) }
               else { (tn.right.clone(), len) };
-            let (right, len) = {
-              if ev.len() > 0 { 
-                let evr : Vec<(&K, &V)> = ev.iter().map(|&(ref k, ref v)| (k, v)).collect();
-                tn.right.add_multi(len, &evr)
-              } else { (right, len) }
-            };
-            (Tree::bal(&left, &elts, &right), len)
+            (Tree::create(&left, &elts, &right), len)
           }
         }
       }
@@ -558,7 +561,7 @@ macro_rules! avltree {
           }
         }
 
-        //println!("{:?}", t);
+        println!("{:?}", self);
         let (_height, tlen) = check(self, Option::None, Option::None, 0);
         if len != tlen { panic!("len is wrong {} vs {}", len, tlen) }
       }
