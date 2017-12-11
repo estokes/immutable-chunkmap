@@ -105,22 +105,35 @@ macro_rules! tests {
 
       #[test]
       fn test_str_add_remove_rand() { test_add_remove_rand::<String>() }
-      
-      /*
+
       #[test]
-      fn test_add_multi() {
+      fn test_add_multi_small() {
         let v = vec![0i32, 1i32, 22i32, 9i32, -1i32, 50i32, 112i32, 32i32, 108i32, 11i32, 8i32, 7i32, 4i32, 42i32];
         let pairs: Vec<(&i32, &i32)> = v.iter().map(|k| (k, k)).collect();
-        let t = avl::Tree::new().add_multi(0usize, &pairs);
+        let mut t = avl::Tree::new().add_multi(0usize, &pairs);
         t.0.invariant(t.1);
         for k in &v {
           assert_eq!(t.0.find(&k).unwrap(), k)
         }
+        t = t.0.remove(t.1, &22i32);
+        t = t.0.remove(t.1, &112i32);
+        for k in &v {
+          if *k == 22i32 || *k == 112i32 {
+            assert_eq!(t.0.find(&k), Option::None);
+          } else {
+            assert_eq!(t.0.find(&k).unwrap(), k);
+          }
+        }
+        let v2 = vec![12i32, 987i32, 19i32, 98i32];
+        let pairs2 : Vec<(&i32, &i32)> = v2.iter().map(|k| (k, k)).collect();
+        t = t.0.add_multi(t.1, &pairs2);
+        for k in &v2 {
+          assert_eq!(t.0.find(&k).unwrap(), k);
+        }
       }
-      */
 
       fn test_add_multi<T: Ord + Clone + Debug + Rand>() {
-        let v = randvec::<T>(1000);
+        let v = randvec::<T>(10000);
         let pairs: Vec<(&T, &T)> = v.iter().map(|k| (k, k)).collect();
         let mut t = avl::Tree::new().add_multi(0usize, &pairs);
         t.0.invariant(t.1);
@@ -145,7 +158,7 @@ macro_rules! tests {
           }
         };
         let v2 = randvec::<T>(1000);
-        let pairs2 : Vec<(&T, &T)> = v.iter().map(|k| (k, k)).collect();
+        let pairs2 : Vec<(&T, &T)> = v2.iter().map(|k| (k, k)).collect();
         t = t.0.add_multi(t.1, &pairs2);
         t.0.invariant(t.1);
         for k in &v2 { assert_eq!(t.0.find(&k).unwrap(), k); }

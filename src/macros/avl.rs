@@ -306,6 +306,16 @@ macro_rules! avltree {
         Tree::Node($pinit(n))
       }
 
+      pub(crate) fn in_balance(&self) -> bool {
+        match self {
+          &Tree::Empty => true,
+          &Tree::Node(ref tn) => {
+            let (hl, hr) = (tn.left.height(), tn.right.height());
+            !(hl > hr + 1 || hr > hl + 1)
+          }
+        }
+      }
+
       fn bal(l: &Tree<K, V>, elts: &$ptyp<Elts<K, V>>, r: &Tree<K, V>) -> Self {
         let (hl, hr) = (l.height(), r.height());
         if hl > hr + 1 {
@@ -345,17 +355,62 @@ macro_rules! avltree {
         }
       }
 
+      fn bal_mul(l: &Tree<K, V>, elts: &$ptyp<Elts<K, V>>, r: &Tree<K, V>) -> Self {
+        let mut t = Tree::bal(l, elts, r);
+        while !t.in_balance() {
+          t =
+            match t {
+              Tree::Empty => unreachable!("bug"),
+              Tree::Node(ref tn) => Tree::bal(&tn.left, &tn.elts, &tn.right)
+            };
+        }
+        t
+      }
+
+      fn bal_tree(&self) -> Self {
+        match self {
+          &Tree::Empty => Tree::Empty,
+          &Tree::Node(ref tn) => Tree::bal(&tn.left, &tn.elts, &tn.right)
+        }
+      }
+
+      fn unbalanced(&self) -> bool {
+        match self {
+          &Tree::Empty => false,
+          &Tree::Node(ref tn) => {
+            !self.in_balance() || tn.left.unbalanced() || tn.right.unbalanced()
+          }
+        }
+      }
+
+      fn rebalance(&self) -> Self {
+        match self {
+          &Tree::Empty => Tree::Empty,
+          &Tree::Node(ref tn) => {
+            let left = tn.left.rebalance();
+            let right = tn.right.rebalance();
+            Tree::bal(&left, &tn.elts, &right)
+          }
+        }
+      }
+
       pub(crate) fn add_multi(&self, len: usize, kv: &[(&K, &V)]) -> (Self, usize) {
+        let (mut t, len) = self.add_multi_int(len, kv);
+        while t.unbalanced() { t = t.rebalance() };
+        (t, len)
+      }
+
+      fn add_multi_int(&self, len: usize, kv: &[(&K, &V)]) -> (Self, usize) {
         match self {
           &Tree::Empty => {
             match Elts::empty().add_multi(kv, len, true) {
               (Option::Some((elts, len)), il, mut ir, ev) => {
-                let (left, len) = Tree::Empty.add_multi(len, &il);
+                let (left, len) = Tree::Empty.add_multi_int(len, &il);
                 if ev.len() > 0 {
                   let mut evr : Vec<(&K, &V)> = ev.iter().map(|&(ref k, ref v)| (k, v)).collect();
                   ir.append(&mut evr);
                 };
-                let (right, len) = Tree::Empty.add_multi(len, &ir);
+                let (right, len) = Tree::Empty.add_multi_int(len, &ir);
                 (Tree::bal(&left, &$pinit(elts), &right), len)
               },
               (Option::None, il, ir, _) => {
@@ -377,14 +432,14 @@ macro_rules! avltree {
                 Option::None => (tn.elts.clone(), len)
               };
             let (left, len) = 
-              if il.len() > 0 { tn.left.add_multi(len, &il) }
+              if il.len() > 0 { tn.left.add_multi_int(len, &il) }
               else { (tn.left.clone(), len) };
             if ev.len() > 0 {
               let mut evr : Vec<(&K, &V)> = ev.iter().map(|&(ref k, ref v)| (k, v)).collect();
               ir.append(&mut evr)
             };
             let (right, len) = 
-              if ir.len() > 0 { tn.right.add_multi(len, &ir) }
+              if ir.len() > 0 { tn.right.add_multi_int(len, &ir) }
               else { (tn.right.clone(), len) };
             (Tree::bal(&left, &elts, &right), len)
           }
@@ -551,11 +606,12 @@ macro_rules! avltree {
                 check(&tn.right, tn.elts.max_elt().map(|&(ref k, _)| k), upper, len);
               let th = 1 + max(thl, thr);
               let (hl, hr) = (tn.left.height(), tn.right.height());
-              if max(hl, hr) - min(hl, hr) > 2 { panic!("tree is unbalanced") };
+              let ub = max(hl, hr) - min(hl, hr);
               if thl != hl { panic!("left node height is wrong") };
               if thr != hr { panic!("right node height is wrong") };
               let h = t.height();
               if th != h { panic!("node height is wrong {} vs {}", th, h) };
+              if ub > 2 { panic!("tree is unbalanced {:?} tree: {:?}", ub, t) };
               (th, len + tn.elts.0.len())
             }
           }
