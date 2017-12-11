@@ -90,18 +90,19 @@ macro_rules! avltree {
         else if self.0.len() == 0 {
           let mut t = self.clone();
           let n = chunk.len();
-          for i in 0..n { t.0.push(chunk.pop().unwrap()); }
+          for _ in 0..n { t.0.push(chunk.pop().unwrap()); }
           Result::Ok((t, len + n))
         } else {
-          let (min_elt, max_elt) = (chunk[0], chunk[chunk.len() - 1]);
           let full = !leaf || self.0.len() == SIZE;
-          if full && self.find(&max_elt.0) == Loc::InLeft { Result::Err(Dir::InLeft) }
-          else if full && self.find(&min_elt.0) == Loc::InRight { Result::Err(Dir::InRight) }
-          else {
+          if full && self.find(&chunk[chunk.len() - 1].0) == Loc::InLeft { 
+            Result::Err(Dir::InLeft) 
+          } else if full && self.find(&chunk[0].0) == Loc::InRight { 
+            Result::Err(Dir::InRight) 
+          } else {
             let mut t = self.clone();
             let mut len = len;
             let n = chunk.len();
-            for i in 0..n {
+            for _ in 0..n {
               let kv = chunk.pop().unwrap();
               match t.find(&kv.0) {
                 Loc::Here(i) => t.0[i] = kv,
@@ -129,96 +130,12 @@ macro_rules! avltree {
                   }
               }
             }
-            if chunk.len() > 0 { chunk.sort(); }
+            if chunk.len() > 0 { 
+              chunk.sort_unstable_by(|&(ref k1, _), &(ref k2, _)| k1.cmp(k2)); 
+            }
             Result::Ok((t, len))
           }
         }
-      }
-
-      #[allow(dead_code)]
-      fn add_multi<'a>(&self, kv: &[(&'a K, &'a V)], len: usize, leaf: bool) 
-        -> (Option<(Self, usize)>, 
-            Vec<(&'a K, &'a V)>, 
-            Vec<(&'a K, &'a V)>, 
-            Vec<(K, V)>)
-      {
-        let mut il = Vec::<(&K, &V)>::new();
-        let mut ir = Vec::<(&K, &V)>::new();
-        let mut evicted = Vec::<(K, V)>::new();
-        let mut res : Option<(Self, usize)> = Option::None;
-        for &(k, v) in kv {
-          match res {
-            Option::Some((ref mut t, ref mut len)) => {
-              match t.find(k) {
-                loc @ Loc::InLeft | loc @ Loc::InRight => {
-                  if !leaf || t.0.len() == SIZE {
-                    match loc {
-                      Loc::InLeft => il.push((k, v)),
-                      Loc::InRight => ir.push((k, v)),
-                      _ => panic!("bug")
-                    }
-                  } else {
-                    *len = *len + 1;
-                    match loc {
-                      Loc::InLeft => t.0.insert(0, (k.clone(), v.clone())),
-                      Loc::InRight => t.0.push((k.clone(), v.clone())),
-                      _ => panic!("bug")
-                    }
-                  }
-                },
-                Loc::Here(i) => t.0[i] = (k.clone(), v.clone()),
-                Loc::NotPresent(i) => {
-                  if t.0.len() < SIZE {
-                    *len = *len + 1;
-                    t.0.insert(i, (k.clone(), v.clone()))
-                  } else {
-                    evicted.push(t.0.pop().unwrap());
-                    t.0.insert(i, (k.clone(), v.clone()))
-                  }
-                }
-              }
-            },
-            Option::None => {
-              match self.find(k) {
-                loc @ Loc::InLeft | loc @ Loc::InRight => {
-                  if !leaf || self.0.len() == SIZE {
-                    match loc {
-                      Loc::InLeft => il.push((k, v)),
-                      Loc::InRight => ir.push((k, v)),
-                      _ => unreachable!("bug")
-                    }
-                  } else {
-                    let mut t = self.clone();
-                    match loc {
-                      Loc::InLeft => t.0.insert(0, (k.clone(), v.clone())),
-                      Loc::InRight => t.0.push((k.clone(), v.clone())),
-                      _ => unreachable!("bug")
-                    };
-                    res = Option::Some((t, len + 1))
-                  }
-                },
-                Loc::Here(i) => {
-                  let mut t = self.clone();
-                  t.0[i] = (k.clone(), v.clone());
-                  res = Option::Some((t, len));
-                },
-                Loc::NotPresent(i) => {
-                  if self.0.len() < SIZE {
-                    let mut t = self.clone();
-                    t.0.insert(i, (k.clone(), v.clone()));
-                    res = Option::Some((t, len + 1));
-                  } else {
-                    let mut t = self.clone();
-                    evicted.push(t.0.pop().unwrap());
-                    t.0.insert(i, (k.clone(), v.clone()));
-                    res = Option::Some((t, len));
-                  }
-                }
-              }
-            }
-          }
-        }
-        (res, il, ir, evicted)
       }
 
       // add to T, if possible. Otherwise say where in the tree the
@@ -376,16 +293,6 @@ macro_rules! avltree {
         Tree::Node($pinit(n))
       }
 
-      pub(crate) fn in_balance(&self) -> bool {
-        match self {
-          &Tree::Empty => true,
-          &Tree::Node(ref tn) => {
-            let (hl, hr) = (tn.left.height(), tn.right.height());
-            !(hl > hr + 1 || hr > hl + 1)
-          }
-        }
-      }
-
       fn bal(l: &Tree<K, V>, elts: &$ptyp<Elts<K, V>>, r: &Tree<K, V>) -> Self {
         let (hl, hr) = (l.height(), r.height());
         if hl > hr + 1 {
@@ -425,86 +332,47 @@ macro_rules! avltree {
         }
       }
 
-      fn bal_mul(l: &Tree<K, V>, elts: &$ptyp<Elts<K, V>>, r: &Tree<K, V>) -> Self {
-        let mut t = Tree::bal(l, elts, r);
-        while !t.in_balance() {
-          t =
-            match t {
-              Tree::Empty => unreachable!("bug"),
-              Tree::Node(ref tn) => Tree::bal(&tn.left, &tn.elts, &tn.right)
-            };
-        }
-        t
-      }
-
-      fn unbalanced(&self) -> bool {
-        match self {
-          &Tree::Empty => false,
-          &Tree::Node(ref tn) => {
-            !self.in_balance() || tn.left.unbalanced() || tn.right.unbalanced()
-          }
-        }
-      }
-
-      fn rebalance(&self) -> Self {
-        match self {
-          &Tree::Empty => Tree::Empty,
-          &Tree::Node(ref tn) => {
-            let left = tn.left.rebalance();
-            let right = tn.right.rebalance();
-            Tree::bal(&left, &tn.elts, &right)
-          }
-        }
-      }
-
-      pub(crate) fn add_multi(&self, len: usize, kv: &[(&K, &V)]) -> (Self, usize) {
-        let (mut t, len) = self.add_multi_int(len, kv);
-        while t.unbalanced() { t = t.rebalance() };
-        (t, len)
-      }
-
-      fn add_multi_int(&self, len: usize, kv: &[(&K, &V)]) -> (Self, usize) {
+      fn add_chunk(&self, len: usize, chunk: &mut ArrayVec<[(K, V); SIZE]>)
+        -> (Self, usize) 
+      {
         match self {
           &Tree::Empty => {
-            match Elts::empty().add_multi(kv, len, true) {
-              (Option::Some((elts, len)), il, mut ir, ev) => {
-                let (left, len) = Tree::Empty.add_multi_int(len, &il);
-                if ev.len() > 0 {
-                  let mut evr : Vec<(&K, &V)> = ev.iter().map(|&(ref k, ref v)| (k, v)).collect();
-                  ir.append(&mut evr);
-                };
-                let (right, len) = Tree::Empty.add_multi_int(len, &ir);
-                (Tree::bal_mul(&left, &$pinit(elts), &right), len)
-              },
-              (Option::None, il, ir, _) => {
-                if il.len() == 0 && ir.len() == 0 { (Tree::Empty, len) }
-                else { panic!("bug") }
-              }
-            }
+            let (elts, len) = Elts::empty().add_chunk(chunk, len).unwrap();
+            (Tree::create(&Tree::Empty, &$pinit(elts), &Tree::Empty), len)
           },
           &Tree::Node(ref tn) => {
-            let leaf =
+            let leaf = 
               match (&tn.left, &tn.right) {
                 (&Tree::Empty, &Tree::Empty) => true,
                 (_, _) => false
               };
-            let (el, il, mut ir, ev) = tn.elts.add_multi(kv, len, leaf);
-            let (elts, len) = 
-              match el {
-                Option::Some((elts, len)) => ($pinit(elts), len),
-                Option::None => (tn.elts.clone(), len)
-              };
-            let (left, len) = 
-              if il.len() > 0 { tn.left.add_multi_int(len, &il) }
-              else { (tn.left.clone(), len) };
-            if ev.len() > 0 {
-              let mut evr : Vec<(&K, &V)> = ev.iter().map(|&(ref k, ref v)| (k, v)).collect();
-              ir.append(&mut evr)
-            };
-            let (right, len) = 
-              if ir.len() > 0 { tn.right.add_multi_int(len, &ir) }
-              else { (tn.right.clone(), len) };
-            (Tree::bal_mul(&left, &elts, &right), len)
+            match tn.elts.add_chunk(chunk, len, leaf) {
+              Result::Ok((elts, len)) =>
+                (Tree::create(&tn.left, &$pinit(elts), &tn.right), len),
+              Result::Err(Dir::InLeft) => {
+                let (l, len) = tn.left.add_chunk(len, chunk);
+                (Tree::bal(&l, &tn.elts, &tn.right), len)
+              },
+              Result::Err(Dir::InRight) => {
+                let (r, len) = tn.right.add_chunk(len, chunk);
+                (Tree::bal(&tn.left, &tn.elts, &r), len)
+              }
+            }
+          }
+        }
+      }
+
+      pub(crate) fn add_multi(&self, len: usize, elts: &[(&K, &V)]) -> (Self, usize) {
+        let mut t = (self.clone(), len);
+        let mut chunk = ArrayVec<[(K, V); SIZE]>::new();
+        let mut i = 0;
+        while i < elts.len() || chunk.len() > 0 {
+          if i < elts.len() && chunk.len() < SIZE {
+            chunk.push((elts[i].0.clone(), elts[i].1.clone()));
+            i = i + 1;
+          } else {
+            chunk.sort_unstable_by(|&(ref k0, _), &(ref k1, _)| k0.cmp(k1));
+            while chunk.len() > 0 { t = t.0.add_chunk(t.1, chunk); }
           }
         }
       }
