@@ -8,11 +8,27 @@ macro_rules! avltree {
     use std::slice;
     use self::arrayvec::ArrayVec;
 
+    enum Dir {
+      InRight,
+      InLeft
+    }
+
+    #[derive(PartialEq)]
     enum Loc {
       InRight,
       InLeft,
       NotPresent(usize), // the index in the array where the element would be if it was present
       Here(usize) // the index in the array where the equal element is
+    }
+
+    impl Loc {
+      fn to_dir(&self) -> Dir {
+        match self {
+          &Loc::InLeft => Dir::InLeft,
+          &Loc::InRight => Dir::InRight,
+          &Loc::NotPresent(_) | &Loc::Here(_) => panic!("invalid dir")
+        }
+      }
     }
 
     /* 
@@ -64,6 +80,60 @@ macro_rules! avltree {
       }
 
       fn ordering(k0: &(K, V), k1: &(K, V)) -> Ordering { k0.0.cmp(&k1.0) }
+
+      // chunk must be sorted
+      #[allow(dead_code)]
+      fn add_chunk(&self, chunk: &mut ArrayVec<[(K, V); SIZE]>, len: usize, leaf: bool) 
+        -> Result<(Self, usize), Dir>
+      {
+        if chunk.len() == 0 { Result::Ok((self.clone(), len)) }
+        else if self.0.len() == 0 {
+          let mut t = self.clone();
+          let n = chunk.len();
+          for i in 0..n { t.0.push(chunk.pop().unwrap()); }
+          Result::Ok((t, len + n))
+        } else {
+          let (min_elt, max_elt) = (chunk[0], chunk[chunk.len() - 1]);
+          let full = !leaf || self.0.len() == SIZE;
+          if full && self.find(&max_elt.0) == Loc::InLeft { Result::Err(Dir::InLeft) }
+          else if full && self.find(&min_elt.0) == Loc::InRight { Result::Err(Dir::InRight) }
+          else {
+            let mut t = self.clone();
+            let mut len = len;
+            let n = chunk.len();
+            for i in 0..n {
+              let kv = chunk.pop().unwrap();
+              match t.find(&kv.0) {
+                Loc::Here(i) => t.0[i] = kv,
+                Loc::NotPresent(i) =>
+                  if t.0.len() < SIZE {
+                    t.0.insert(i, kv);
+                    len = len + 1;
+                  } else {
+                    chunk.insert(0, t.0.pop().unwrap());
+                    t.0.insert(i, kv)
+                  },
+                Loc::InLeft =>
+                  if t.0.len() < SIZE { 
+                    t.0.insert(0, kv);
+                    len = len + 1;
+                  } else {
+                    chunk.insert(0, kv)
+                  },
+                Loc::InRight =>
+                  if t.0.len() < SIZE {
+                    t.0.push(kv);
+                    len = len + 1;
+                  } else {
+                    chunk.insert(0, kv)
+                  }
+              }
+            }
+            if chunk.len() > 0 { chunk.sort(); }
+            Result::Ok((t, len))
+          }
+        }
+      }
 
       #[allow(dead_code)]
       fn add_multi<'a>(&self, kv: &[(&'a K, &'a V)], len: usize, leaf: bool) 
@@ -155,7 +225,7 @@ macro_rules! avltree {
       // element should be added. If add places the element in the middle 
       // of a full vector, then there will be overflow that must
       // be added right
-      fn add(&self, k: &K, v: &V, len: usize, leaf: bool) -> Result<(Self, Option<(K,V)>, usize), Loc> {
+      fn add(&self, k: &K, v: &V, len: usize, leaf: bool) -> Result<(Self, Option<(K,V)>, usize), Dir> {
         match self.find(k) {
           Loc::Here(i) => {
             let mut t = self.clone();
@@ -176,7 +246,7 @@ macro_rules! avltree {
               Result::Ok((t, Option::Some(overflow), len))
             },
           loc @ Loc::InLeft | loc @ Loc::InRight =>
-            if !leaf || self.0.len() == SIZE { Result::Err(loc) } 
+            if !leaf || self.0.len() == SIZE { Result::Err(loc.to_dir()) } 
             else {
               let mut t = self.clone();
               match loc {
@@ -456,13 +526,11 @@ macro_rules! avltree {
                 let (r, len) = tn.right.add(len, &ovk, &ovv);
                 (Tree::bal(&tn.left, &$pinit(elts), &r), len)
               }
-              Result::Err(Loc::NotPresent(_)) => panic!("add failed but key not present"),
-              Result::Err(Loc::Here(_)) => panic!("add failed but key is here"),
-              Result::Err(Loc::InLeft) => {
+              Result::Err(Dir::InLeft) => {
                 let (l, len) = tn.left.add(len, k, v);
                 (Tree::bal(&l, &tn.elts, &tn.right), len)
               }
-              Result::Err(Loc::InRight) => {
+              Result::Err(Dir::InRight) => {
                 let (r, len) = tn.right.add(len, k, v);
                 (Tree::bal(&tn.left, &tn.elts, &r), len)
               }
