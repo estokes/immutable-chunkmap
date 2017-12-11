@@ -375,6 +375,7 @@ macro_rules! avltree {
             while chunk.len() > 0 { t = t.0.add_chunk(t.1, chunk); }
           }
         }
+        t
       }
 
       pub(crate) fn add(&self, len: usize, k: &K, v: &V) -> (Self, usize) {
