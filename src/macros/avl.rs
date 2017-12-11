@@ -367,13 +367,6 @@ macro_rules! avltree {
         t
       }
 
-      fn bal_tree(&self) -> Self {
-        match self {
-          &Tree::Empty => Tree::Empty,
-          &Tree::Node(ref tn) => Tree::bal(&tn.left, &tn.elts, &tn.right)
-        }
-      }
-
       fn unbalanced(&self) -> bool {
         match self {
           &Tree::Empty => false,
@@ -411,7 +404,7 @@ macro_rules! avltree {
                   ir.append(&mut evr);
                 };
                 let (right, len) = Tree::Empty.add_multi_int(len, &ir);
-                (Tree::bal(&left, &$pinit(elts), &right), len)
+                (Tree::bal_mul(&left, &$pinit(elts), &right), len)
               },
               (Option::None, il, ir, _) => {
                 if il.len() == 0 && ir.len() == 0 { (Tree::Empty, len) }
@@ -441,7 +434,7 @@ macro_rules! avltree {
             let (right, len) = 
               if ir.len() > 0 { tn.right.add_multi_int(len, &ir) }
               else { (tn.right.clone(), len) };
-            (Tree::bal(&left, &elts, &right), len)
+            (Tree::bal_mul(&left, &elts, &right), len)
           }
         }
       }

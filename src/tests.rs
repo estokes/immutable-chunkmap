@@ -54,25 +54,25 @@ macro_rules! tests {
 
       #[test]
       fn test_add_int_seq_asc() {
-        let size = 1000;
+        let size = 100000;
         let (_, len) = add(0..size);
         if len != size { panic!("length is wrong expected 10000 got {}", len) }
       }
 
       #[test]
       fn test_add_int_seq_dec() {
-        let size = 1000;
+        let size = 100000;
         let (_, len) = add((0..size).rev());
         if len != size {panic!("length is wrong expected 10000 got {}", len)}
       }
 
       #[test]
       fn test_add_int_rand() {
-        add(randvec::<i32>(1000)); ()
+        add(randvec::<i32>(100000)); ()
       }
 
       fn test_find_rand<T: Ord + Clone + Debug + Rand>() {
-        let v = randvec::<T>(1000);
+        let v = randvec::<T>(100000);
         let (t, _) = add(&v);
         for k in &v {
           assert_eq!(*t.find(&k).unwrap(), k);
@@ -86,7 +86,7 @@ macro_rules! tests {
       fn test_find_str_rand() { test_find_rand::<String>() }
 
       fn test_add_remove_rand<T: Ord + Clone + Debug + Rand>() {
-        let v = randvec::<T>(1000);
+        let v = randvec::<T>(100000);
         let mut t = (avl::Tree::new(), 0);
         for k in &v {
           t = t.0.add(t.1, &k, &k);
@@ -133,7 +133,7 @@ macro_rules! tests {
       }
 
       fn test_add_multi<T: Ord + Clone + Debug + Rand>() {
-        let v = randvec::<T>(10000);
+        let v = randvec::<T>(100000);
         let pairs: Vec<(&T, &T)> = v.iter().map(|k| (k, k)).collect();
         let mut t = avl::Tree::new().add_multi(0usize, &pairs);
         t.0.invariant(t.1);
@@ -157,7 +157,7 @@ macro_rules! tests {
             i = i + 1;
           }
         };
-        let v2 = randvec::<T>(1000);
+        let v2 = randvec::<T>(100000);
         let pairs2 : Vec<(&T, &T)> = v2.iter().map(|k| (k, k)).collect();
         t = t.0.add_multi(t.1, &pairs2);
         t.0.invariant(t.1);
@@ -171,7 +171,7 @@ macro_rules! tests {
       fn test_str_add_multi() { test_add_multi::<String>() }
 
       fn test_map_rand<T: Ord + Clone + Debug + Rand>() {
-        let v = randvec::<T>(1000);
+        let v = randvec::<T>(100000);
         let mut t = map::Map::new();
         let mut i = 0;
         for k in &v {
@@ -201,7 +201,7 @@ macro_rules! tests {
       fn test_str_map_rand() { test_map_rand::<String>() }
 
       fn test_map_iter<T: Ord + Clone + Debug + Rand>() {
-        let v = randvec::<i32>(1000);
+        let v = randvec::<i32>(100000);
         let mut t = map::Map::new();
         for k in &v { t = t.add(&k, &k) };
         t.invariant();
