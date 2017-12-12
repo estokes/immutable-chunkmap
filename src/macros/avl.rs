@@ -359,11 +359,11 @@ macro_rules! avltree {
                 if chunk.len() == 0 {
                   (Tree::create(&tn.left, &$pinit(elts), &tn.right), len)
                 } else {
-                  let llen = chunk.len() - split;
-                  for _ in 0..llen { tmp.push(chunk.pop().unwrap()); }
+                  let n = chunk.len() - split;
+                  for _ in 0..n { tmp.push(chunk.pop().unwrap()); }
                   let (l, len) = tn.left.add_chunk(len, chunk, tmp);
                   let t = Tree::bal(&l, &$pinit(elts), &tn.right);
-                  for _ in 0..llen { chunk.push(tmp.pop().unwrap()); }
+                  for _ in 0..n { chunk.push(tmp.pop().unwrap()); }
                   (t, len)
                 },
               Result::Err(Dir::InLeft) => {

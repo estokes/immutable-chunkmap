@@ -29,6 +29,10 @@ macro_rules! tests {
         fn rand<R: Rng>(r: &mut R) -> Self { r.gen() }
       }
 
+      impl Rand for usize {
+        fn rand<R: Rng>(r: &mut R) -> Self { r.gen() }
+      }
+
       fn random<T: Rand>() -> T {
         let mut rng = rand::thread_rng();
         T::rand(&mut rng)
@@ -107,23 +111,32 @@ macro_rules! tests {
 
       #[test]
       fn test_add_multi_small() {
-        let v = vec![0i32, 1i32, 22i32, 9i32, -1i32, 50i32, 112i32, 32i32, 108i32, 11i32, 8i32, 7i32, 4i32, 42i32];
+        let mut v: Vec<i32> = vec![1, 9, 16, 11, 7, 12, 8, 12, 12, 11, 9, 12, 9, 7, 16, 9, 1, 9, 1, 1, 22, 112];
+        /*
+        for i in 0..v.len() {
+          let loc = random::<usize>() % (v.len() - i);
+          let tmp = v[i];
+          v[i] = v[loc];
+          v[loc] = v[i];
+        }
+        */
         let pairs: Vec<(&i32, &i32)> = v.iter().map(|k| (k, k)).collect();
+        println!("{:?}", v);
         let mut t = avl::Tree::new().add_multi(0usize, &pairs);
+        println!("{:?}", t.0);
         t.0.invariant(t.1);
         for k in &v {
           assert_eq!(t.0.find(&k).unwrap(), k)
         }
-        //t = t.0.remove(t.1, &22i32);
-        //t = t.0.remove(t.1, &112i32);
+        t = t.0.remove(t.1, &22i32);
+        t = t.0.remove(t.1, &112i32);
         t.0.invariant(t.1);
-        println!("{:?}", t.0);
         for k in &v {
-//          if *k == 22i32 || *k == 112i32 {
-//            assert_eq!(t.0.find(&k), Option::None);
-//          } else {
+          if *k == 22i32 || *k == 112i32 {
+            assert_eq!(t.0.find(&k), Option::None);
+          } else {
             assert_eq!(t.0.find(&k), Option::Some(k));
-//          }
+          }
         }
         let v2 = vec![12i32, 987i32, 19i32, 98i32];
         let pairs2 : Vec<(&i32, &i32)> = v2.iter().map(|k| (k, k)).collect();
