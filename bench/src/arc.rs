@@ -11,9 +11,14 @@ use utils;
 fn bench_add(len: usize) -> (Arc<Map<i64, i64>>, Arc<Vec<i64>>, Duration) {
   let mut m = Map::new();
   let data = utils::randvec::<i64>(len);
-  let begin = Instant::now();
-  for kv in &data { m = m.add(kv, kv) }
-  (Arc::new(m), Arc::new(data), begin.elapsed())
+  let elapsed = {
+    let pairs : Vec<(&i64, &i64)> = data.iter().map(|k| (k, k)).collect();
+    let begin = Instant::now();
+    m = m.add_multi(&pairs);
+    begin.elapsed()
+  };
+  //for kv in &data { m = m.add(kv, kv) }
+  (Arc::new(m), Arc::new(data), elapsed)
 }
 
 fn bench_find(m: Arc<Map<i64, i64>>, d: Arc<Vec<i64>>) -> Duration {

@@ -7,9 +7,14 @@ use utils;
 fn bench_add(len: usize) -> (Map<i64, i64>, Vec<i64>, Duration) {
   let mut m = Map::new();
   let data = utils::randvec::<i64>(len);
-  let begin = Instant::now();
-  for kv in &data { m = m.add(kv, kv) }
-  (m, data, begin.elapsed())
+  let elapsed = {
+    let pairs : Vec<(&i64, &i64)> = data.iter().map(|k| (k, k)).collect();
+    let begin = Instant::now();
+    m = m.add_multi(&pairs);
+    begin.elapsed()
+  };
+  //for kv in &data { m = m.add(kv, kv) }
+  (m, data, elapsed)
 }
 
 fn bench_find(m: &Map<i64, i64>, d: &Vec<i64>) -> Duration {

@@ -21,6 +21,11 @@ macro_rules! map {
     impl<K,V> Map<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
       pub fn new() -> Self { Map { len: 0, root: Tree::new() } }
 
+      pub fn add_multi(&self, elts: &[(&K, &V)]) -> Self {
+        let (t, len) = self.root.add_multi(self.len, elts);
+        Map { len: len, root: t }
+      }
+
       pub fn add(&self, k: &K, v: &V) -> Self {
         let (t, len) = self.root.add(self.len, k, v);
         Map { len: len, root: t }
