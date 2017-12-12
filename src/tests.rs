@@ -11,7 +11,7 @@ macro_rules! tests {
 
       const STRSIZE: usize = 10;
       const SIZE: usize = 100000;
-      const CHECK: usize = 100;
+      const CHECK: usize = 1000;
 
       trait Rand: Sized {
         fn rand<R: Rng>(r: &mut R) -> Self;
@@ -43,25 +43,25 @@ macro_rules! tests {
       fn add<I, T>(r: I) -> (avl::Tree<T, T>, usize)
         where I: IntoIterator<Item=T>, T: Ord + Clone + Debug
       {
-        let mut (t, len) = (avl::Tree::new(), 0);
+        let mut t = (avl::Tree::new(), 0);
         for i in r {
           t = t.0.add(t.1, &i, &i);
-          if t.1 % CHECK == 0 { t.0.invariant(len); }
+          if t.1 % CHECK == 0 { t.0.invariant(t.1); }
         }
-        t.1.invariant();
-        (t, len)
+        t.0.invariant(t.1);
+        t
       }
 
       #[test]
       fn test_add_int_seq_asc() {
         let (_, len) = add(0..SIZE);
-        if len != size { panic!("length is wrong expected 10000 got {}", len) }
+        if len != SIZE { panic!("length is wrong expected 10000 got {}", len) }
       }
 
       #[test]
       fn test_add_int_seq_dec() {
         let (_, len) = add((0..SIZE).rev());
-        if len != size {panic!("length is wrong expected 10000 got {}", len)}
+        if len != SIZE {panic!("length is wrong expected 10000 got {}", len)}
       }
 
       #[test]
@@ -173,8 +173,9 @@ macro_rules! tests {
         let mut i = 0;
         for k in &v {
           t = t.add(&k, &k);
-          if i % CHECK == 0 {
-            t.invariant();
+          assert_eq!(*t.find(&k).unwrap(), k);
+          if i % CHECK == 0 { 
+            t.invariant() 
             for k in &v[0..i] { 
               assert_eq!(*t.find(&k).unwrap(), k);
             }
@@ -185,11 +186,13 @@ macro_rules! tests {
         i = 0;
         for k in &v {
           t = t.remove(&k);
-          t.invariant();
-          i = i + 1;
-          for k in &v[0..i] {
-            assert_eq!(t.find(&k), Option::None);
+          if i % CHECK == 0 { 
+            t.invariant(); 
+            for k in &v[0..i] {
+              assert_eq!(t.find(&k), Option::None);
+            }
           }
+          i = i + 1;
         }
       }
 
