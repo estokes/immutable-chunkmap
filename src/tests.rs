@@ -40,6 +40,7 @@ macro_rules! tests {
         v
       }
 
+      /*
       fn add<I, T>(r: I) -> (avl::Tree<T, T>, usize)
         where I: IntoIterator<Item=T>, T: Ord + Clone + Debug
       {
@@ -102,6 +103,7 @@ macro_rules! tests {
 
       #[test]
       fn test_str_add_remove_rand() { test_add_remove_rand::<String>() }
+      */
 
       #[test]
       fn test_add_multi_small() {
@@ -129,6 +131,7 @@ macro_rules! tests {
         }
       }
 
+      /*
       fn test_add_multi<T: Ord + Clone + Debug + Rand>() {
         let v = randvec::<T>(SIZE);
         let pairs: Vec<(&T, &T)> = v.iter().map(|k| (k, k)).collect();
@@ -175,7 +178,7 @@ macro_rules! tests {
           t = t.add(&k, &k);
           assert_eq!(*t.find(&k).unwrap(), k);
           if i % CHECK == 0 { 
-            t.invariant() 
+            t.invariant();
             for k in &v[0..i] { 
               assert_eq!(*t.find(&k).unwrap(), k);
             }
@@ -222,9 +225,10 @@ macro_rules! tests {
 
       #[test]
       fn test_string_map_iter() { test_map_iter::<String>() }
+      */
     }
   };
 }
 
 tests!(rc);
-tests!(arc);
+//tests!(arc);

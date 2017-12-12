@@ -91,7 +91,7 @@ macro_rules! avltree {
         else if self.0.len() == 0 {
           let mut t = self.clone();
           let n = chunk.len();
-          for _ in 0..n { t.0.push(chunk.pop().unwrap()); }
+          for i in (n - 1)...0 { t.0.insert(i, chunk.pop().unwrap()); }
           Result::Ok((t, len + n))
         } else {
           let full = !leaf || self.0.len() == SIZE;
