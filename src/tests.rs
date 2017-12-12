@@ -44,7 +44,6 @@ macro_rules! tests {
         v
       }
 
-      /*
       fn add<I, T>(r: I) -> (avl::Tree<T, T>, usize)
         where I: IntoIterator<Item=T>, T: Ord + Clone + Debug
       {
@@ -107,23 +106,12 @@ macro_rules! tests {
 
       #[test]
       fn test_str_add_remove_rand() { test_add_remove_rand::<String>() }
-      */
 
       #[test]
       fn test_add_multi_small() {
-        let mut v: Vec<i32> = vec![1, 9, 16, 11, 7, 12, 8, 12, 12, 11, 9, 12, 9, 7, 16, 9, 1, 9, 1, 1, 22, 112];
-        /*
-        for i in 0..v.len() {
-          let loc = random::<usize>() % (v.len() - i);
-          let tmp = v[i];
-          v[i] = v[loc];
-          v[loc] = v[i];
-        }
-        */
+        let v: Vec<i32> = vec![1, 9, 16, 11, 7, 12, 8, 12, 12, 11, 9, 12, 9, 7, 16, 9, 1, 9, 1, 1, 22, 112];
         let pairs: Vec<(&i32, &i32)> = v.iter().map(|k| (k, k)).collect();
-        println!("{:?}", v);
         let mut t = avl::Tree::new().add_multi(0usize, &pairs);
-        println!("{:?}", t.0);
         t.0.invariant(t.1);
         for k in &v {
           assert_eq!(t.0.find(&k).unwrap(), k)
@@ -146,7 +134,6 @@ macro_rules! tests {
         }
       }
 
-      /*
       fn test_add_multi<T: Ord + Clone + Debug + Rand>() {
         let v = randvec::<T>(SIZE);
         let pairs: Vec<(&T, &T)> = v.iter().map(|k| (k, k)).collect();
@@ -240,10 +227,9 @@ macro_rules! tests {
 
       #[test]
       fn test_string_map_iter() { test_map_iter::<String>() }
-      */
     }
   };
 }
 
 tests!(rc);
-//tests!(arc);
+tests!(arc);

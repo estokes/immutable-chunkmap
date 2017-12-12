@@ -394,12 +394,7 @@ macro_rules! avltree {
             i = i + 1;
           } else {
             chunk.sort_unstable_by(|&(ref k0, _), &(ref k1, _)| k0.cmp(k1));
-            while chunk.len() > 0 { 
-              println!("0 chunk: {:?}\n0 tree: {:?}", chunk, t.0);
-              t = t.0.add_chunk(t.1, &mut chunk, &mut tmp); 
-              println!("1 tree: {:?}\n1 chunk: {:?}", t.0, chunk);
-              t.0.invariant(t.1);
-            }
+            while chunk.len() > 0 { t = t.0.add_chunk(t.1, &mut chunk, &mut tmp); }
             assert_eq!(tmp.len(), 0)
           }
         }
