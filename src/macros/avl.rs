@@ -85,15 +85,15 @@ macro_rules! avltree {
       // chunk must be sorted
       #[allow(dead_code)]
       fn add_chunk(&self, chunk: &mut ArrayVec<[(K, V); SIZE]>, len: usize, leaf: bool) 
-        -> Result<(Self, usize), Dir>
+        -> Result<(Self, usize, usize), Dir>
       {
-        if chunk.len() == 0 { Result::Ok((self.clone(), len)) }
+        if chunk.len() == 0 { Result::Ok((self.clone(), len, 0)) }
         else if self.0.len() == 0 {
           let mut t = self.clone();
           let n = chunk.len();
           for _ in 0..n { t.0.push(chunk.pop().unwrap()); }
           t.0.reverse();
-          Result::Ok((t, len + n))
+          Result::Ok((t, len + n, 0))
         } else {
           let full = !leaf || self.0.len() == SIZE;
           if full && self.find(&chunk[chunk.len() - 1].0) == Loc::InLeft { 
@@ -135,7 +135,9 @@ macro_rules! avltree {
             if chunk.len() > 0 { 
               chunk.sort_unstable_by(|&(ref k1, _), &(ref k2, _)| k1.cmp(k2)); 
             }
-            Result::Ok((t, len))
+            let mut i = 0;
+            while chunk[i] < t.0[0] { i = i + 1; }
+            Result::Ok((t, len, i))
           }
         }
       }
@@ -334,12 +336,14 @@ macro_rules! avltree {
         }
       }
 
-      fn add_chunk(&self, len: usize, chunk: &mut ArrayVec<[(K, V); SIZE]>)
+      fn add_chunk(&self, len: usize, 
+        chunk: &mut ArrayVec<[(K, V); SIZE]>, 
+        tmp: &mut ArrayVec[(K, V); SIZE])
         -> (Self, usize) 
       {
         match self {
           &Tree::Empty => {
-            let (elts, len) = Elts::empty().add_chunk(chunk, len, true).unwrap();
+            let (elts, len, _) = Elts::empty().add_chunk(chunk, len, true).unwrap();
             (Tree::create(&Tree::Empty, &$pinit(elts), &Tree::Empty), len)
           },
           &Tree::Node(ref tn) => {
@@ -349,8 +353,16 @@ macro_rules! avltree {
                 (_, _) => false
               };
             match tn.elts.add_chunk(chunk, len, leaf) {
-              Result::Ok((elts, len)) =>
-                (Tree::create(&tn.left, &$pinit(elts), &tn.right), len),
+              Result::Ok((elts, len, split)) =>
+                if chunk.len() == 0 {
+                  (Tree::create(&tn.left, &$pinit(elts), &tn.right), len)
+                } else {
+                  for _ in 0..split { tmp.push(chunk.pop().unwrap()); }
+                  let (l, len) = tn.left.add_chunk(len, chunk, tmp)
+                  let t = Tree::bal(&l, &$pinit(elts), &tn.right);
+                  for _ in 0..split { chunk.push(tmp.pop().unwrap()); }
+                  (t, len)
+                },
               Result::Err(Dir::InLeft) => {
                 let (l, len) = tn.left.add_chunk(len, chunk);
                 (Tree::bal(&l, &tn.elts, &tn.right), len)
@@ -368,6 +380,7 @@ macro_rules! avltree {
       pub(crate) fn add_multi(&self, len: usize, elts: &[(&K, &V)]) -> (Self, usize) {
         let mut t = (self.clone(), len);
         let mut chunk = ArrayVec::<[(K, V); SIZE]>::new();
+        let mut tmp = ArrayVec::<[(K, V); SIZE]>::new();
         let mut i = 0;
         while i < elts.len() || chunk.len() > 0 {
           if i < elts.len() && chunk.len() < SIZE {
@@ -375,7 +388,8 @@ macro_rules! avltree {
             i = i + 1;
           } else {
             chunk.sort_unstable_by(|&(ref k0, _), &(ref k1, _)| k0.cmp(k1));
-            while chunk.len() > 0 { t = t.0.add_chunk(t.1, &mut chunk); }
+            while chunk.len() > 0 { t = t.0.add_chunk(t.1, &mut chunk, &mut tmp); }
+            assert_eq!(tmp.len(), 0)
           }
         }
         t
