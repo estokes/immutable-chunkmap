@@ -136,7 +136,7 @@ macro_rules! avltree {
               chunk.sort_unstable_by(|&(ref k1, _), &(ref k2, _)| k1.cmp(k2)); 
             }
             let mut i = 0;
-            while chunk[i] < t.0[0] { i = i + 1; }
+            while i < chunk.len() && chunk[i].0 < t.0[0].0 { i = i + 1; }
             Result::Ok((t, len, i))
           }
         }
@@ -338,14 +338,16 @@ macro_rules! avltree {
 
       fn add_chunk(&self, len: usize, 
         chunk: &mut ArrayVec<[(K, V); SIZE]>, 
-        tmp: &mut ArrayVec[(K, V); SIZE])
+        tmp: &mut ArrayVec<[(K, V); SIZE]>)
         -> (Self, usize) 
       {
         match self {
-          &Tree::Empty => {
-            let (elts, len, _) = Elts::empty().add_chunk(chunk, len, true).unwrap();
-            (Tree::create(&Tree::Empty, &$pinit(elts), &Tree::Empty), len)
-          },
+          &Tree::Empty =>
+            if chunk.len() == 0 { (Tree::Empty, len) }
+            else {
+              let (elts, len, _) = Elts::empty().add_chunk(chunk, len, true).unwrap();
+              (Tree::create(&Tree::Empty, &$pinit(elts), &Tree::Empty), len)
+            },
           &Tree::Node(ref tn) => {
             let leaf = 
               match (&tn.left, &tn.right) {
@@ -357,18 +359,19 @@ macro_rules! avltree {
                 if chunk.len() == 0 {
                   (Tree::create(&tn.left, &$pinit(elts), &tn.right), len)
                 } else {
-                  for _ in 0..split { tmp.push(chunk.pop().unwrap()); }
-                  let (l, len) = tn.left.add_chunk(len, chunk, tmp)
+                  let llen = chunk.len() - split;
+                  for _ in 0..llen { tmp.push(chunk.pop().unwrap()); }
+                  let (l, len) = tn.left.add_chunk(len, chunk, tmp);
                   let t = Tree::bal(&l, &$pinit(elts), &tn.right);
-                  for _ in 0..split { chunk.push(tmp.pop().unwrap()); }
+                  for _ in 0..llen { chunk.push(tmp.pop().unwrap()); }
                   (t, len)
                 },
               Result::Err(Dir::InLeft) => {
-                let (l, len) = tn.left.add_chunk(len, chunk);
+                let (l, len) = tn.left.add_chunk(len, chunk, tmp);
                 (Tree::bal(&l, &tn.elts, &tn.right), len)
               },
               Result::Err(Dir::InRight) => {
-                let (r, len) = tn.right.add_chunk(len, chunk);
+                let (r, len) = tn.right.add_chunk(len, chunk, tmp);
                 (Tree::bal(&tn.left, &tn.elts, &r), len)
               }
             }
