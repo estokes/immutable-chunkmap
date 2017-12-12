@@ -8,6 +8,7 @@ macro_rules! avltree {
     use std::slice;
     use self::arrayvec::ArrayVec;
 
+    #[derive(Debug)]
     enum Dir {
       InRight,
       InLeft
@@ -337,7 +338,7 @@ macro_rules! avltree {
       {
         match self {
           &Tree::Empty => {
-            let (elts, len) = Elts::empty().add_chunk(chunk, len).unwrap();
+            let (elts, len) = Elts::empty().add_chunk(chunk, len, true).unwrap();
             (Tree::create(&Tree::Empty, &$pinit(elts), &Tree::Empty), len)
           },
           &Tree::Node(ref tn) => {
@@ -362,9 +363,10 @@ macro_rules! avltree {
         }
       }
 
+      #[allow(dead_code)]
       pub(crate) fn add_multi(&self, len: usize, elts: &[(&K, &V)]) -> (Self, usize) {
         let mut t = (self.clone(), len);
-        let mut chunk = ArrayVec<[(K, V); SIZE]>::new();
+        let mut chunk = ArrayVec::<[(K, V); SIZE]>::new();
         let mut i = 0;
         while i < elts.len() || chunk.len() > 0 {
           if i < elts.len() && chunk.len() < SIZE {
@@ -372,7 +374,7 @@ macro_rules! avltree {
             i = i + 1;
           } else {
             chunk.sort_unstable_by(|&(ref k0, _), &(ref k1, _)| k0.cmp(k1));
-            while chunk.len() > 0 { t = t.0.add_chunk(t.1, chunk); }
+            while chunk.len() > 0 { t = t.0.add_chunk(t.1, &mut chunk); }
           }
         }
         t
