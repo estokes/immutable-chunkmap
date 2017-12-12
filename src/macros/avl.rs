@@ -97,9 +97,9 @@ macro_rules! avltree {
         } else {
           let full = !leaf || self.0.len() == SIZE;
           if full && self.find(&chunk[chunk.len() - 1].0) == Loc::InLeft { 
-            Result::Err(Dir::InLeft) 
+            Result::Err(Dir::InLeft)
           } else if full && self.find(&chunk[0].0) == Loc::InRight { 
-            Result::Err(Dir::InRight) 
+            Result::Err(Dir::InRight)
           } else {
             let mut t = self.clone();
             let mut len = len;
@@ -117,14 +117,14 @@ macro_rules! avltree {
                     t.0.insert(i, kv)
                   },
                 Loc::InLeft =>
-                  if t.0.len() < SIZE { 
+                  if leaf && t.0.len() < SIZE { 
                     t.0.insert(0, kv);
                     len = len + 1;
                   } else {
                     chunk.insert(0, kv)
                   },
                 Loc::InRight =>
-                  if t.0.len() < SIZE {
+                  if leaf && t.0.len() < SIZE {
                     t.0.push(kv);
                     len = len + 1;
                   } else {
@@ -358,12 +358,15 @@ macro_rules! avltree {
               Result::Ok((elts, len, split)) =>
                 if chunk.len() == 0 {
                   (Tree::create(&tn.left, &$pinit(elts), &tn.right), len)
+                } else if split == 0 {
+                  let (r, len) = tn.right.add_chunk(len, chunk, tmp);
+                  (Tree::bal(&tn.left, &$pinit(elts), &r), len)
                 } else {
                   let n = chunk.len() - split;
                   for _ in 0..n { tmp.push(chunk.pop().unwrap()); }
                   let (l, len) = tn.left.add_chunk(len, chunk, tmp);
                   let t = Tree::bal(&l, &$pinit(elts), &tn.right);
-                  for _ in 0..n { chunk.push(tmp.pop().unwrap()); }
+                  for _ in 0..n { chunk.push(tmp.pop().unwrap()) };
                   (t, len)
                 },
               Result::Err(Dir::InLeft) => {
@@ -391,7 +394,12 @@ macro_rules! avltree {
             i = i + 1;
           } else {
             chunk.sort_unstable_by(|&(ref k0, _), &(ref k1, _)| k0.cmp(k1));
-            while chunk.len() > 0 { t = t.0.add_chunk(t.1, &mut chunk, &mut tmp); }
+            while chunk.len() > 0 { 
+              println!("0 chunk: {:?}\n0 tree: {:?}", chunk, t.0);
+              t = t.0.add_chunk(t.1, &mut chunk, &mut tmp); 
+              println!("1 tree: {:?}\n1 chunk: {:?}", t.0, chunk);
+              t.0.invariant(t.1);
+            }
             assert_eq!(tmp.len(), 0)
           }
         }
