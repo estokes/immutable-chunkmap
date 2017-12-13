@@ -54,12 +54,6 @@ macro_rules! avltree {
 
       fn empty() -> Self { Elts(ArrayVec::<[(K,V); SIZE]>::new()) }
 
-      #[allow(dead_code)]
-      fn is_empty(&self) -> bool { self.0.len() == 0 }
-
-      #[allow(dead_code)]
-      fn is_full(&self) -> bool { self.0.len() == SIZE }
-
       fn find<Q: ?Sized + Ord>(&self, k: &Q) -> Loc where K: Borrow<Q> {
         let len = self.0.len();
         if len == 0 { Loc::NotPresent(0) } 
@@ -83,7 +77,6 @@ macro_rules! avltree {
       fn ordering(k0: &(K, V), k1: &(K, V)) -> Ordering { k0.0.cmp(&k1.0) }
 
       // chunk must be sorted
-      #[allow(dead_code)]
       fn add_chunk(&self, chunk: &mut ArrayVec<[(K, V); SIZE]>, len: usize, leaf: bool) 
         -> Result<(Self, usize, usize), Dir>
       {
@@ -378,7 +371,6 @@ macro_rules! avltree {
         }
       }
 
-      #[allow(dead_code)]
       pub(crate) fn add_sorted(&self, len: usize, elts: &[(&K, &V)]) -> (Self, usize) {
         let mut t = (self.clone(), len);
         let mut chunk = ArrayVec::<[(K, V); SIZE]>::new();
