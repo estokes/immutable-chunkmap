@@ -54,7 +54,8 @@ macro_rules! avltree {
 
       fn empty() -> Self { Elts(ArrayVec::<[(K,V); SIZE]>::new()) }
 
-      fn find<Q: ?Sized + Ord>(&self, k: &Q) -> Loc where K: Borrow<Q> {
+      #[allow(dead_code)]
+      fn find_bs<Q: ?Sized + Ord>(&self, k: &Q) -> Loc where K: Borrow<Q> {
         let len = self.0.len();
         if len == 0 { Loc::NotPresent(0) } 
         else {
@@ -74,6 +75,51 @@ macro_rules! avltree {
         }
       }
 
+      #[allow(dead_code)]
+      fn find_ls<Q: ?Sized + Ord>(&self, k: &Q) -> Loc where K: Borrow<Q> {
+        let len = self.0.len();
+        if len == 0 { Loc::NotPresent(0) } 
+        else {
+          let first = k.cmp(self.0[0].0.borrow());
+          let last = k.cmp(self.0[len - 1].0.borrow());
+          match (first, last) {
+            (Ordering::Equal, _) => Loc::Here(0),
+            (_, Ordering::Equal) => Loc::Here(len - 1),
+            (Ordering::Less, _) => Loc::InLeft,
+            (_, Ordering::Greater) => Loc::InRight,
+            (Ordering::Greater, Ordering::Less) => {
+              println!("{:?}", self.0);
+              let pivot = len / 2;
+              let (start, end) =
+                match k.cmp(self.0[pivot].0.borrow()) {
+                  Ordering::Equal => return Loc::Here(pivot),
+                  Ordering::Greater => (min(pivot, len), len),
+                  Ordering::Less => (0, pivot) 
+                };
+              println!("pivot: {:?} start: {:?} end: {:?}", pivot, start, end);
+              let mut i = start;
+              for &(ref k0, _) in &self.0[start..end] {
+                println!("check: {:?} val: {:?}", i, k0);
+                match k.cmp(k0.borrow()) {
+                  Ordering::Equal => {
+                    println!("k0 is here: {:?}", i);
+                    return Loc::Here(i)
+                  },
+                  Ordering::Greater => println!("still looking: {:?}", i),
+                  Ordering::Less =>  {
+                    println!("k0 is not present: {:?}", i);
+                    return Loc::NotPresent(i)
+                  }
+                }
+                i = i + 1;
+              }
+              unreachable!("bug len: {:?} pivot: {:?} start: {:?} end: {:?} i: {:?}", 
+                len, pivot, start, end, i)
+            }
+          }
+        }
+      }
+
       fn ordering(k0: &(K, V), k1: &(K, V)) -> Ordering { k0.0.cmp(&k1.0) }
 
       // chunk must be sorted
@@ -89,9 +135,9 @@ macro_rules! avltree {
           Result::Ok((t, len + n, 0))
         } else {
           let full = !leaf || self.0.len() == SIZE;
-          if full && self.find(&chunk[chunk.len() - 1].0) == Loc::InLeft { 
+          if full && self.find_bs(&chunk[chunk.len() - 1].0) == Loc::InLeft { 
             Result::Err(Dir::InLeft)
-          } else if full && self.find(&chunk[0].0) == Loc::InRight { 
+          } else if full && self.find_bs(&chunk[0].0) == Loc::InRight { 
             Result::Err(Dir::InRight)
           } else {
             let mut t = self.clone();
@@ -99,7 +145,7 @@ macro_rules! avltree {
             let n = chunk.len();
             for _ in 0..n {
               let kv = chunk.pop().unwrap();
-              match t.find(&kv.0) {
+              match t.find_bs(&kv.0) {
                 Loc::Here(i) => t.0[i] = kv,
                 Loc::NotPresent(i) =>
                   if t.0.len() < SIZE {
@@ -140,7 +186,7 @@ macro_rules! avltree {
       // of a full vector, then there will be overflow that must
       // be added right
       fn add(&self, k: &K, v: &V, len: usize, leaf: bool) -> Result<(Self, Option<(K,V)>, usize), Dir> {
-        match self.find(k) {
+        match self.find_bs(k) {
           Loc::Here(i) => {
             let mut t = self.clone();
             t.0[i] = (k.clone(), v.clone());
@@ -459,7 +505,7 @@ macro_rules! avltree {
         match self {
           &Tree::Empty => (Tree::Empty, len),
           &Tree::Node(ref tn) =>
-            match tn.elts.find(k) {
+            match tn.elts.find_bs(k) {
               Loc::NotPresent(_) => 
                 (Tree::create(&tn.left, &tn.elts, &tn.right), len),
               Loc::Here(i) => {
@@ -489,7 +535,7 @@ macro_rules! avltree {
         match self {
           &Tree::Empty => Option::None,
           &Tree::Node(ref tn) =>
-            match tn.elts.find(k) {
+            match tn.elts.find_ls(k) {
               Loc::Here(i) => Option::Some(&tn.elts.0[i].1),
               Loc::NotPresent(_) => Option::None,
               Loc::InLeft => tn.left.find(k),
@@ -522,7 +568,8 @@ macro_rules! avltree {
             for i in 0..(elts.0.len() - 1) {
               match Elts::ordering(&elts.0[i], &elts.0[i + 1]) {
                 Ordering::Greater => return false,
-                Ordering::Less | Ordering::Equal => ()
+                Ordering::Less => (),
+                Ordering::Equal => panic!("duplicates found: {:?}", elts)
               }
             }
             true

@@ -3,27 +3,21 @@ use std::iter::FromIterator;
 use std::env;
 mod rc;
 mod arc;
+mod btm;
 mod utils;
 
-enum Kind {
-  Rc,
-  Arc
-}
+fn usage() { println!("usage: <arc|rc|btm> <size>") }
 
 fn main() {
   let args = Vec::from_iter(env::args());
-  let (typ, size) =
-    if args.len() != 3 { (Kind::Rc, 10000) }
-    else {
-      (match args[1].as_ref() {
-         "rc" => Kind::Rc,
-         "arc" => Kind::Arc,
-         typ => panic!("invalid test type, {}, use rc or arc", typ)
-       },
-       args[2].parse::<usize>().unwrap())
-    } ;
-  match typ {
-    Kind::Rc => rc::run(size),
-    Kind::Arc => arc::run(size)
+  if args.len() != 3 { usage() }
+  else {
+    let size = args[2].parse::<usize>().unwrap();
+    match args[1].as_ref() {
+      "rc" => rc::run(size),
+      "arc" => arc::run(size),
+      "btm" => btm::run(size),
+      _ => usage() 
+    }
   }
 }
