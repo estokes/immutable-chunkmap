@@ -76,7 +76,7 @@ macro_rules! avltree {
       }
 
       #[allow(dead_code)]
-      fn find_ls<Q: ?Sized + Ord + Debug>(&self, k: &Q) -> Loc where K: Borrow<Q> {
+      fn find_lsp<Q: ?Sized + Ord + Debug>(&self, k: &Q) -> Loc where K: Borrow<Q> {
         let len = self.0.len();
         if len == 0 { Loc::NotPresent(0) } 
         else {
@@ -108,6 +108,24 @@ macro_rules! avltree {
             }
           }
         }
+      }
+      
+      #[allow(dead_code)]
+      fn find_ls<Q: ?Sized + Ord + Debug>(&self, k: &Q) -> Loc where K: Borrow<Q> {
+        let len = self.0.len();
+        let mut i = 0;
+        for &(ref k0, _) in &self.0 {
+          match k.cmp(k0.borrow()) {
+            Ordering::Equal => return Loc::Here(i),
+            Ordering::Less =>
+              if i == 0 { return Loc::InLeft }
+              else { return Loc::NotPresent(i) },
+            Ordering::Greater =>
+              if i == len - 1 { return Loc::InRight }
+          }
+          i = i + 1;
+        }
+        Loc::NotPresent(0)
       }
 
       fn ordering(k0: &(K, V), k1: &(K, V)) -> Ordering { k0.0.cmp(&k1.0) }
