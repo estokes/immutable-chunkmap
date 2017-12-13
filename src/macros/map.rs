@@ -31,7 +31,7 @@ macro_rules! map {
         Map { len: len, root: t }
       }
 
-      pub fn find<'a, Q: ?Sized + Ord>(&'a self, k: &Q) -> Option<&'a V> 
+      pub fn find<'a, Q: ?Sized + Ord + Debug>(&'a self, k: &Q) -> Option<&'a V> 
         where K: Borrow<Q>
       { self.root.find(k) }
 

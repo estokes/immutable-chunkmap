@@ -76,7 +76,7 @@ macro_rules! avltree {
       }
 
       #[allow(dead_code)]
-      fn find_ls<Q: ?Sized + Ord>(&self, k: &Q) -> Loc where K: Borrow<Q> {
+      fn find_ls<Q: ?Sized + Ord + Debug>(&self, k: &Q) -> Loc where K: Borrow<Q> {
         let len = self.0.len();
         if len == 0 { Loc::NotPresent(0) } 
         else {
@@ -99,13 +99,12 @@ macro_rules! avltree {
               for &(ref k0, _) in &self.0[start..end] {
                 match k.cmp(k0.borrow()) {
                   Ordering::Equal => return Loc::Here(i),
-                  Ordering::Greater => (),
-                  Ordering::Less => return Loc::NotPresent(i)
+                  Ordering::Less => return Loc::NotPresent(i),
+                  Ordering::Greater => ()
                 }
                 i = i + 1;
               }
-              unreachable!("bug len: {:?} pivot: {:?} start: {:?} end: {:?} i: {:?}", 
-                len, pivot, start, end, i)
+              Loc::NotPresent(end)
             }
           }
         }
@@ -520,13 +519,13 @@ macro_rules! avltree {
         }
       }
 
-      pub(crate) fn find<'a, Q: ?Sized + Ord>(&'a self, k: &Q) -> Option<&'a V> 
+      pub(crate) fn find<'a, Q: ?Sized + Ord + Debug>(&'a self, k: &Q) -> Option<&'a V> 
         where K: Borrow<Q>
       {
         match self {
           &Tree::Empty => Option::None,
           &Tree::Node(ref tn) =>
-            match tn.elts.find_bs(k) {
+            match tn.elts.find_ls(k) {
               Loc::Here(i) => Option::Some(&tn.elts.0[i].1),
               Loc::NotPresent(_) => Option::None,
               Loc::InLeft => tn.left.find(k),
