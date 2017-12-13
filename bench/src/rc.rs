@@ -16,7 +16,7 @@ fn bench_add(len: usize) -> (Map<i64, i64>, Vec<i64>, Duration) {
       pairs.push((&k, &k));
       if i % csize == 0 || i == data.len() - 1 {
         pairs.sort_unstable_by(|&(k0, _), &(k1, _)| k0.cmp(k1));
-        m = m.add_multi(&pairs);
+        m = m.add_sorted(&pairs);
         pairs.clear();
       }
       i = i + 1;
