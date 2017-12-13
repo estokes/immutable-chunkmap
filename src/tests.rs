@@ -56,19 +56,19 @@ macro_rules! tests {
         t
       }
 
-      //#[test]
+      #[test]
       fn test_add_int_seq_asc() {
         let (_, len) = add(0..SIZE);
         if len != SIZE { panic!("length is wrong expected 10000 got {}", len) }
       }
 
-      //#[test]
+      #[test]
       fn test_add_int_seq_dec() {
         let (_, len) = add((0..SIZE).rev());
         if len != SIZE {panic!("length is wrong expected 10000 got {}", len)}
       }
 
-      //#[test]
+      #[test]
       fn test_add_int_rand() {
         add(randvec::<i32>(SIZE)); ()
       }
@@ -81,10 +81,10 @@ macro_rules! tests {
         }
       }
 
-      //#[test]
+      #[test]
       fn test_find_int_rand() { test_find_rand::<i32>() }
 
-      //#[test]
+      #[test]
       fn test_find_str_rand() { test_find_rand::<String>() }
 
       fn test_add_remove_rand<T: Ord + Clone + Debug + Rand>() {
@@ -101,10 +101,10 @@ macro_rules! tests {
         }
       }
 
-      //#[test]
+      #[test]
       fn test_int_add_remove_rand() { test_add_remove_rand::<i32>() }
 
-      //#[test]
+      #[test]
       fn test_str_add_remove_rand() { test_add_remove_rand::<String>() }
 
       #[test]
@@ -166,10 +166,10 @@ macro_rules! tests {
         for k in &v2 { assert_eq!(t.0.find(&k).unwrap(), k); }
       }
 
-      //#[test]
+      #[test]
       fn test_int_add_sorted() { test_add_sorted::<i32>() }
 
-      //#[test]
+      #[test]
       fn test_str_add_sorted() { test_add_sorted::<String>() }
 
       fn test_map_rand<T: Ord + Clone + Debug + Rand>() {
@@ -201,10 +201,10 @@ macro_rules! tests {
         }
       }
 
-      //#[test]
+      #[test]
       fn test_int_map_rand() { test_map_rand::<i32>() }
 
-      //#[test]
+      #[test]
       fn test_str_map_rand() { test_map_rand::<String>() }
 
       fn test_map_iter<T: Ord + Clone + Debug + Rand>() {
@@ -214,6 +214,7 @@ macro_rules! tests {
         t.invariant();
         let mut vs = v.clone(); 
         vs.sort_unstable();
+        vs.dedup();
         let mut i = 0;
         for &(k0, k1) in &t {
           assert_eq!(*k0, *k1);
@@ -222,10 +223,10 @@ macro_rules! tests {
         }
       }
 
-      //#[test]
+      #[test]
       fn test_int_map_iter() { test_map_iter::<i32>() }
 
-      //#[test]
+      #[test]
       fn test_string_map_iter() { test_map_iter::<String>() }
     }
   };

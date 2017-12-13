@@ -66,7 +66,7 @@ macro_rules! avltree {
             (_, Ordering::Equal) => Loc::Here(len - 1),
             (Ordering::Less, _) => Loc::InLeft,
             (_, Ordering::Greater) => Loc::InRight,
-            (_, _) =>
+            (Ordering::Greater, Ordering::Less) =>
               match self.0.binary_search_by(|&(ref k1, _)| k1.borrow().cmp(k)) {
                 Result::Ok(i) => Loc::Here(i),
                 Result::Err(i) => Loc::NotPresent(i)
@@ -88,7 +88,6 @@ macro_rules! avltree {
             (Ordering::Less, _) => Loc::InLeft,
             (_, Ordering::Greater) => Loc::InRight,
             (Ordering::Greater, Ordering::Less) => {
-              println!("{:?}", self.0);
               let pivot = len / 2;
               let (start, end) =
                 match k.cmp(self.0[pivot].0.borrow()) {
@@ -96,20 +95,12 @@ macro_rules! avltree {
                   Ordering::Greater => (min(pivot, len), len),
                   Ordering::Less => (0, pivot) 
                 };
-              println!("pivot: {:?} start: {:?} end: {:?}", pivot, start, end);
               let mut i = start;
               for &(ref k0, _) in &self.0[start..end] {
-                println!("check: {:?} val: {:?}", i, k0);
                 match k.cmp(k0.borrow()) {
-                  Ordering::Equal => {
-                    println!("k0 is here: {:?}", i);
-                    return Loc::Here(i)
-                  },
-                  Ordering::Greater => println!("still looking: {:?}", i),
-                  Ordering::Less =>  {
-                    println!("k0 is not present: {:?}", i);
-                    return Loc::NotPresent(i)
-                  }
+                  Ordering::Equal => return Loc::Here(i),
+                  Ordering::Greater => (),
+                  Ordering::Less => return Loc::NotPresent(i)
                 }
                 i = i + 1;
               }
@@ -123,9 +114,10 @@ macro_rules! avltree {
       fn ordering(k0: &(K, V), k1: &(K, V)) -> Ordering { k0.0.cmp(&k1.0) }
 
       // chunk must be sorted
-      fn add_chunk(&self, chunk: &mut ArrayVec<[(K, V); SIZE]>, len: usize, leaf: bool) 
+      fn add_chunk(&self, chunk: &mut Vec<(K, V)>, len: usize, leaf: bool) 
         -> Result<(Self, usize, usize), Dir>
       {
+        assert!(chunk.len() <= SIZE);
         if chunk.len() == 0 { Result::Ok((self.clone(), len, 0)) }
         else if self.0.len() == 0 {
           let mut t = self.clone();
@@ -375,9 +367,7 @@ macro_rules! avltree {
         }
       }
 
-      fn add_chunk(&self, len: usize, 
-        chunk: &mut ArrayVec<[(K, V); SIZE]>, 
-        tmp: &mut ArrayVec<[(K, V); SIZE]>)
+      fn add_chunk(&self, len: usize, chunk: &mut Vec<(K, V)>, tmp: &mut Vec<(K, V)>)
         -> (Self, usize) 
       {
         match self {
@@ -419,8 +409,8 @@ macro_rules! avltree {
 
       pub(crate) fn add_sorted(&self, len: usize, elts: &[(&K, &V)]) -> (Self, usize) {
         let mut t = (self.clone(), len);
-        let mut chunk = ArrayVec::<[(K, V); SIZE]>::new();
-        let mut tmp = ArrayVec::<[(K, V); SIZE]>::new();
+        let mut chunk = Vec::<(K, V)>::new();
+        let mut tmp = Vec::<(K, V)>::new();
         let mut i = 0;
         while i < elts.len() || chunk.len() > 0 {
           if i < elts.len() && chunk.len() < SIZE {
@@ -428,6 +418,7 @@ macro_rules! avltree {
             i = i + 1;
           } else {
             chunk.sort_unstable_by(|&(ref k0, _), &(ref k1, _)| k0.cmp(k1));
+            chunk.dedup_by(|&mut (ref k0, _), &mut (ref k1, _)| k0 == k1);
             while chunk.len() > 0 { t = t.0.add_chunk(t.1, &mut chunk, &mut tmp); }
             assert_eq!(tmp.len(), 0)
           }
@@ -535,7 +526,7 @@ macro_rules! avltree {
         match self {
           &Tree::Empty => Option::None,
           &Tree::Node(ref tn) =>
-            match tn.elts.find_ls(k) {
+            match tn.elts.find_bs(k) {
               Loc::Here(i) => Option::Some(&tn.elts.0[i].1),
               Loc::NotPresent(_) => Option::None,
               Loc::InLeft => tn.left.find(k),
