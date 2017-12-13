@@ -12,12 +12,12 @@ fn bench_add(len: usize) -> (Arc<Map<i64, i64>>, Arc<Vec<i64>>, Duration) {
   let mut m = Map::new();
   let data = utils::randvec::<i64>(len);
   let elapsed = {
-    let pairs : Vec<(&i64, &i64)> = data.iter().map(|k| (k, k)).collect();
+    let mut pairs : Vec<(&i64, &i64)> = data.iter().map(|k| (k, k)).collect();
     let begin = Instant::now();
+    pairs.sort_unstable_by(|&(k0, _), &(k1, _)| k0.cmp(k1));
     m = m.add_multi(&pairs);
     begin.elapsed()
   };
-  //for kv in &data { m = m.add(kv, kv) }
   (Arc::new(m), Arc::new(data), elapsed)
 }
 

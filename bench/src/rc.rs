@@ -8,12 +8,21 @@ fn bench_add(len: usize) -> (Map<i64, i64>, Vec<i64>, Duration) {
   let mut m = Map::new();
   let data = utils::randvec::<i64>(len);
   let elapsed = {
-    let pairs : Vec<(&i64, &i64)> = data.iter().map(|k| (k, k)).collect();
+    let mut pairs : Vec<(&i64, &i64)> = Vec::new();
+    let mut i = 0;
+    let csize = data.len() / 10;
     let begin = Instant::now();
-    m = m.add_multi(&pairs);
+    for k in &data {
+      pairs.push((&k, &k));
+      if i % csize == 0 || i == data.len() - 1 {
+        pairs.sort_unstable_by(|&(k0, _), &(k1, _)| k0.cmp(k1));
+        m = m.add_multi(&pairs);
+        pairs.clear();
+      }
+      i = i + 1;
+    }
     begin.elapsed()
   };
-  //for kv in &data { m = m.add(kv, kv) }
   (m, data, elapsed)
 }
 

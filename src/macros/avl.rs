@@ -358,16 +358,12 @@ macro_rules! avltree {
               Result::Ok((elts, len, split)) =>
                 if chunk.len() == 0 {
                   (Tree::create(&tn.left, &$pinit(elts), &tn.right), len)
-                } else if split == 0 {
-                  let (r, len) = tn.right.add_chunk(len, chunk, tmp);
-                  (Tree::bal(&tn.left, &$pinit(elts), &r), len)
                 } else {
                   let n = chunk.len() - split;
                   for _ in 0..n { tmp.push(chunk.pop().unwrap()); }
                   let (l, len) = tn.left.add_chunk(len, chunk, tmp);
-                  let t = Tree::bal(&l, &$pinit(elts), &tn.right);
                   for _ in 0..n { chunk.push(tmp.pop().unwrap()) };
-                  (t, len)
+                  (Tree::bal(&l, &$pinit(elts), &tn.right), len)
                 },
               Result::Err(Dir::InLeft) => {
                 let (l, len) = tn.left.add_chunk(len, chunk, tmp);
@@ -383,7 +379,7 @@ macro_rules! avltree {
       }
 
       #[allow(dead_code)]
-      pub(crate) fn add_multi(&self, len: usize, elts: &[(&K, &V)]) -> (Self, usize) {
+      pub(crate) fn add_sorted(&self, len: usize, elts: &[(&K, &V)]) -> (Self, usize) {
         let mut t = (self.clone(), len);
         let mut chunk = ArrayVec::<[(K, V); SIZE]>::new();
         let mut tmp = ArrayVec::<[(K, V); SIZE]>::new();

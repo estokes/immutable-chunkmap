@@ -108,10 +108,10 @@ macro_rules! tests {
       fn test_str_add_remove_rand() { test_add_remove_rand::<String>() }
 
       #[test]
-      fn test_add_multi_small() {
+      fn test_add_sorted_small() {
         let v: Vec<i32> = vec![1, 9, 16, 11, 7, 12, 8, 12, 12, 11, 9, 12, 9, 7, 16, 9, 1, 9, 1, 1, 22, 112];
         let pairs: Vec<(&i32, &i32)> = v.iter().map(|k| (k, k)).collect();
-        let mut t = avl::Tree::new().add_multi(0usize, &pairs);
+        let mut t = avl::Tree::new().add_sorted(0usize, &pairs);
         t.0.invariant(t.1);
         for k in &v {
           assert_eq!(t.0.find(&k).unwrap(), k)
@@ -134,10 +134,10 @@ macro_rules! tests {
         }
       }
 
-      fn test_add_multi<T: Ord + Clone + Debug + Rand>() {
+      fn test_add_sorted<T: Ord + Clone + Debug + Rand>() {
         let v = randvec::<T>(SIZE);
         let pairs: Vec<(&T, &T)> = v.iter().map(|k| (k, k)).collect();
-        let mut t = avl::Tree::new().add_multi(0usize, &pairs);
+        let mut t = avl::Tree::new().add_sorted(0usize, &pairs);
         t.0.invariant(t.1);
         for k in &v { assert_eq!(t.0.find(&k).unwrap(), k) }
         {
@@ -167,10 +167,10 @@ macro_rules! tests {
       }
 
       #[test]
-      fn test_int_add_multi() { test_add_multi::<i32>() }
+      fn test_int_add_sorted() { test_add_sorted::<i32>() }
 
       #[test]
-      fn test_str_add_multi() { test_add_multi::<String>() }
+      fn test_str_add_sorted() { test_add_sorted::<String>() }
 
       fn test_map_rand<T: Ord + Clone + Debug + Rand>() {
         let v = randvec::<T>(SIZE);

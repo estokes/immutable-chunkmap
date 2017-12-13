@@ -21,8 +21,8 @@ macro_rules! map {
     impl<K,V> Map<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
       pub fn new() -> Self { Map { len: 0, root: Tree::new() } }
 
-      pub fn add_multi(&self, elts: &[(&K, &V)]) -> Self {
-        let (t, len) = self.root.add_multi(self.len, elts);
+      pub fn add_sorted(&self, elts: &[(&K, &V)]) -> Self {
+        let (t, len) = self.root.add_sorted(self.len, elts);
         Map { len: len, root: t }
       }
 
