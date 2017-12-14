@@ -41,6 +41,12 @@ fn bench_find(m: Arc<Map<i64, i64>>, d: Arc<Vec<i64>>) -> Duration {
   begin.elapsed()
 }
 
+fn bench_find_seq(m: Arc<Map<i64, i64>>, d: Arc<Vec<i64>>) -> Duration {
+  let begin = Instant::now();
+  for k in d.iter() { m.find(k).unwrap(); }
+  begin.elapsed()
+}
+
 fn bench_remove(m: Arc<Map<i64, i64>>, d: Arc<Vec<i64>>) -> Duration {
   let mut m = (*m).clone();
   let begin = Instant::now();
@@ -51,7 +57,9 @@ fn bench_remove(m: Arc<Map<i64, i64>>, d: Arc<Vec<i64>>) -> Duration {
 pub(crate) fn run(size: usize) -> () {
   let (m, d, add) = bench_add(size);
   let find = bench_find(m.clone(), d.clone());
+  let find_seq = bench_find_seq(m.clone(), d.clone());
   let rm = bench_remove(m.clone(), d.clone());
-  println!("add: {}, find: {}, remove: {}", 
-    utils::to_ms(add), utils::to_ms(find), utils::to_ms(rm));
+  println!("add: {}, find: {}, find_seq: {}, remove: {}", 
+    utils::to_ms(add), utils::to_ms(find), 
+    utils::to_ms(find_seq), utils::to_ms(rm));
 }
