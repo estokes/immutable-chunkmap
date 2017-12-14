@@ -6,6 +6,7 @@ macro_rules! avltree {
     use std::borrow::Borrow;
     use std::slice;
     use std::iter;
+    use std::vec;
 
     #[derive(Debug)]
     enum Dir {
@@ -274,24 +275,22 @@ macro_rules! avltree {
       fn len(&self) -> usize { self.keys.len() }
     }
 
-    /*
     impl<K, V> IntoIterator for Elts<K, V> 
       where K: Ord + Clone + Debug, V: Clone + Debug 
     {
       type Item = (K, V);
-      type IntoIter = iter::Zip<K, V>;
+      type IntoIter = iter::Zip<vec::IntoIter<K>, vec::IntoIter<V>>;
       fn into_iter(self) -> Self::IntoIter { 
-        self.keys.iter().zip(self.vals)
+        self.keys.into_iter().zip(self.vals)
       }
     }
-    */
 
     impl<'a, K, V> IntoIterator for &'a Elts<K, V>
       where K: 'a + Ord + Clone + Debug, V: 'a + Clone + Debug
     {
       type Item = (&'a K, &'a V);
       type IntoIter = iter::Zip<slice::Iter<'a, K>, slice::Iter<'a, V>>;
-      fn into_iter(self) -> Self::IntoIter { (&self.keys).iter().zip(&self.vals) }
+      fn into_iter(self) -> Self::IntoIter { (&self.keys).into_iter().zip(&self.vals) }
     }
 
     #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]

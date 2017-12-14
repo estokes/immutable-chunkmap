@@ -208,8 +208,8 @@ macro_rules! tests {
       fn test_str_map_rand() { test_map_rand::<String>() }
 
       fn test_map_iter<T: Ord + Clone + Debug + Rand>() {
-        let v = randvec::<i32>(SIZE);
-        let mut t = map::Map::new();
+        let v = randvec::<T>(SIZE);
+        let mut t : map::Map<T, T> = map::Map::new();
         for k in &v { t = t.add(&k, &k) };
         t.invariant();
         let mut vs = v.clone(); 
@@ -217,8 +217,8 @@ macro_rules! tests {
         vs.dedup();
         let mut i = 0;
         for (k0, k1) in &t {
-          assert_eq!(**k0, **k1);
-          assert_eq!(**k0, vs[i]);
+          assert_eq!(*k0, *k1);
+          assert_eq!(*k0, vs[i]);
           i = i + 1;
         }
       }
