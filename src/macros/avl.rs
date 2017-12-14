@@ -543,7 +543,7 @@ macro_rules! avltree {
         match self {
           &Tree::Empty => Option::None,
           &Tree::Node(ref tn) =>
-            match tn.elts.find_ls(k) {
+            match tn.elts.find_bs(k) {
               Loc::Here(i) => Option::Some(&tn.elts.0[i].1),
               Loc::NotPresent(_) => Option::None,
               Loc::InLeft => tn.left.find(k),
