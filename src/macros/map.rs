@@ -13,7 +13,7 @@ macro_rules! map {
     impl<'a,K,V> IntoIterator for &'a Map<K,V>
       where K: 'a + Ord + Clone + Debug, V: 'a + Clone + Debug
     {
-      type Item = &'a (K, V);
+      type Item = (&'a K, &'a V);
       type IntoIter = Iter<'a, K, V>;
       fn into_iter(self) -> Self::IntoIter { self.root.into_iter() }
     }
@@ -31,11 +31,11 @@ macro_rules! map {
         Map { len: len, root: t }
       }
 
-      pub fn find<'a, Q: ?Sized + Ord + Debug>(&'a self, k: &Q) -> Option<&'a V> 
+      pub fn find<'a, Q: Sized + Ord + Debug>(&'a self, k: &Q) -> Option<&'a V> 
         where K: Borrow<Q>
       { self.root.find(k) }
 
-      pub fn remove<Q: ?Sized + Ord>(&self, k: &Q) -> Self 
+      pub fn remove<Q: Sized + Ord>(&self, k: &Q) -> Self 
         where K: Borrow<Q>
       {
         let (t, len) = self.root.remove(self.len, k);

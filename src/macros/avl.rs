@@ -1,13 +1,11 @@
 macro_rules! avltree {
   ($pimport:path, $ptyp:ident, $pinit:path, $chunksize:expr) => {
-//    extern crate arrayvec;
     use $pimport;
     use std::cmp::{Ord, Ordering, max, min};
     use std::fmt::Debug;
     use std::borrow::Borrow;
     use std::slice;
-    use std::vec;
-//    use self::arrayvec::ArrayVec;
+    use std::iter;
 
     #[derive(Debug)]
     enum Dir {
@@ -44,32 +42,36 @@ macro_rules! avltree {
     const SIZE: usize = $chunksize;
 
     #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-    struct Elts<K: Ord + Clone + Debug, V: Clone + Debug>(pub Vec<(K, V)>);
-//    struct Elts<K: Ord + Clone + Debug, V: Clone + Debug>(pub ArrayVec<[(K, V); SIZE]>);
+    struct Elts<K: Ord + Clone + Debug, V: Clone + Debug> {
+      keys: Vec<K>,
+      vals: Vec<V>
+    }
 
     impl<K,V> Elts<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
       fn singleton(k: &K, v: &V) -> Self {
-        let mut t = Vec::<(K, V)>::new();
-        t.push((k.clone(), v.clone()));
-        Elts(t)
+        let mut keys = Vec::<K>::new();
+        let mut vals = Vec::<V>::new();
+        keys.push(k.clone());
+        vals.push(v.clone());
+        Elts { keys: keys, vals: vals }
       }
 
-      fn empty() -> Self { Elts(Vec::<(K, V)>::new()) }
+      fn empty() -> Self { Elts {keys: Vec::<K>::new(), vals: Vec::<V>::new()} }
 
       #[allow(dead_code)]
-      fn find_bs<Q: ?Sized + Ord>(&self, k: &Q) -> Loc where K: Borrow<Q> {
-        let len = self.0.len();
+      fn find_bs<Q: ?Sized + Ord>(&self, k: &Q) -> Loc where K: Borrow<Q>, Q: Sized {
+        let len = self.len();
         if len == 0 { Loc::NotPresent(0) } 
         else {
-          let first = k.cmp(&self.0[0].0.borrow());
-          let last = k.cmp(&self.0[len - 1].0.borrow());
+          let first = k.cmp(&self.keys[0].borrow());
+          let last = k.cmp(&self.keys[len - 1].borrow());
           match (first, last) {
             (Ordering::Equal, _) => Loc::Here(0),
             (_, Ordering::Equal) => Loc::Here(len - 1),
             (Ordering::Less, _) => Loc::InLeft,
             (_, Ordering::Greater) => Loc::InRight,
             (Ordering::Greater, Ordering::Less) =>
-              match self.0.binary_search_by(|&(ref k1, _)| k1.borrow().cmp(k)) {
+              match self.keys.binary_search_by_key(&k, |k| k.borrow()) {
                 Result::Ok(i) => Loc::Here(i),
                 Result::Err(i) => Loc::NotPresent(i)
               }
@@ -79,11 +81,11 @@ macro_rules! avltree {
 
       #[allow(dead_code)]
       fn find_lsp<Q: ?Sized + Ord + Debug>(&self, k: &Q) -> Loc where K: Borrow<Q> {
-        let len = self.0.len();
+        let len = self.len();
         if len == 0 { Loc::NotPresent(0) } 
         else {
-          let first = k.cmp(self.0[0].0.borrow());
-          let last = k.cmp(self.0[len - 1].0.borrow());
+          let first = k.cmp(self.keys[0].borrow());
+          let last = k.cmp(self.keys[len - 1].borrow());
           match (first, last) {
             (Ordering::Equal, _) => Loc::Here(0),
             (_, Ordering::Equal) => Loc::Here(len - 1),
@@ -92,13 +94,13 @@ macro_rules! avltree {
             (Ordering::Greater, Ordering::Less) => {
               let pivot = len / 2;
               let (start, end) =
-                match k.cmp(self.0[pivot].0.borrow()) {
+                match k.cmp(self.keys[pivot].borrow()) {
                   Ordering::Equal => return Loc::Here(pivot),
                   Ordering::Greater => (min(pivot, len), len),
                   Ordering::Less => (0, pivot) 
                 };
               let mut i = start;
-              for &(ref k0, _) in &self.0[start..end] {
+              for k0 in &self.keys[start..end] {
                 match k.cmp(k0.borrow()) {
                   Ordering::Equal => return Loc::Here(i),
                   Ordering::Less => return Loc::NotPresent(i),
@@ -114,9 +116,9 @@ macro_rules! avltree {
       
       #[allow(dead_code)]
       fn find_ls<Q: ?Sized + Ord + Debug>(&self, k: &Q) -> Loc where K: Borrow<Q> {
-        let len = self.0.len();
+        let len = self.len();
         let mut i = 0;
-        for &(ref k0, _) in &self.0 {
+        for k0 in &self.keys {
           match k.cmp(k0.borrow()) {
             Ordering::Equal => return Loc::Here(i),
             Ordering::Less =>
@@ -130,22 +132,25 @@ macro_rules! avltree {
         Loc::NotPresent(0)
       }
 
-      fn ordering(k0: &(K, V), k1: &(K, V)) -> Ordering { k0.0.cmp(&k1.0) }
-
       // chunk must be sorted
       fn add_chunk(&self, chunk: &mut Vec<(K, V)>, len: usize, leaf: bool) 
         -> Result<(Self, usize, usize), Dir>
       {
         assert!(chunk.len() <= SIZE);
         if chunk.len() == 0 { Result::Ok((self.clone(), len, 0)) }
-        else if self.0.len() == 0 {
-          let mut t = self.clone();
+        else if self.len() == 0 {
+          let mut t = Elts::empty();
           let n = chunk.len();
-          for _ in 0..n { t.0.push(chunk.pop().unwrap()); }
-          t.0.reverse();
+          for _ in 0..n {
+            let (k, v) = chunk.pop().unwrap();
+            t.keys.push(k);
+            t.vals.push(v);
+          }
+          t.keys.reverse();
+          t.vals.reverse();
           Result::Ok((t, len + n, 0))
         } else {
-          let full = !leaf || self.0.len() == SIZE;
+          let full = !leaf || self.len() == SIZE;
           if full && self.find_bs(&chunk[chunk.len() - 1].0) == Loc::InLeft { 
             Result::Err(Dir::InLeft)
           } else if full && self.find_bs(&chunk[0].0) == Loc::InRight { 
@@ -155,30 +160,37 @@ macro_rules! avltree {
             let mut len = len;
             let n = chunk.len();
             for _ in 0..n {
-              let kv = chunk.pop().unwrap();
-              match t.find_bs(&kv.0) {
-                Loc::Here(i) => t.0[i] = kv,
+              let (k, v) = chunk.pop().unwrap();
+              match t.find_bs(&k) {
+                Loc::Here(i) => {
+                  t.keys[i] = k;
+                  t.vals[i] = v;
+                }, 
                 Loc::NotPresent(i) =>
-                  if t.0.len() < SIZE {
-                    t.0.insert(i, kv);
+                  if t.len() < SIZE {
+                    t.keys.insert(i, k);
+                    t.vals.insert(i, v);
                     len = len + 1;
                   } else {
-                    chunk.insert(0, t.0.pop().unwrap());
-                    t.0.insert(i, kv)
+                    chunk.insert(0, (t.keys.pop().unwrap(), t.vals.pop().unwrap()));
+                    t.keys.insert(i, k);
+                    t.vals.insert(i, v);
                   },
                 Loc::InLeft =>
-                  if leaf && t.0.len() < SIZE { 
-                    t.0.insert(0, kv);
+                  if leaf && t.keys.len() < SIZE { 
+                    t.keys.insert(0, k);
+                    t.vals.insert(0, v);
                     len = len + 1;
                   } else {
-                    chunk.insert(0, kv)
+                    chunk.insert(0, (k, v))
                   },
                 Loc::InRight =>
-                  if leaf && t.0.len() < SIZE {
-                    t.0.push(kv);
+                  if leaf && t.len() < SIZE {
+                    t.keys.push(k);
+                    t.vals.push(v);
                     len = len + 1;
                   } else {
-                    chunk.insert(0, kv)
+                    chunk.insert(0, (k, v))
                   }
               }
             }
@@ -186,7 +198,7 @@ macro_rules! avltree {
               chunk.sort_unstable_by(|&(ref k1, _), &(ref k2, _)| k1.cmp(k2)); 
             }
             let mut i = 0;
-            while i < chunk.len() && chunk[i].0 < t.0[0].0 { i = i + 1; }
+            while i < chunk.len() && chunk[i].0 < t.keys[0] { i = i + 1; }
             Result::Ok((t, len, i))
           }
         }
@@ -200,29 +212,38 @@ macro_rules! avltree {
         match self.find_bs(k) {
           Loc::Here(i) => {
             let mut t = self.clone();
-            t.0[i] = (k.clone(), v.clone());
+            t.keys[i] = k.clone();
+            t.vals[i] = v.clone();
             Result::Ok((t, Option::None, len))
           }
           Loc::NotPresent(i) => 
-            if self.0.len() < SIZE {
+            if self.len() < SIZE {
               let mut t = self.clone();
-              t.0.insert(i, (k.clone(), v.clone()));
+              t.keys.insert(i, k.clone());
+              t.vals.insert(i, v.clone());
               Result::Ok((t, Option::None, len + 1))
             } else {
               // we need to add it here, but to do that we have
               // to take an element out, so we return that overflow element
               let mut t = self.clone();
-              let overflow = t.0.pop().unwrap().clone();
-              t.0.insert(i, (k.clone(), v.clone()));
+              let overflow = (t.keys.pop().unwrap(), t.vals.pop().unwrap());
+              t.keys.insert(i, k.clone());
+              t.vals.insert(i, v.clone());
               Result::Ok((t, Option::Some(overflow), len))
             },
           loc @ Loc::InLeft | loc @ Loc::InRight =>
-            if !leaf || self.0.len() == SIZE { Result::Err(loc.to_dir()) } 
+            if !leaf || self.len() == SIZE { Result::Err(loc.to_dir()) } 
             else {
               let mut t = self.clone();
               match loc {
-                Loc::InLeft => t.0.insert(0, (k.clone(), v.clone())),
-                Loc::InRight => t.0.push((k.clone(), v.clone())),
+                Loc::InLeft => {
+                  t.keys.insert(0, k.clone());
+                  t.vals.insert(0, v.clone());
+                },
+                Loc::InRight => {
+                  t.keys.push(k.clone());
+                  t.vals.push(v.clone());
+                },
                 _ => unreachable!("bug")
               };
               Result::Ok((t, Option::None, len + 1))
@@ -232,28 +253,45 @@ macro_rules! avltree {
 
       fn remove_elt_at(&self, i: usize) -> Self {
         let mut t = self.clone();
-        t.0.remove(i);
+        t.keys.remove(i);
+        t.vals.remove(i);
         t
       }
 
-      fn min_elt<'a>(&'a self) -> Option<&'a (K,V)> { self.0.first() }
-      fn max_elt<'a>(&'a self) -> Option<&'a (K,V)> { self.0.last() }
+      fn min_elt<'a>(&'a self) -> Option<(&'a K, &'a V)> {
+        if self.len() == 0 { Option::None }
+        else { Option::Some((&self.keys[0], &self.vals[0])) }
+      }
+      
+      fn max_elt<'a>(&'a self) -> Option<(&'a K, &'a V)> {
+        if self.len() == 0 { Option::None }
+        else { 
+          let last = self.len() - 1;
+          Option::Some((&self.keys[last], &self.vals[last])) 
+        }
+      }
+
+      fn len(&self) -> usize { self.keys.len() }
     }
 
+    /*
     impl<K, V> IntoIterator for Elts<K, V> 
       where K: Ord + Clone + Debug, V: Clone + Debug 
     {
       type Item = (K, V);
-      type IntoIter = vec::IntoIter<(K, V)>;
-      fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
+      type IntoIter = iter::Zip<K, V>;
+      fn into_iter(self) -> Self::IntoIter { 
+        self.keys.iter().zip(self.vals)
+      }
     }
+    */
 
     impl<'a, K, V> IntoIterator for &'a Elts<K, V>
       where K: 'a + Ord + Clone + Debug, V: 'a + Clone + Debug
     {
-      type Item = &'a (K, V);
-      type IntoIter = slice::Iter<'a, (K, V)>;
-      fn into_iter(self) -> Self::IntoIter { (&self.0).into_iter() }
+      type Item = (&'a K, &'a V);
+      type IntoIter = iter::Zip<slice::Iter<'a, K>, slice::Iter<'a, V>>;
+      fn into_iter(self) -> Self::IntoIter { (&self.keys).iter().zip(&self.vals) }
     }
 
     #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -272,13 +310,13 @@ macro_rules! avltree {
 
     pub struct Iter<'a, K: 'a + Ord + Clone + Debug, V: 'a + Clone + Debug> {
       stack: Vec<(bool, &'a Node<K,V>)>,
-      elts: Option<slice::Iter<'a, (K, V)>>
+      elts: Option<iter::Zip<slice::Iter<'a, K>, slice::Iter<'a, V>>>
     }
 
     impl<'a, K, V> Iterator for Iter<'a, K, V>
       where K: 'a + Ord + Clone + Debug, V: 'a + Clone + Debug
     {
-      type Item = &'a (K, V);
+      type Item = (&'a K, &'a V);
       fn next(&mut self) -> Option<Self::Item> {
         loop {
           match &mut self.elts {
@@ -315,7 +353,7 @@ macro_rules! avltree {
     impl<'a, K, V> IntoIterator for &'a Tree<K, V> 
       where K: 'a + Ord + Clone + Debug, V: 'a + Clone + Debug
     {
-      type Item = &'a (K, V);
+      type Item = (&'a K, &'a V);
       type IntoIter = Iter<'a, K, V>;
       fn into_iter(self) -> Self::IntoIter {
         match self {
@@ -509,7 +547,7 @@ macro_rules! avltree {
         }
       }
 
-      pub(crate) fn remove<Q: ?Sized + Ord>(&self, len: usize, k: &Q) -> (Self, usize) 
+      pub(crate) fn remove<Q: Sized + Ord>(&self, len: usize, k: &Q) -> (Self, usize) 
         where K: Borrow<Q>
       {
         match self {
@@ -521,7 +559,7 @@ macro_rules! avltree {
               Loc::Here(i) => {
                 let elts = tn.elts.remove_elt_at(i);
                 let len = len - 1;
-                if elts.0.len() == 0 {
+                if elts.len() == 0 {
                   (Tree::concat(&tn.left, &tn.right), len)
                 } else {
                   (Tree::create(&tn.left, &$pinit(elts), &tn.right), len)
@@ -539,14 +577,14 @@ macro_rules! avltree {
         }
       }
 
-      pub(crate) fn find<'a, Q: ?Sized + Ord + Debug>(&'a self, k: &Q) -> Option<&'a V> 
+      pub(crate) fn find<'a, Q: Sized + Ord + Debug>(&'a self, k: &Q) -> Option<&'a V> 
         where K: Borrow<Q>
       {
         match self {
           &Tree::Empty => Option::None,
           &Tree::Node(ref tn) =>
             match tn.elts.find_bs(k) {
-              Loc::Here(i) => Option::Some(&tn.elts.0[i].1),
+              Loc::Here(i) => Option::Some(&tn.elts.vals[i]),
               Loc::NotPresent(_) => Option::None,
               Loc::InLeft => tn.left.find(k),
               Loc::InRight => tn.right.find(k)
@@ -563,20 +601,20 @@ macro_rules! avltree {
           (match lower {
             Option::None => true,
             Option::Some(lower) =>
-              (&elts.0).into_iter().all(|&(ref k, _)| lower.cmp(k) == Ordering::Less) })
+              (&elts.keys).into_iter().all(|k| lower.cmp(k) == Ordering::Less) })
             && (match upper {
               Option::None => true,
               Option::Some(upper) =>
-                (&elts.0).into_iter().all(|&(ref k, _)| upper.cmp(k) == Ordering::Greater) })
+                (&elts.keys).into_iter().all(|k| upper.cmp(k) == Ordering::Greater) })
         }
 
         fn sorted<K,V>(elts: &Elts<K,V>) -> bool 
           where K: Ord + Clone + Debug, V: Clone + Debug
         {
-          if elts.0.len() < 2 { true }
+          if elts.keys.len() == 1 { true }
           else {
-            for i in 0..(elts.0.len() - 1) {
-              match Elts::ordering(&elts.0[i], &elts.0[i + 1]) {
+            for i in 0..(elts.len() - 1) {
+              match elts.keys[i].cmp(&elts.keys[i + 1]) {
                 Ordering::Greater => return false,
                 Ordering::Less => (),
                 Ordering::Equal => panic!("duplicates found: {:?}", elts)
@@ -599,9 +637,9 @@ macro_rules! avltree {
               };
               if !sorted(&tn.elts) { panic!("elements isn't sorted") };
               let (thl, len) = 
-                check(&tn.left, lower, tn.elts.min_elt().map(|&(ref k, _)| k), len);
+                check(&tn.left, lower, tn.elts.min_elt().map(|(k, _)| k), len);
               let (thr, len) = 
-                check(&tn.right, tn.elts.max_elt().map(|&(ref k, _)| k), upper, len);
+                check(&tn.right, tn.elts.max_elt().map(|(k, _)| k), upper, len);
               let th = 1 + max(thl, thr);
               let (hl, hr) = (tn.left.height(), tn.right.height());
               let ub = max(hl, hr) - min(hl, hr);
@@ -610,7 +648,7 @@ macro_rules! avltree {
               let h = t.height();
               if th != h { panic!("node height is wrong {} vs {}", th, h) };
               if ub > 2 { panic!("tree is unbalanced {:?} tree: {:?}", ub, t) };
-              (th, len + tn.elts.0.len())
+              (th, len + tn.elts.len())
             }
           }
         }

@@ -216,9 +216,9 @@ macro_rules! tests {
         vs.sort_unstable();
         vs.dedup();
         let mut i = 0;
-        for &(k0, k1) in &t {
-          assert_eq!(*k0, *k1);
-          assert_eq!(*k0, vs[i]);
+        for (k0, k1) in &t {
+          assert_eq!(**k0, **k1);
+          assert_eq!(**k0, vs[i]);
           i = i + 1;
         }
       }
