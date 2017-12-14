@@ -1,12 +1,13 @@
 macro_rules! avltree {
   ($pimport:path, $ptyp:ident, $pinit:path, $chunksize:expr) => {
-    extern crate arrayvec;
+//    extern crate arrayvec;
     use $pimport;
     use std::cmp::{Ord, Ordering, max, min};
     use std::fmt::Debug;
     use std::borrow::Borrow;
     use std::slice;
-    use self::arrayvec::ArrayVec;
+    use std::vec;
+//    use self::arrayvec::ArrayVec;
 
     #[derive(Debug)]
     enum Dir {
@@ -43,16 +44,17 @@ macro_rules! avltree {
     const SIZE: usize = $chunksize;
 
     #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-    struct Elts<K: Ord + Clone + Debug, V: Clone + Debug>(pub ArrayVec<[(K, V); SIZE]>);
+    struct Elts<K: Ord + Clone + Debug, V: Clone + Debug>(pub Vec<(K, V)>);
+//    struct Elts<K: Ord + Clone + Debug, V: Clone + Debug>(pub ArrayVec<[(K, V); SIZE]>);
 
     impl<K,V> Elts<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
       fn singleton(k: &K, v: &V) -> Self {
-        let mut t = ArrayVec::<[(K,V); SIZE]>::new();
+        let mut t = Vec::<(K, V)>::new();
         t.push((k.clone(), v.clone()));
         Elts(t)
       }
 
-      fn empty() -> Self { Elts(ArrayVec::<[(K,V); SIZE]>::new()) }
+      fn empty() -> Self { Elts(Vec::<(K, V)>::new()) }
 
       #[allow(dead_code)]
       fn find_bs<Q: ?Sized + Ord>(&self, k: &Q) -> Loc where K: Borrow<Q> {
@@ -230,7 +232,7 @@ macro_rules! avltree {
 
       fn remove_elt_at(&self, i: usize) -> Self {
         let mut t = self.clone();
-        t.0.pop_at(i);
+        t.0.remove(i);
         t
       }
 
@@ -242,7 +244,7 @@ macro_rules! avltree {
       where K: Ord + Clone + Debug, V: Clone + Debug 
     {
       type Item = (K, V);
-      type IntoIter = arrayvec::IntoIter<[(K, V); SIZE]>;
+      type IntoIter = vec::IntoIter<(K, V)>;
       fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
     }
 
