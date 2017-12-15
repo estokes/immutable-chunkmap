@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use std::vec::{Vec};
 use utils;
 
-fn bench_add(len: usize) -> (Arc<Map<i64, i64>>, Arc<Vec<i64>>, Duration) {
+fn bench_add_sorted(len: usize) -> (Arc<Map<i64, i64>>, Arc<Vec<i64>>, Duration) {
   let mut m = Map::new();
   let data = utils::randvec::<i64>(len);
   let elapsed = {
@@ -19,6 +19,13 @@ fn bench_add(len: usize) -> (Arc<Map<i64, i64>>, Arc<Vec<i64>>, Duration) {
     begin.elapsed()
   };
   (Arc::new(m), Arc::new(data), elapsed)
+}
+
+fn bench_add(data: &Arc<Vec<i64>>) -> Duration {
+  let mut m = Map::new();
+  let begin = Instant::now();
+  for k in data.iter() { m = m.add(k, k); }
+  begin.elapsed()
 }
 
 fn bench_find(m: Arc<Map<i64, i64>>, d: Arc<Vec<i64>>) -> Duration {
@@ -55,11 +62,12 @@ fn bench_remove(m: Arc<Map<i64, i64>>, d: Arc<Vec<i64>>) -> Duration {
 }
 
 pub(crate) fn run(size: usize) -> () {
-  let (m, d, add) = bench_add(size);
-  let find = bench_find(m.clone(), d.clone());
-  let find_seq = bench_find_seq(m.clone(), d.clone());
+  let (m, d, adds) = bench_add_sorted(size);
+  let add = bench_add(&d);
+  let find_par = bench_find(m.clone(), d.clone());
+  let find = bench_find_seq(m.clone(), d.clone());
   let rm = bench_remove(m.clone(), d.clone());
-  println!("add: {}, find: {}, find_seq: {}, remove: {}", 
-    utils::to_ms(add), utils::to_ms(find), 
-    utils::to_ms(find_seq), utils::to_ms(rm));
+  println!("add: {}, adds: {}, find: {}, find_par: {}, remove: {}", 
+    utils::to_ms(add), utils::to_ms(adds), utils::to_ms(find), 
+    utils::to_ms(find_par), utils::to_ms(rm));
 }

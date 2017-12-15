@@ -52,10 +52,10 @@ fn bench_remove(m: &Arc<RwLock<BTreeMap<i64, i64>>>, d: &Vec<i64>) -> Duration {
 
 pub(crate) fn run(size: usize) -> () {
   let (mut m, d, add) = bench_add(size);
-  let find = bench_find(&m, &d);
-  let find_seq = bench_find_seq(&m, &d);
+  let find_par = bench_find(&m, &d);
+  let find = bench_find_seq(&m, &d);
   let rm = bench_remove(&mut m, &d);
-  println!("add: {}, find: {}, find_seq: {}, remove: {}", 
+  println!("add: {}, find: {}, find_par: {}, remove: {}", 
     utils::to_ms(add), utils::to_ms(find),
-    utils::to_ms(find_seq), utils::to_ms(rm));
+    utils::to_ms(find_par), utils::to_ms(rm));
 }
