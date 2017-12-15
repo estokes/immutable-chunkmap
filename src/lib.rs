@@ -3,7 +3,7 @@ mod macros;
 
 pub mod rc {
   pub(crate) mod avl {
-    avltree!(std::rc::Rc, Rc, Rc::new, 2048);
+    avltree!(std::rc::Rc, Rc, Rc::new, 1024);
   }
 
   pub mod map {
@@ -13,7 +13,7 @@ pub mod rc {
 
 pub mod arc {
   pub(crate) mod avl {
-    avltree!(std::sync::Arc, Arc, Arc::new, 2048);
+    avltree!(std::sync::Arc, Arc, Arc::new, 1024);
   }
 
   pub mod map {
