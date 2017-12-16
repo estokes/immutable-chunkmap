@@ -59,8 +59,7 @@ macro_rules! avltree {
 
       fn empty() -> Self { Elts {keys: Vec::<K>::new(), vals: Vec::<V>::new()} }
 
-      #[allow(dead_code)]
-      fn find_bs<Q: ?Sized + Ord>(&self, k: &Q) -> Loc where K: Borrow<Q>, Q: Sized {
+      fn find<Q: ?Sized + Ord>(&self, k: &Q) -> Loc where K: Borrow<Q>, Q: Sized {
         let len = self.len();
         if len == 0 { Loc::NotPresent(0) } 
         else {
@@ -80,57 +79,11 @@ macro_rules! avltree {
         }
       }
 
-      #[allow(dead_code)]
-      fn find_lsp<Q: ?Sized + Ord + Debug>(&self, k: &Q) -> Loc where K: Borrow<Q> {
-        let len = self.len();
-        if len == 0 { Loc::NotPresent(0) } 
-        else {
-          let first = k.cmp(self.keys[0].borrow());
-          let last = k.cmp(self.keys[len - 1].borrow());
-          match (first, last) {
-            (Ordering::Equal, _) => Loc::Here(0),
-            (_, Ordering::Equal) => Loc::Here(len - 1),
-            (Ordering::Less, _) => Loc::InLeft,
-            (_, Ordering::Greater) => Loc::InRight,
-            (Ordering::Greater, Ordering::Less) => {
-              let pivot = len / 2;
-              let (start, end) =
-                match k.cmp(self.keys[pivot].borrow()) {
-                  Ordering::Equal => return Loc::Here(pivot),
-                  Ordering::Greater => (min(pivot, len), len),
-                  Ordering::Less => (0, pivot) 
-                };
-              let mut i = start;
-              for k0 in &self.keys[start..end] {
-                match k.cmp(k0.borrow()) {
-                  Ordering::Equal => return Loc::Here(i),
-                  Ordering::Less => return Loc::NotPresent(i),
-                  Ordering::Greater => ()
-                }
-                i = i + 1;
-              }
-              Loc::NotPresent(end)
-            }
-          }
+      fn find_noedge<Q: ?Sized + Ord>(&self, k: &Q) -> Loc where K: Borrow<Q>, Q: Sized {
+        match self.keys.binary_search_by_key(&k, |k| k.borrow()) {
+          Result::Ok(i) => Loc::Here(i),
+          Result::Err(i) => Loc::NotPresent(i)
         }
-      }
-      
-      #[allow(dead_code)]
-      fn find_ls<Q: ?Sized + Ord + Debug>(&self, k: &Q) -> Loc where K: Borrow<Q> {
-        let len = self.len();
-        let mut i = 0;
-        for k0 in &self.keys {
-          match k.cmp(k0.borrow()) {
-            Ordering::Equal => return Loc::Here(i),
-            Ordering::Less =>
-              if i == 0 { return Loc::InLeft }
-              else { return Loc::NotPresent(i) },
-            Ordering::Greater =>
-              if i == len - 1 { return Loc::InRight }
-          }
-          i = i + 1;
-        }
-        Loc::NotPresent(0)
       }
 
       // chunk must be sorted
@@ -152,9 +105,9 @@ macro_rules! avltree {
           Result::Ok((t, len + n, 0))
         } else {
           let full = !leaf || self.len() == SIZE;
-          if full && self.find_bs(&chunk[chunk.len() - 1].0) == Loc::InLeft { 
+          if full && self.find(&chunk[chunk.len() - 1].0) == Loc::InLeft { 
             Result::Err(Dir::InLeft)
-          } else if full && self.find_bs(&chunk[0].0) == Loc::InRight { 
+          } else if full && self.find(&chunk[0].0) == Loc::InRight { 
             Result::Err(Dir::InRight)
           } else {
             let mut t = self.clone();
@@ -162,7 +115,7 @@ macro_rules! avltree {
             let n = chunk.len();
             for _ in 0..n {
               let (k, v) = chunk.pop().unwrap();
-              match t.find_bs(&k) {
+              match t.find(&k) {
                 Loc::Here(i) => {
                   t.keys[i] = k;
                   t.vals[i] = v;
@@ -210,7 +163,7 @@ macro_rules! avltree {
       // of a full vector, then there will be overflow that must
       // be added right
       fn add(&self, k: &K, v: &V, len: usize, leaf: bool) -> Result<(Self, Option<(K,V)>, usize), Dir> {
-        match self.find_bs(k) {
+        match self.find(k) {
           Loc::Here(i) => {
             let mut t = self.clone();
             t.keys[i] = k.clone();
@@ -259,6 +212,11 @@ macro_rules! avltree {
         t
       }
 
+      fn min_max_key(&self) -> Option<(K, K)> {
+        if self.len() == 0 { Option::None }
+        else { Option::Some((self.keys[0].clone(), self.keys[self.len() - 1].clone())) }
+      }
+
       fn min_elt<'a>(&'a self) -> Option<(&'a K, &'a V)> {
         if self.len() == 0 { Option::None }
         else { Option::Some((&self.keys[0], &self.vals[0])) }
@@ -296,6 +254,7 @@ macro_rules! avltree {
     #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
     pub(crate) struct Node<K: Ord + Clone + Debug, V: Clone + Debug> {
       elts: $ptyp<Elts<K, V>>,
+      min_max_key: Option<(K, K)>,
       left: Tree<K, V>,
       right: Tree<K, V>,
       height: u16,
@@ -379,6 +338,7 @@ macro_rules! avltree {
       fn create(l: &Tree<K, V>, elts: &$ptyp<Elts<K, V>>, r: &Tree<K, V>) -> Self {
         let n = 
           Node { elts: elts.clone(), 
+                 min_max_key: elts.min_max_key(),
                  left: l.clone(), right: r.clone(), 
                  height: 1 + max(l.height(), r.height()) };
         Tree::Node($pinit(n))
@@ -552,7 +512,7 @@ macro_rules! avltree {
         match self {
           &Tree::Empty => (Tree::Empty, len),
           &Tree::Node(ref tn) =>
-            match tn.elts.find_bs(k) {
+            match tn.elts.find(k) {
               Loc::NotPresent(_) => 
                 (Tree::create(&tn.left, &tn.elts, &tn.right), len),
               Loc::Here(i) => {
@@ -582,11 +542,20 @@ macro_rules! avltree {
         match self {
           &Tree::Empty => Option::None,
           &Tree::Node(ref tn) =>
-            match tn.elts.find_bs(k) {
-              Loc::Here(i) => Option::Some(&tn.elts.vals[i]),
-              Loc::NotPresent(_) => Option::None,
-              Loc::InLeft => tn.left.find(k),
-              Loc::InRight => tn.right.find(k)
+            match tn.min_max_key {
+              Option::None => Option::None,
+              Option::Some((ref k0, ref k1)) => 
+                match (k.cmp(k0.borrow()), k.cmp(k1.borrow())) {
+                  (Ordering::Less, _) => tn.left.find(k),
+                  (_, Ordering::Greater) => tn.right.find(k),
+                  (_, _) =>
+                    match tn.elts.find_noedge(k) {
+                      Loc::Here(i) => Option::Some(&tn.elts.vals[i]),
+                      Loc::NotPresent(_) => Option::None,
+                      Loc::InLeft => unreachable!("bug"),
+                      Loc::InRight => unreachable!("bug")
+                    }
+                }
             }
         }
       }
