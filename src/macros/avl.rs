@@ -254,7 +254,8 @@ macro_rules! avltree {
     #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
     pub(crate) struct Node<K: Ord + Clone + Debug, V: Clone + Debug> {
       elts: $ptyp<Elts<K, V>>,
-      min_max_key: Option<(K, K)>,
+      min_key: K,
+      max_key: K,
       left: Tree<K, V>,
       right: Tree<K, V>,
       height: u16,
@@ -336,9 +337,11 @@ macro_rules! avltree {
       }
 
       fn create(l: &Tree<K, V>, elts: &$ptyp<Elts<K, V>>, r: &Tree<K, V>) -> Self {
+        let (min_key, max_key) = elts.min_max_key().unwrap();
         let n = 
           Node { elts: elts.clone(), 
-                 min_max_key: elts.min_max_key(),
+                 min_key: min_key,
+                 max_key: max_key,
                  left: l.clone(), right: r.clone(), 
                  height: 1 + max(l.height(), r.height()) };
         Tree::Node($pinit(n))
@@ -542,19 +545,15 @@ macro_rules! avltree {
         match self {
           &Tree::Empty => Option::None,
           &Tree::Node(ref tn) =>
-            match tn.min_max_key {
-              Option::None => Option::None,
-              Option::Some((ref k0, ref k1)) => 
-                match (k.cmp(k0.borrow()), k.cmp(k1.borrow())) {
-                  (Ordering::Less, _) => tn.left.find(k),
-                  (_, Ordering::Greater) => tn.right.find(k),
-                  (_, _) =>
-                    match tn.elts.find_noedge(k) {
-                      Loc::Here(i) => Option::Some(&tn.elts.vals[i]),
-                      Loc::NotPresent(_) => Option::None,
-                      Loc::InLeft => unreachable!("bug"),
-                      Loc::InRight => unreachable!("bug")
-                    }
+            match (k.cmp(tn.min_key.borrow()), k.cmp(tn.max_key.borrow())) {
+              (Ordering::Less, _) => tn.left.find(k),
+              (_, Ordering::Greater) => tn.right.find(k),
+              (_, _) =>
+                match tn.elts.find_noedge(k) {
+                  Loc::Here(i) => Option::Some(&tn.elts.vals[i]),
+                  Loc::NotPresent(_) => Option::None,
+                  Loc::InLeft => unreachable!("bug"),
+                  Loc::InRight => unreachable!("bug")
                 }
             }
         }
