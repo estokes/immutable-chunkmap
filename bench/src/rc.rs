@@ -42,7 +42,9 @@ pub(crate) fn run(size: usize) -> () {
   let add = bench_add(&d);
   let find = bench_find(&m, &d);
   let rm = bench_remove(m, &d);
-  println!("add: {}, adds: {}, find: {}, remove: {}", 
-    utils::to_ms(add), utils::to_ms(add_sorted),
-    utils::to_ms(find), utils::to_ms(rm));
+  println!("add: {}ns, adds: {}ns, find: {}ns, remove: {}ns", 
+    utils::to_ns_per(add, size), 
+    utils::to_ns_per(add_sorted, size),
+    utils::to_ns_per(find, size), 
+    utils::to_ns_per(rm, size));
 }

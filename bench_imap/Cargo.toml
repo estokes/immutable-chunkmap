@@ -1,8 +1,0 @@
-[package]
-name = "bench_imap"
-version = "0.1.0"
-authors = ["Eric Stokes <letaris@gmail.com>"]
-
-[dependencies]
-immutable-map = ">= 0.1.2"
-rand = ">= 0.3"

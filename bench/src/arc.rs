@@ -67,7 +67,10 @@ pub(crate) fn run(size: usize) -> () {
   let find_par = bench_find(m.clone(), d.clone());
   let find = bench_find_seq(m.clone(), d.clone());
   let rm = bench_remove(m.clone(), d.clone());
-  println!("add: {}, adds: {}, find: {}, find_par: {}, remove: {}", 
-    utils::to_ms(add), utils::to_ms(adds), utils::to_ms(find), 
-    utils::to_ms(find_par), utils::to_ms(rm));
+  println!("add: {}ns, adds: {}ns, find: {}ns, find_par: {}ns, remove: {}ns", 
+    utils::to_ns_per(add, size), 
+    utils::to_ns_per(adds, size), 
+    utils::to_ns_per(find, size), 
+    utils::to_ns_per(find_par, size), 
+    utils::to_ns_per(rm, size));
 }

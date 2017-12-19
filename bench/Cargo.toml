@@ -7,3 +7,4 @@ authors = ["Eric Stokes <letaris@gmail.com>"]
 immutable = {path = "../"}
 rand = ">= 0.3"
 num_cpus = ">= 1.0"
+immutable-map = ">= 0.1.2"
