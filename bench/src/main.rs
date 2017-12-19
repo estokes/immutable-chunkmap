@@ -6,6 +6,7 @@ mod arc;
 mod btm;
 mod hm;
 mod bs;
+mod avl;
 mod ls;
 mod utils;
 
