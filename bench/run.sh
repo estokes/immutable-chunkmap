@@ -6,8 +6,10 @@ function run() {
   KIND="$1"
   SIZE="$2"
   echo "$KIND at $SIZE"
-  for i in 1 2 3; do
-    $B $KIND $SIZE
+  for k in 1 2 3; do
+    if ! test "$KIND" == "ls" -a "$SIZE" -gt 100000; then
+      $B $KIND $SIZE
+    fi
   done
 }
 
