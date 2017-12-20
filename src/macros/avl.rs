@@ -59,7 +59,7 @@ macro_rules! avltree {
 
       fn empty() -> Self { Elts {keys: Vec::<K>::new(), vals: Vec::<V>::new()} }
 
-      fn find<Q: ?Sized + Ord>(&self, k: &Q) -> Loc where K: Borrow<Q>, Q: Sized {
+      fn get<Q: ?Sized + Ord>(&self, k: &Q) -> Loc where K: Borrow<Q>, Q: Sized {
         let len = self.len();
         if len == 0 { Loc::NotPresent(0) } 
         else {
@@ -79,7 +79,7 @@ macro_rules! avltree {
         }
       }
 
-      fn find_noedge<Q: ?Sized + Ord>(&self, k: &Q) -> Loc where K: Borrow<Q>, Q: Sized {
+      fn get_noedge<Q: ?Sized + Ord>(&self, k: &Q) -> Loc where K: Borrow<Q>, Q: Sized {
         match self.keys.binary_search_by_key(&k, |k| k.borrow()) {
           Result::Ok(i) => Loc::Here(i),
           Result::Err(i) => Loc::NotPresent(i)
@@ -87,7 +87,7 @@ macro_rules! avltree {
       }
 
       // chunk must be sorted
-      fn add_chunk(&self, chunk: &mut Vec<(K, V)>, len: usize, leaf: bool) 
+      fn insert_chunk(&self, chunk: &mut Vec<(K, V)>, len: usize, leaf: bool) 
         -> Result<(Self, usize, usize), Dir>
       {
         assert!(chunk.len() <= SIZE);
@@ -105,9 +105,9 @@ macro_rules! avltree {
           Result::Ok((t, len + n, 0))
         } else {
           let full = !leaf || self.len() == SIZE;
-          if full && self.find(&chunk[chunk.len() - 1].0) == Loc::InLeft { 
+          if full && self.get(&chunk[chunk.len() - 1].0) == Loc::InLeft { 
             Result::Err(Dir::InLeft)
-          } else if full && self.find(&chunk[0].0) == Loc::InRight { 
+          } else if full && self.get(&chunk[0].0) == Loc::InRight { 
             Result::Err(Dir::InRight)
           } else {
             let mut t = self.clone();
@@ -115,7 +115,7 @@ macro_rules! avltree {
             let n = chunk.len();
             for _ in 0..n {
               let (k, v) = chunk.pop().unwrap();
-              match t.find(&k) {
+              match t.get(&k) {
                 Loc::Here(i) => {
                   t.keys[i] = k;
                   t.vals[i] = v;
@@ -162,8 +162,8 @@ macro_rules! avltree {
       // element should be added. If add places the element in the middle 
       // of a full vector, then there will be overflow that must
       // be added right
-      fn add(&self, k: &K, v: &V, len: usize, leaf: bool) -> Result<(Self, Option<(K,V)>, usize), Dir> {
-        match self.find(k) {
+      fn insert(&self, k: &K, v: &V, len: usize, leaf: bool) -> Result<(Self, Option<(K,V)>, usize), Dir> {
+        match self.get(k) {
           Loc::Here(i) => {
             let mut t = self.clone();
             t.keys[i] = k.clone();
@@ -386,14 +386,14 @@ macro_rules! avltree {
         }
       }
 
-      fn add_chunk(&self, len: usize, chunk: &mut Vec<(K, V)>, tmp: &mut Vec<(K, V)>)
+      fn insert_chunk(&self, len: usize, chunk: &mut Vec<(K, V)>, tmp: &mut Vec<(K, V)>)
         -> (Self, usize) 
       {
         match self {
           &Tree::Empty =>
             if chunk.len() == 0 { (Tree::Empty, len) }
             else {
-              let (elts, len, _) = Elts::empty().add_chunk(chunk, len, true).unwrap();
+              let (elts, len, _) = Elts::empty().insert_chunk(chunk, len, true).unwrap();
               (Tree::create(&Tree::Empty, &$pinit(elts), &Tree::Empty), len)
             },
           &Tree::Node(ref tn) => {
@@ -402,23 +402,23 @@ macro_rules! avltree {
                 (&Tree::Empty, &Tree::Empty) => true,
                 (_, _) => false
               };
-            match tn.elts.add_chunk(chunk, len, leaf) {
+            match tn.elts.insert_chunk(chunk, len, leaf) {
               Result::Ok((elts, len, split)) =>
                 if chunk.len() == 0 {
                   (Tree::create(&tn.left, &$pinit(elts), &tn.right), len)
                 } else {
                   let n = chunk.len() - split;
                   for _ in 0..n { tmp.push(chunk.pop().unwrap()); }
-                  let (l, len) = tn.left.add_chunk(len, chunk, tmp);
+                  let (l, len) = tn.left.insert_chunk(len, chunk, tmp);
                   for _ in 0..n { chunk.push(tmp.pop().unwrap()) };
                   (Tree::bal(&l, &$pinit(elts), &tn.right), len)
                 },
               Result::Err(Dir::InLeft) => {
-                let (l, len) = tn.left.add_chunk(len, chunk, tmp);
+                let (l, len) = tn.left.insert_chunk(len, chunk, tmp);
                 (Tree::bal(&l, &tn.elts, &tn.right), len)
               },
               Result::Err(Dir::InRight) => {
-                let (r, len) = tn.right.add_chunk(len, chunk, tmp);
+                let (r, len) = tn.right.insert_chunk(len, chunk, tmp);
                 (Tree::bal(&tn.left, &tn.elts, &r), len)
               }
             }
@@ -426,7 +426,7 @@ macro_rules! avltree {
         }
       }
 
-      pub(crate) fn add_sorted(&self, len: usize, elts: &[(&K, &V)]) -> (Self, usize) {
+      pub(crate) fn insert_sorted(&self, len: usize, elts: &[(&K, &V)]) -> (Self, usize) {
         let mut t = (self.clone(), len);
         let mut chunk = Vec::<(K, V)>::new();
         let mut tmp = Vec::<(K, V)>::new();
@@ -438,14 +438,14 @@ macro_rules! avltree {
           } else {
             chunk.sort_unstable_by(|&(ref k0, _), &(ref k1, _)| k0.cmp(k1));
             chunk.dedup_by(|&mut (ref k0, _), &mut (ref k1, _)| k0 == k1);
-            while chunk.len() > 0 { t = t.0.add_chunk(t.1, &mut chunk, &mut tmp); }
+            while chunk.len() > 0 { t = t.0.insert_chunk(t.1, &mut chunk, &mut tmp); }
             assert_eq!(tmp.len(), 0)
           }
         }
         t
       }
 
-      pub(crate) fn add(&self, len: usize, k: &K, v: &V) -> (Self, usize) {
+      pub(crate) fn insert(&self, len: usize, k: &K, v: &V) -> (Self, usize) {
         match self {
           &Tree::Empty => 
             (Tree::create(&Tree::Empty, &$pinit(Elts::singleton(k, v)), &Tree::Empty), len + 1),
@@ -455,19 +455,19 @@ macro_rules! avltree {
                 (&Tree::Empty, &Tree::Empty) => true,
                 (_, _) => false
               };
-            match tn.elts.add(k, v, len, leaf) {
+            match tn.elts.insert(k, v, len, leaf) {
               Result::Ok((elts, Option::None, len)) => 
                 (Tree::create(&tn.left, &$pinit(elts), &tn.right), len),
               Result::Ok((elts, Option::Some((ovk, ovv)), len)) => {
-                let (r, len) = tn.right.add(len, &ovk, &ovv);
+                let (r, len) = tn.right.insert(len, &ovk, &ovv);
                 (Tree::bal(&tn.left, &$pinit(elts), &r), len)
               }
               Result::Err(Dir::InLeft) => {
-                let (l, len) = tn.left.add(len, k, v);
+                let (l, len) = tn.left.insert(len, k, v);
                 (Tree::bal(&l, &tn.elts, &tn.right), len)
               }
               Result::Err(Dir::InRight) => {
-                let (r, len) = tn.right.add(len, k, v);
+                let (r, len) = tn.right.insert(len, k, v);
                 (Tree::bal(&tn.left, &tn.elts, &r), len)
               }
             }
@@ -515,7 +515,7 @@ macro_rules! avltree {
         match self {
           &Tree::Empty => (Tree::Empty, len),
           &Tree::Node(ref tn) =>
-            match tn.elts.find(k) {
+            match tn.elts.get(k) {
               Loc::NotPresent(_) => 
                 (Tree::create(&tn.left, &tn.elts, &tn.right), len),
               Loc::Here(i) => {
@@ -539,17 +539,17 @@ macro_rules! avltree {
         }
       }
 
-      pub(crate) fn find<'a, Q: Sized + Ord + Debug>(&'a self, k: &Q) -> Option<&'a V> 
+      pub(crate) fn get<'a, Q: Sized + Ord + Debug>(&'a self, k: &Q) -> Option<&'a V> 
         where K: Borrow<Q>
       {
         match self {
           &Tree::Empty => Option::None,
           &Tree::Node(ref tn) =>
             match (k.cmp(tn.min_key.borrow()), k.cmp(tn.max_key.borrow())) {
-              (Ordering::Less, _) => tn.left.find(k),
-              (_, Ordering::Greater) => tn.right.find(k),
+              (Ordering::Less, _) => tn.left.get(k),
+              (_, Ordering::Greater) => tn.right.get(k),
               (_, _) =>
-                match tn.elts.find_noedge(k) {
+                match tn.elts.get_noedge(k) {
                   Loc::Here(i) => Option::Some(&tn.elts.vals[i]),
                   Loc::NotPresent(_) => Option::None,
                   Loc::InLeft => unreachable!("bug"),

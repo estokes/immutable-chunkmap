@@ -21,19 +21,19 @@ macro_rules! map {
     impl<K,V> Map<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
       pub fn new() -> Self { Map { len: 0, root: Tree::new() } }
 
-      pub fn add_sorted(&self, elts: &[(&K, &V)]) -> Self {
-        let (t, len) = self.root.add_sorted(self.len, elts);
+      pub fn insert_sorted(&self, elts: &[(&K, &V)]) -> Self {
+        let (t, len) = self.root.insert_sorted(self.len, elts);
         Map { len: len, root: t }
       }
 
-      pub fn add(&self, k: &K, v: &V) -> Self {
-        let (t, len) = self.root.add(self.len, k, v);
+      pub fn insert(&self, k: &K, v: &V) -> Self {
+        let (t, len) = self.root.insert(self.len, k, v);
         Map { len: len, root: t }
       }
 
-      pub fn find<'a, Q: Sized + Ord + Debug>(&'a self, k: &Q) -> Option<&'a V> 
+      pub fn get<'a, Q: Sized + Ord + Debug>(&'a self, k: &Q) -> Option<&'a V> 
         where K: Borrow<Q>
-      { self.root.find(k) }
+      { self.root.get(k) }
 
       pub fn remove<Q: Sized + Ord>(&self, k: &Q) -> Self 
         where K: Borrow<Q>
