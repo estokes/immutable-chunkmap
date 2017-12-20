@@ -13,7 +13,7 @@ fn bench_get(m: &Vec<i64>) -> (i64, Duration) {
 fn bench_get_seq(m: &Vec<i64>) -> (i64, Duration) {
   let mut tot = 0;
   let begin = Instant::now();
-  for i in 0..m.len() { tot = tot + (m[i] >> 16) }
+  for i in m { tot = tot + (i >> 16) }
   (tot, begin.elapsed())
 }
 
