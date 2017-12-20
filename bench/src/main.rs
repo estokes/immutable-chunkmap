@@ -8,6 +8,7 @@ mod hm;
 mod bs;
 mod avl;
 mod ls;
+mod vec;
 mod utils;
 
 fn usage() { println!("usage: <arc|rc|btm|bs> <size>") }
@@ -25,6 +26,7 @@ fn main() {
       "ls" => ls::run(size),
       "btm" => btm::run(size),
       "hm" => hm::run(size),
+      "vec" => vec::run(size),
       _ => usage() 
     }
   }
