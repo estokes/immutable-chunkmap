@@ -15,7 +15,7 @@ fn create(len: usize) -> (Arc<RwLock<(Vec<i64>, Vec<i64>)>>, Arc<Vec<i64>>) {
 }
 
 #[allow(dead_code)]
-fn bench_add(len: usize) -> (Arc<RwLock<(Vec<i64>, Vec<i64>)>>, Arc<Vec<i64>>, Duration) {
+fn bench_insert(len: usize) -> (Arc<RwLock<(Vec<i64>, Vec<i64>)>>, Arc<Vec<i64>>, Duration) {
   let mut keys = Vec::<i64>::new();
   let mut vals = Vec::<i64>::new();
   let data = utils::randvec::<i64>(len);
@@ -35,7 +35,7 @@ fn bench_add(len: usize) -> (Arc<RwLock<(Vec<i64>, Vec<i64>)>>, Arc<Vec<i64>>, D
   (Arc::new(RwLock::new((keys, vals))), Arc::new(data), begin.elapsed())
 }
 
-fn bench_find(m: &Arc<RwLock<(Vec<i64>, Vec<i64>)>>, d: &Arc<Vec<i64>>) -> Duration {
+fn bench_get(m: &Arc<RwLock<(Vec<i64>, Vec<i64>)>>, d: &Arc<Vec<i64>>) -> Duration {
   let n = num_cpus::get();
   let chunk = d.len() / n;
   let mut threads = Vec::new();
@@ -59,7 +59,7 @@ fn bench_find(m: &Arc<RwLock<(Vec<i64>, Vec<i64>)>>, d: &Arc<Vec<i64>>) -> Durat
   begin.elapsed()
 }
 
-fn bench_find_seq(m: &Arc<RwLock<(Vec<i64>, Vec<i64>)>>, d: &Vec<i64>) -> Duration {
+fn bench_get_seq(m: &Arc<RwLock<(Vec<i64>, Vec<i64>)>>, d: &Vec<i64>) -> Duration {
   let begin = Instant::now();
   let m = m.read().unwrap();
   for k in d {
@@ -89,9 +89,9 @@ fn bench_remove(m: &Arc<RwLock<(Vec<i64>, Vec<i64>)>>, d: &Vec<i64>) -> Duration
 
 pub(crate) fn run(size: usize) -> () {
   let (m, d) = create(size);
-  let find_par = bench_find(&m, &d);
-  let find = bench_find_seq(&m, &d);
-  println!("add: {}ns, find: {}ns, find_par: {}ns, remove: {}ns", 
-    0, utils::to_ns_per(find, size),
-    utils::to_ns_per(find_par, size), 0);
+  let get_par = bench_get(&m, &d);
+  let get = bench_get_seq(&m, &d);
+  println!("insert: {}ns, get: {}ns, get_par: {}ns, remove: {}ns", 
+    0, utils::to_ns_per(get, size),
+    utils::to_ns_per(get_par, size), 0);
 }

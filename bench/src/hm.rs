@@ -8,7 +8,7 @@ use std::thread;
 use std::cmp::min;
 use utils;
 
-fn bench_add(len: usize) -> (Arc<RwLock<HashMap<i64, i64>>>, Arc<Vec<i64>>, Duration) {
+fn bench_insert(len: usize) -> (Arc<RwLock<HashMap<i64, i64>>>, Arc<Vec<i64>>, Duration) {
   let mut m = HashMap::new();
   let data = utils::randvec::<i64>(len);
   let begin = Instant::now();
@@ -16,7 +16,7 @@ fn bench_add(len: usize) -> (Arc<RwLock<HashMap<i64, i64>>>, Arc<Vec<i64>>, Dura
   (Arc::new(RwLock::new(m)), Arc::new(data), begin.elapsed())
 }
 
-fn bench_find(m: &Arc<RwLock<HashMap<i64, i64>>>, d: &Arc<Vec<i64>>) -> Duration {
+fn bench_get(m: &Arc<RwLock<HashMap<i64, i64>>>, d: &Arc<Vec<i64>>) -> Duration {
   let n = num_cpus::get();
   let chunk = d.len() / n;
   let mut threads = Vec::new();
@@ -37,7 +37,7 @@ fn bench_find(m: &Arc<RwLock<HashMap<i64, i64>>>, d: &Arc<Vec<i64>>) -> Duration
   begin.elapsed()
 }
 
-fn bench_find_seq(m: &Arc<RwLock<HashMap<i64, i64>>>, d: &Vec<i64>) -> Duration {
+fn bench_get_seq(m: &Arc<RwLock<HashMap<i64, i64>>>, d: &Vec<i64>) -> Duration {
   let begin = Instant::now();
   let m = m.read().unwrap();
   for k in d { m.get(k).unwrap(); }
@@ -52,13 +52,13 @@ fn bench_remove(m: &Arc<RwLock<HashMap<i64, i64>>>, d: &Vec<i64>) -> Duration {
 }
 
 pub(crate) fn run(size: usize) -> () {
-  let (mut m, d, add) = bench_add(size);
-  let find_par = bench_find(&m, &d);
-  let find = bench_find_seq(&m, &d);
+  let (mut m, d, insert) = bench_insert(size);
+  let get_par = bench_get(&m, &d);
+  let get = bench_get_seq(&m, &d);
   let rm = bench_remove(&mut m, &d);
-  println!("add: {}ns, find: {}ns, find_par: {}ns, remove: {}ns", 
-    utils::to_ns_per(add, size), 
-    utils::to_ns_per(find, size),
-    utils::to_ns_per(find_par, size), 
+  println!("insert: {}ns, get: {}ns, get_par: {}ns, remove: {}ns", 
+    utils::to_ns_per(insert, size), 
+    utils::to_ns_per(get, size),
+    utils::to_ns_per(get_par, size), 
     utils::to_ns_per(rm, size));
 }
