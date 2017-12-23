@@ -4,7 +4,7 @@ macro_rules! map {
     use std::fmt::Debug;
     use std::borrow::Borrow;
 
-    /// This module uses a similar strategy to BTreeMap to ensure cache
+    /// This Map uses a similar strategy to BTreeMap to ensure cache
     /// efficient performance on modern hardware while still providing
     /// log(N) get, insert, and remove operations.
     ///     There are however a few notable differences between this module and BTreeMap.
@@ -20,7 +20,6 @@ macro_rules! map {
     /// structures. The Arc version of this structure is well suited to multi threaded
     /// applications. In particular it is safe to insert/remove without blocking reader threads, as
     /// they can simply be given the previous version of the structure.
-
     #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
     pub struct Map<K: Ord + Clone + Debug, V: Clone + Debug> {
       len: usize,
