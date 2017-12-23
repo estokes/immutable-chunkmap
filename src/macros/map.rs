@@ -7,19 +7,6 @@ macro_rules! map {
     /// This Map uses a similar strategy to BTreeMap to ensure cache
     /// efficient performance on modern hardware while still providing
     /// log(N) get, insert, and remove operations.
-    ///     There are however a few notable differences between this module and BTreeMap.
-    /// The tree algorithm is a classic AVL balanced binary tree. However each node contains a
-    /// sorted array instead of a single key/value pair. Instead of a linear scan through the array
-    /// (as in BTreeMap) we binary search. This means that our map will always perform the optimal
-    /// (log(N)) number of comparison operations. In situations where comparison is very cheap
-    /// BTreeMap may be slightly faster, where as in situations where comparison is more expensive
-    /// this module may be slightly faster, though the measured performance difference with i64
-    /// keys (cheap) is quite small. This module does not use unsafe, as BTreeMap does. Because it
-    /// is immutable insert and remove are much more expensive than for BTreeMap, but the advantage
-    /// is that previous versions are still valid. This is an intrinsic property of immutable data
-    /// structures. The Arc version of this structure is well suited to multi threaded
-    /// applications. In particular it is safe to insert/remove without blocking reader threads, as
-    /// they can simply be given the previous version of the structure.
     #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
     pub struct Map<K: Ord + Clone + Debug, V: Clone + Debug> {
       len: usize,
@@ -49,7 +36,7 @@ macro_rules! map {
       /// significantly slower than adding each element one by one.
       ///
       /// Regardless of whether the input is sorted or not, and regardless of it's size relative to
-      /// the size of the map, this method is log(N) where N is the size of the map.
+      /// the size of the map, this method runs in log(N) time where N is the size of the map.
       pub fn insert_sorted(&self, elts: &[(&K, &V)]) -> Self {
         let (t, len) = self.root.insert_sorted(self.len, elts);
         Map { len: len, root: t }
