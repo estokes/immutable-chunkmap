@@ -27,12 +27,10 @@ macro_rules! map {
 
       /// This method of insertion can be orders of magnitude faster than inserting elements one by
       /// one. Assuming you are inserting a large number of elements relative to the size of the
-      /// map (1/10 +). Assuming your elements are already sorted, or nearly sorted. The reason it
-      /// can be so much faster is we can avoid building every intermediate tree, as would be
-      /// produced when adding one by one, and go almost straight to the final tree.
+      /// map (1/10 +). Assuming your elements are already sorted, or nearly sorted.
       ///
       /// A word of warning however. If you're inserting small chunks (< 1/10) relative to the size
-      /// of the map, or your chunks are not sorted, this method will still work, but it will be
+      /// of the map, or your chunks are not sorted, this method will still work, but it may be
       /// significantly slower than adding each element one by one.
       ///
       /// Regardless of whether the input is sorted or not, and regardless of it's size relative to
