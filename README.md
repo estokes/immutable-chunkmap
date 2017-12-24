@@ -1,7 +1,7 @@
-# immutable
+# immutable chunk map
 
-Immutable data structures in rust
+A fast cache efficient immutable map with lookup performance equivalent to
+BTreeMap, and reasonably good insertion performance (for a persistent
+structure).
 
-* Map
-
-Cache efficient immutable map. Lookup performance equivalent to BTreeMap.
+![alt text](avg-lookup-time.svg "average lookup time")
