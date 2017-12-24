@@ -1,8 +1,8 @@
 [package]
-name = "immutable"
+name = "immutable-chunkmap"
 version = "0.1.0"
 authors = ["Eric Stokes <letaris@gmail.com>"]
-publish = false
+publish = true
 
 [dev-dependencies]
 rand = ">= 0.3"
