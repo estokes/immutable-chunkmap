@@ -12,7 +12,7 @@ function run() {
   done
 }
 
-for j in avl rc btm hm bs ls; do
+for j in avl rc btm hm bs ls vec; do
   echo "testing $j"
   for i in 1000 10000 100000 1000000 10000000; do
     run $j $i
