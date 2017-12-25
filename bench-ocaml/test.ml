@@ -53,6 +53,6 @@ let () =
   let (_, adds) = bench_add_sorted (random_array size) in
   let find = bench_find m v in
   let rm = bench_remove m v in
-  let str t = sprintf "%gns" (Time.Span.to_ns t /. float size) in
+  let str t = sprintf "%g" (Time.Span.to_ns t /. float size) in
   printf "%d,%s,%s,%s,%s,%s\n%!"
     size (str add) (str adds) (str find) "0" (str rm)
