@@ -11,7 +11,15 @@ let bench_add v =
   let en = Time.now () in
   (m, Time.diff en st)
 
-
+let bench_add_sorted v =
+  let st = Time.now () in
+  Array.sort ~cmp:Int.compare v;
+  let m =
+    Array.fold v ~init:(Map.empty (module Int)) ~f:(fun m k ->
+      Map.set m ~key:k ~data:k)
+  in
+  let en = Time.now () in
+  (m, Time.diff en st)
 
 let bench_find m v =
   let st = Time.now () in
@@ -39,9 +47,10 @@ let () =
   in
   let v = random_array size in
   let (m, add) = bench_add v in
+  let (_, adds) = bench_add_sorted v in
   Gc.compact ();
   let find = bench_find m v in
   let rm = bench_remove m v in
   let str t = sprintf "%gns" (Time.Span.to_ns t /. float size) in
-  printf "add: %s, find: %s, remove: %s\n%!"
-    (str add) (str find) (str rm)
+  printf "add: %s, adds: %s, find: %s, remove: %s\n%!"
+    (str add) (str adds) (str find) (str rm)
