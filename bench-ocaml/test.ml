@@ -43,11 +43,14 @@ let bench_remove m v =
 let () =
   let size =
     if Array.length Sys.argv = 2 then Int.of_string Sys.argv.(1)
-    else 10000
+    else begin
+      printf "usage: test <size>\n%!";
+      exit 0
+    end
   in
   let v = random_array size in
   let (m, add) = bench_add v in
-  let (_, adds) = bench_add_sorted v in
+  let (_, adds) = bench_add_sorted (random_array size) in
   Gc.compact ();
   let find = bench_find m v in
   let rm = bench_remove m v in
