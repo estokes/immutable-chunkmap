@@ -28,3 +28,11 @@ Single insertion is slightly more expensive than a classical AVL tree, however
 multi insertion modes can significantly reduce this overhead. Anyway, if you
 care a lot about insertion performance you really shouldn't use a persistent
 data structure, as you pay a heavy price compared to a mutable one.
+
+However in one very specific case, inserting into a chunkmap can be faster than
+even a HashMap. If you have a lot of data to add at once (at least 10% of what's
+already in the map), then you can sort it first, and use add_sorted, which is
+much faster than add. The graph below shows building maps from scratch using
+sorted data, which is the best possible case.
+
+![alt text](avg-insert-time-sorted.svg "average insert time sorted")
