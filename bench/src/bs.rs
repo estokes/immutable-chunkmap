@@ -22,7 +22,7 @@ fn bench_insert(len: usize) -> (Arc<RwLock<(Vec<i64>, Vec<i64>)>>, Arc<Vec<i64>>
   let begin = Instant::now();
   for k in &data {
     match keys.binary_search(k) {
-      Ok(i) => { 
+      Ok(i) => {
         keys[i] = *k;
         vals[i] = *k;
       },
@@ -42,7 +42,7 @@ fn bench_get(m: &Arc<RwLock<(Vec<i64>, Vec<i64>)>>, d: &Arc<Vec<i64>>) -> Durati
   let begin = Instant::now();
   for i in 0 .. n {
     let (m, d) = (m.clone(), d.clone());
-    let th = 
+    let th =
       thread::spawn(move || {
         let m = m.read().unwrap();
         let p = i * chunk;
@@ -91,7 +91,8 @@ pub(crate) fn run(size: usize) -> () {
   let (m, d) = create(size);
   let get_par = bench_get(&m, &d);
   let get = bench_get_seq(&m, &d);
-  println!("insert: {}ns, get: {}ns, get_par: {}ns, remove: {}ns", 
-    0, utils::to_ns_per(get, size),
-    utils::to_ns_per(get_par, size), 0);
+  println!("{},0,0,{},{},0",
+    size,
+    utils::to_ns_per(get, size),
+    utils::to_ns_per(get_par, size));
 }

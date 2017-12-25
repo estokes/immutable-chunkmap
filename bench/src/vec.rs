@@ -28,7 +28,8 @@ pub(crate) fn run(size: usize) -> () {
   let (tot2, gets) = bench_get_seq(&m);
   assert_eq!(tot0, tot1);
   assert_eq!(tot0, tot2);
-  println!("get: {}ns, gets: {}ns", 
+  println!("{},0,0,{},{},0", 
+    size,
     utils::to_ns_per(get, size),
     utils::to_ns_per(gets, size));
 }

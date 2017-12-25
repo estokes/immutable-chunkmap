@@ -20,7 +20,7 @@ fn bench_get(d: &Arc<Vec<i64>>) -> Duration {
   let begin = Instant::now();
   for i in 0 .. n {
     let d = d.clone();
-    let th = 
+    let th =
       thread::spawn(move || {
         let p = i * chunk;
         for j in p .. min(d.len() - 1, p + chunk) {
@@ -45,7 +45,8 @@ pub(crate) fn run(size: usize) -> () {
   let data = Arc::new(utils::randvec::<i64>(size));
   let get_par = bench_get(&data);
   let get = bench_get_seq(&data);
-  println!("get: {}ns, get_par: {}ns", 
-    utils::to_ns_per(get, size), 
+  println!("{},0,0,{},{},0", 
+    size,
+    utils::to_ns_per(get, size),
     utils::to_ns_per(get_par, size));
 }

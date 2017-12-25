@@ -67,7 +67,8 @@ pub(crate) fn run(size: usize) -> () {
   let get_par = bench_get(m.clone(), d.clone());
   let get = bench_get_seq(m.clone(), d.clone());
   let rm = bench_remove(m.clone(), d.clone());
-  println!("insert: {}ns, inserts: {}ns, get: {}ns, get_par: {}ns, remove: {}ns",
+  println!("{},{},{},{},{},{}",
+    size,
     utils::to_ns_per(insert, size),
     utils::to_ns_per(inserts, size),
     utils::to_ns_per(get, size),

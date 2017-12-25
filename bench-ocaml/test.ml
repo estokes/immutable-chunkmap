@@ -54,5 +54,5 @@ let () =
   let find = bench_find m v in
   let rm = bench_remove m v in
   let str t = sprintf "%gns" (Time.Span.to_ns t /. float size) in
-  printf "add: %s, adds: %s, find: %s, remove: %s\n%!"
-    (str add) (str adds) (str find) (str rm)
+  printf "%d,%s,%s,%s,%s,%s\n%!"
+    size (str add) (str adds) (str find) "0" (str rm)
