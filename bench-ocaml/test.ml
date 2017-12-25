@@ -51,7 +51,6 @@ let () =
   let v = random_array size in
   let (m, add) = bench_add v in
   let (_, adds) = bench_add_sorted (random_array size) in
-  Gc.compact ();
   let find = bench_find m v in
   let rm = bench_remove m v in
   let str t = sprintf "%gns" (Time.Span.to_ns t /. float size) in
