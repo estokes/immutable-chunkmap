@@ -14,7 +14,7 @@ distinct leaf nodes and a relaxed balance constraint.
 * BTreeMap: from the Rust standard library
 * Binary Search: binary search in a sorted array of keys
 * HashMap: from the Rust standard library
-* Array: random access to a Vec of keys
+* Array: random access to a Vec
 
 ![alt text](avg-lookup-time.svg "average lookup time")
 

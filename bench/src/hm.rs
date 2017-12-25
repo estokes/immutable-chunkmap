@@ -16,6 +16,15 @@ fn bench_insert(len: usize) -> (Arc<RwLock<HashMap<i64, i64>>>, Arc<Vec<i64>>, D
   (Arc::new(RwLock::new(m)), Arc::new(data), begin.elapsed())
 }
 
+fn bench_insert_sorted(len: usize) -> (Arc<RwLock<HashMap<i64, i64>>>, Arc<Vec<i64>>, Duration) {
+  let mut m = HashMap::new();
+  let mut data = utils::randvec::<i64>(len);
+  let begin = Instant::now();
+  data.sort_unstable();
+  for k in &data { m.insert(*k, *k); }
+  (Arc::new(RwLock::new(m)), Arc::new(data), begin.elapsed())
+}
+
 fn bench_get(m: &Arc<RwLock<HashMap<i64, i64>>>, d: &Arc<Vec<i64>>) -> Duration {
   let n = num_cpus::get();
   let chunk = d.len() / n;
@@ -23,7 +32,7 @@ fn bench_get(m: &Arc<RwLock<HashMap<i64, i64>>>, d: &Arc<Vec<i64>>) -> Duration 
   let begin = Instant::now();
   for i in 0 .. n {
     let (m, d) = (m.clone(), d.clone());
-    let th = 
+    let th =
       thread::spawn(move || {
         let m = m.read().unwrap();
         let p = i * chunk;
@@ -53,12 +62,14 @@ fn bench_remove(m: &Arc<RwLock<HashMap<i64, i64>>>, d: &Vec<i64>) -> Duration {
 
 pub(crate) fn run(size: usize) -> () {
   let (mut m, d, insert) = bench_insert(size);
+  let (_, _, inserts) = bench_insert_sorted(size);
   let get_par = bench_get(&m, &d);
   let get = bench_get_seq(&m, &d);
   let rm = bench_remove(&mut m, &d);
-  println!("insert: {}ns, get: {}ns, get_par: {}ns, remove: {}ns", 
-    utils::to_ns_per(insert, size), 
+  println!("insert: {}ns, inserts: {}ns, get: {}ns, get_par: {}ns, remove: {}ns",
+    utils::to_ns_per(insert, size),
+    utils::to_ns_per(inserts, size),
     utils::to_ns_per(get, size),
-    utils::to_ns_per(get_par, size), 
+    utils::to_ns_per(get_par, size),
     utils::to_ns_per(rm, size));
 }

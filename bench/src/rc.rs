@@ -1,5 +1,5 @@
-extern crate immutable;
-use self::immutable::rc::map::Map;
+extern crate immutable_chunkmap;
+use self::immutable_chunkmap::rc::map::Map;
 use std::time::{Duration, Instant};
 use std::vec::{Vec};
 use utils;
@@ -42,9 +42,9 @@ pub(crate) fn run(size: usize) -> () {
   let insert = bench_insert(&d);
   let get = bench_get(&m, &d);
   let rm = bench_remove(m, &d);
-  println!("insert: {}ns, inserts: {}ns, get: {}ns, remove: {}ns", 
-    utils::to_ns_per(insert, size), 
+  println!("insert: {}ns, inserts: {}ns, get: {}ns, remove: {}ns",
+    utils::to_ns_per(insert, size),
     utils::to_ns_per(insert_sorted, size),
-    utils::to_ns_per(get, size), 
+    utils::to_ns_per(get, size),
     utils::to_ns_per(rm, size));
 }

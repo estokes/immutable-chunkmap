@@ -1,6 +1,6 @@
-extern crate immutable;
+extern crate immutable_chunkmap;
 extern crate num_cpus;
-use self::immutable::arc::map::Map;
+use self::immutable_chunkmap::arc::map::Map;
 use std::cmp::min;
 use std::thread;
 use std::sync::Arc;
@@ -35,7 +35,7 @@ fn bench_get(m: Arc<Map<i64, i64>>, d: Arc<Vec<i64>>) -> Duration {
   let begin = Instant::now();
   for i in 0 .. n {
     let (m, d) = (m.clone(), d.clone());
-    let th = 
+    let th =
       thread::spawn(move || {
         let p = i * chunk;
         for j in p .. min(d.len() - 1, p + chunk) {
@@ -67,10 +67,10 @@ pub(crate) fn run(size: usize) -> () {
   let get_par = bench_get(m.clone(), d.clone());
   let get = bench_get_seq(m.clone(), d.clone());
   let rm = bench_remove(m.clone(), d.clone());
-  println!("insert: {}ns, inserts: {}ns, get: {}ns, get_par: {}ns, remove: {}ns", 
-    utils::to_ns_per(insert, size), 
-    utils::to_ns_per(inserts, size), 
-    utils::to_ns_per(get, size), 
-    utils::to_ns_per(get_par, size), 
+  println!("insert: {}ns, inserts: {}ns, get: {}ns, get_par: {}ns, remove: {}ns",
+    utils::to_ns_per(insert, size),
+    utils::to_ns_per(inserts, size),
+    utils::to_ns_per(get, size),
+    utils::to_ns_per(get_par, size),
     utils::to_ns_per(rm, size));
 }

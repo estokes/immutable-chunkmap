@@ -12,6 +12,15 @@ fn bench_insert(len: usize) -> (TreeMap<i64, i64>, Vec<i64>, Duration) {
     (m, data, begin.elapsed())
 }
 
+fn bench_insert_sorted(len: usize) -> (TreeMap<i64, i64>, Vec<i64>, Duration) {
+    let mut m = TreeMap::new();
+    let mut data = utils::randvec::<i64>(len);
+    let begin = Instant::now();
+    data.sort_unstable();
+    for kv in &data { m = m.insert(*kv, *kv) }
+    (m, data, begin.elapsed())
+}
+
 fn bench_get(m: &TreeMap<i64, i64>, d: &Vec<i64>) -> Duration {
     let begin = Instant::now();
     for kv in d { m.get(&kv).unwrap(); }
@@ -32,10 +41,12 @@ fn bench_remove(m: TreeMap<i64, i64>, d: &Vec<i64>) -> Duration {
 
 pub(crate) fn run(size: usize) {
   let (m, d, insert) = bench_insert(size);
+  let (_, _, inserts) = bench_insert_sorted(size);
   let get = bench_get(&m, &d);
   let rm = bench_remove(m, &d);
-  println!("insert: {}ns, get: {}ns, remove: {}ns", 
-      utils::to_ns_per(insert, size), 
-      utils::to_ns_per(get, size), 
+  println!("insert: {}ns, inserts: {}ns, get: {}ns, remove: {}ns",
+      utils::to_ns_per(insert, size),
+      utils::to_ns_per(inserts, size),
+      utils::to_ns_per(get, size),
       utils::to_ns_per(rm, size));
 }
