@@ -3,6 +3,11 @@ name = "immutable-chunkmap"
 version = "0.1.0"
 authors = ["Eric Stokes <letaris@gmail.com>"]
 publish = true
+description = "A cache efficient immutable map with lookup performance equivalent to BTreeMap, and reasonably good insertion performance (for a persistent structure)."
+repository = "https://github.com/estokes/immutable-chunkmap"
+categories = ["data-structures"]
+keywords = ["map", "immutable", "persistent", "functional"]
+license = "MIT/Apache"
 
 [dev-dependencies]
 rand = ">= 0.3"
