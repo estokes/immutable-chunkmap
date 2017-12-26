@@ -21,7 +21,6 @@ Cargo.lock
 *.epub
 *.exe
 *.fn
-*.html
 *.kdev4
 *.ky
 *.ll
@@ -69,7 +68,6 @@ __pycache__/
 /config.toml
 /dist/
 /dl/
-/doc
 /inst/
 /llvm/
 /mingw-build/
