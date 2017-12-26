@@ -1,12 +1,12 @@
-//! Support for common functional data structures in rust. Each data structure
-//! is implemented with either Rc, or `Arc`. The `Rc` versions cannot be used by
-//! multiple threads at once, but have slightly lower single threaded overhead.
-//! Each module is duplicated for rc/arc. e.g. `rc::map` uses `Rc`, `arc::map` uses `Arc`.
+//! A cache efficient immutable map with lookup performance equivalent to BTreeMap, and reasonably good
+//! insertion performance (for a persistent structure). The `Rc` versions cannot be used by multiple
+//! threads at once, but have slightly lower single threaded overhead. Each module is duplicated for
+//! rc/arc. e.g. `rc::map` uses `Rc`, `arc::map` uses `Arc`.
 
 #[macro_use]
 mod macros;
 
-/// immutable data structures using `Rc`
+/// chunkmap using `Rc` pointers
 pub mod rc {
   pub(crate) mod avl {
     avltree!(std::rc::Rc, Rc, Rc::new, 512);
@@ -18,7 +18,7 @@ pub mod rc {
   }
 }
 
-/// immutable data structures using `Arc`
+/// chunkmap using `Arc` pointers
 pub mod arc {
   pub(crate) mod avl {
     avltree!(std::sync::Arc, Arc, Arc::new, 512);

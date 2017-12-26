@@ -7,6 +7,26 @@ macro_rules! map {
     /// This Map uses a similar strategy to BTreeMap to ensure cache
     /// efficient performance on modern hardware while still providing
     /// log(N) get, insert, and remove operations.
+    /// # Examples
+    /// ```
+    /// use std::string::String;
+    /// use self::immutable_chunkmap::rc::map::Map;
+    ///
+    /// let m =
+    ///    Map::new()
+    ///    .insert(&String::from("1"), &1)
+    ///    .insert(&String::from("2"), &2)
+    ///    .insert(&String::from("3"), &3);
+    ///
+    /// assert_eq!(m.get("1"), Option::Some(&1));
+    /// assert_eq!(m.get("2"), Option::Some(&2));
+    /// assert_eq!(m.get("3"), Option::Some(&3));
+    /// assert_eq!(m.get("4"), Option::None);
+    ///
+    /// for (k, v) in &m {
+    ///   println!("key {}, val: {}", k, v)
+    /// }
+    /// ```
     #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
     pub struct Map<K: Ord + Clone + Debug, V: Clone + Debug> {
       len: usize,
@@ -35,6 +55,20 @@ macro_rules! map {
       ///
       /// Regardless of whether the input is sorted or not, and regardless of it's size relative to
       /// the size of the map, this method runs in log(N) time where N is the size of the map.
+      /// #Examples
+      /// ```
+      /// use self::immutable_chunkmap::rc::map::Map;
+      ///
+      /// let v = vec![(1, 3), (10, 1), (-12, 2), (44, 0), (50, -1)];
+      /// let mut refs: Vec<(&i64, &i64)> = v.iter().map(|&(ref k, ref v)| (k, v)).collect();
+      /// refs.sort_unstable_by_key(|&(k, _)| k);
+      ///
+      /// let m = Map::new().insert_sorted(&refs);
+      ///
+      /// for &(ref k, ref v) in &v {
+      ///   assert_eq!(m.get(k), Option::Some(v))
+      /// }
+      /// ```
       pub fn insert_sorted(&self, elts: &[(&K, &V)]) -> Self {
         let (t, len) = self.root.insert_sorted(self.len, elts);
         Map { len: len, root: t }
@@ -50,7 +84,7 @@ macro_rules! map {
 
       /// lookup the mapping for k. If it doesn't exist return None. Runs in log(N) time where N is
       /// the size of the map.
-      pub fn get<'a, Q: Sized + Ord + Debug>(&'a self, k: &Q) -> Option<&'a V>
+      pub fn get<'a, Q: ?Sized + Ord + Debug>(&'a self, k: &Q) -> Option<&'a V>
         where K: Borrow<Q>
       { self.root.get(k) }
 

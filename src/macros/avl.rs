@@ -32,10 +32,10 @@ macro_rules! avltree {
       }
     }
 
-    /* 
-      elts is a sorted array of pairs, increasing the SIZE has several effects; 
-      -- decreases the height of the tree for a given number of elements, decreasing the amount of 
-          indirection necessary to get to any given key. 
+    /*
+      elts is a sorted array of pairs, increasing the SIZE has several effects;
+      -- decreases the height of the tree for a given number of elements, decreasing the amount of
+          indirection necessary to get to any given key.
       -- decreases the number of objects allocated on the heap each time a key is added or removed
       -- increases the size of each allocation
       -- icreases the overall amount of memory allocated for each change to the tree
@@ -59,9 +59,9 @@ macro_rules! avltree {
 
       fn empty() -> Self { Elts {keys: Vec::<K>::new(), vals: Vec::<V>::new()} }
 
-      fn get<Q: ?Sized + Ord>(&self, k: &Q) -> Loc where K: Borrow<Q>, Q: Sized {
+      fn get<Q: ?Sized + Ord>(&self, k: &Q) -> Loc where K: Borrow<Q> {
         let len = self.len();
-        if len == 0 { Loc::NotPresent(0) } 
+        if len == 0 { Loc::NotPresent(0) }
         else {
           let first = k.cmp(&self.keys[0].borrow());
           let last = k.cmp(&self.keys[len - 1].borrow());
@@ -79,7 +79,7 @@ macro_rules! avltree {
         }
       }
 
-      fn get_noedge<Q: ?Sized + Ord>(&self, k: &Q) -> Loc where K: Borrow<Q>, Q: Sized {
+      fn get_noedge<Q: ?Sized + Ord>(&self, k: &Q) -> Loc where K: Borrow<Q> {
         match self.keys.binary_search_by_key(&k, |k| k.borrow()) {
           Result::Ok(i) => Loc::Here(i),
           Result::Err(i) => Loc::NotPresent(i)
@@ -87,7 +87,7 @@ macro_rules! avltree {
       }
 
       // chunk must be sorted
-      fn insert_chunk(&self, chunk: &mut Vec<(K, V)>, len: usize, leaf: bool) 
+      fn insert_chunk(&self, chunk: &mut Vec<(K, V)>, len: usize, leaf: bool)
         -> Result<(Self, usize, usize), Dir>
       {
         assert!(chunk.len() <= SIZE);
@@ -105,9 +105,9 @@ macro_rules! avltree {
           Result::Ok((t, len + n, 0))
         } else {
           let full = !leaf || self.len() == SIZE;
-          if full && self.get(&chunk[chunk.len() - 1].0) == Loc::InLeft { 
+          if full && self.get(&chunk[chunk.len() - 1].0) == Loc::InLeft {
             Result::Err(Dir::InLeft)
-          } else if full && self.get(&chunk[0].0) == Loc::InRight { 
+          } else if full && self.get(&chunk[0].0) == Loc::InRight {
             Result::Err(Dir::InRight)
           } else {
             let mut t = self.clone();
@@ -119,7 +119,7 @@ macro_rules! avltree {
                 Loc::Here(i) => {
                   t.keys[i] = k;
                   t.vals[i] = v;
-                }, 
+                },
                 Loc::NotPresent(i) =>
                   if t.len() < SIZE {
                     t.keys.insert(i, k);
@@ -131,7 +131,7 @@ macro_rules! avltree {
                     t.vals.insert(i, v);
                   },
                 Loc::InLeft =>
-                  if leaf && t.keys.len() < SIZE { 
+                  if leaf && t.keys.len() < SIZE {
                     t.keys.insert(0, k);
                     t.vals.insert(0, v);
                     len = len + 1;
@@ -148,8 +148,8 @@ macro_rules! avltree {
                   }
               }
             }
-            if chunk.len() > 0 { 
-              chunk.sort_unstable_by(|&(ref k1, _), &(ref k2, _)| k1.cmp(k2)); 
+            if chunk.len() > 0 {
+              chunk.sort_unstable_by(|&(ref k1, _), &(ref k2, _)| k1.cmp(k2));
             }
             let mut i = 0;
             while i < chunk.len() && chunk[i].0 < t.keys[0] { i = i + 1; }
@@ -159,7 +159,7 @@ macro_rules! avltree {
       }
 
       // add to T, if possible. Otherwise say where in the tree the
-      // element should be added. If add places the element in the middle 
+      // element should be added. If add places the element in the middle
       // of a full vector, then there will be overflow that must
       // be added right
       fn insert(&self, k: &K, v: &V, len: usize, leaf: bool) -> Result<(Self, Option<(K,V)>, usize), Dir> {
@@ -170,7 +170,7 @@ macro_rules! avltree {
             t.vals[i] = v.clone();
             Result::Ok((t, Option::None, len))
           }
-          Loc::NotPresent(i) => 
+          Loc::NotPresent(i) =>
             if self.len() < SIZE {
               let mut t = self.clone();
               t.keys.insert(i, k.clone());
@@ -186,7 +186,7 @@ macro_rules! avltree {
               Result::Ok((t, Option::Some(overflow), len))
             },
           loc @ Loc::InLeft | loc @ Loc::InRight =>
-            if !leaf || self.len() == SIZE { Result::Err(loc.to_dir()) } 
+            if !leaf || self.len() == SIZE { Result::Err(loc.to_dir()) }
             else {
               let mut t = self.clone();
               match loc {
@@ -221,24 +221,24 @@ macro_rules! avltree {
         if self.len() == 0 { Option::None }
         else { Option::Some((&self.keys[0], &self.vals[0])) }
       }
-      
+
       fn max_elt<'a>(&'a self) -> Option<(&'a K, &'a V)> {
         if self.len() == 0 { Option::None }
-        else { 
+        else {
           let last = self.len() - 1;
-          Option::Some((&self.keys[last], &self.vals[last])) 
+          Option::Some((&self.keys[last], &self.vals[last]))
         }
       }
 
       fn len(&self) -> usize { self.keys.len() }
     }
 
-    impl<K, V> IntoIterator for Elts<K, V> 
-      where K: Ord + Clone + Debug, V: Clone + Debug 
+    impl<K, V> IntoIterator for Elts<K, V>
+      where K: Ord + Clone + Debug, V: Clone + Debug
     {
       type Item = (K, V);
       type IntoIter = iter::Zip<vec::IntoIter<K>, vec::IntoIter<V>>;
-      fn into_iter(self) -> Self::IntoIter { 
+      fn into_iter(self) -> Self::IntoIter {
         self.keys.into_iter().zip(self.vals)
       }
     }
@@ -280,7 +280,7 @@ macro_rules! avltree {
         loop {
           match &mut self.elts {
             &mut Option::None => (),
-            &mut Option::Some(ref mut s) => 
+            &mut Option::Some(ref mut s) =>
               match s.next() {
                 Option::None => (),
                 res @ Option::Some(_) => return res
@@ -309,7 +309,7 @@ macro_rules! avltree {
       }
     }
 
-    impl<'a, K, V> IntoIterator for &'a Tree<K, V> 
+    impl<'a, K, V> IntoIterator for &'a Tree<K, V>
       where K: 'a + Ord + Clone + Debug, V: 'a + Clone + Debug
     {
       type Item = (&'a K, &'a V);
@@ -338,11 +338,11 @@ macro_rules! avltree {
 
       fn create(l: &Tree<K, V>, elts: &$ptyp<Elts<K, V>>, r: &Tree<K, V>) -> Self {
         let (min_key, max_key) = elts.min_max_key().unwrap();
-        let n = 
-          Node { elts: elts.clone(), 
+        let n =
+          Node { elts: elts.clone(),
                  min_key: min_key,
                  max_key: max_key,
-                 left: l.clone(), right: r.clone(), 
+                 left: l.clone(), right: r.clone(),
                  height: 1 + max(l.height(), r.height()) };
         Tree::Node($pinit(n))
       }
@@ -387,7 +387,7 @@ macro_rules! avltree {
       }
 
       fn insert_chunk(&self, len: usize, chunk: &mut Vec<(K, V)>, tmp: &mut Vec<(K, V)>)
-        -> (Self, usize) 
+        -> (Self, usize)
       {
         match self {
           &Tree::Empty =>
@@ -397,7 +397,7 @@ macro_rules! avltree {
               (Tree::create(&Tree::Empty, &$pinit(elts), &Tree::Empty), len)
             },
           &Tree::Node(ref tn) => {
-            let leaf = 
+            let leaf =
               match (&tn.left, &tn.right) {
                 (&Tree::Empty, &Tree::Empty) => true,
                 (_, _) => false
@@ -447,16 +447,16 @@ macro_rules! avltree {
 
       pub(crate) fn insert(&self, len: usize, k: &K, v: &V) -> (Self, usize) {
         match self {
-          &Tree::Empty => 
+          &Tree::Empty =>
             (Tree::create(&Tree::Empty, &$pinit(Elts::singleton(k, v)), &Tree::Empty), len + 1),
           &Tree::Node(ref tn) => {
-            let leaf = 
+            let leaf =
               match (&tn.left, &tn.right) {
                 (&Tree::Empty, &Tree::Empty) => true,
                 (_, _) => false
               };
             match tn.elts.insert(k, v, len, leaf) {
-              Result::Ok((elts, Option::None, len)) => 
+              Result::Ok((elts, Option::None, len)) =>
                 (Tree::create(&tn.left, &$pinit(elts), &tn.right), len),
               Result::Ok((elts, Option::Some((ovk, ovv)), len)) => {
                 let (r, len) = tn.right.insert(len, &ovk, &ovv);
@@ -478,7 +478,7 @@ macro_rules! avltree {
       fn min_elts<'a>(&'a self) -> Option<&'a $ptyp<Elts<K,V>>> {
         match self {
           &Tree::Empty => Option::None,
-          &Tree::Node(ref tn) => 
+          &Tree::Node(ref tn) =>
             match tn.left {
               Tree::Empty => Option::Some(&tn.elts),
               Tree::Node(_) => tn.left.min_elts()
@@ -492,7 +492,7 @@ macro_rules! avltree {
           &Tree::Node(ref tn) =>
             match tn.left {
               Tree::Empty => tn.right.clone(),
-              Tree::Node(_) => 
+              Tree::Node(_) =>
                 Tree::bal(&tn.left.remove_min_elts(), &tn.elts, &tn.right)
             }
         }
@@ -509,14 +509,14 @@ macro_rules! avltree {
         }
       }
 
-      pub(crate) fn remove<Q: Sized + Ord>(&self, len: usize, k: &Q) -> (Self, usize) 
+      pub(crate) fn remove<Q: ?Sized + Ord>(&self, len: usize, k: &Q) -> (Self, usize)
         where K: Borrow<Q>
       {
         match self {
           &Tree::Empty => (Tree::Empty, len),
           &Tree::Node(ref tn) =>
             match tn.elts.get(k) {
-              Loc::NotPresent(_) => 
+              Loc::NotPresent(_) =>
                 (Tree::create(&tn.left, &tn.elts, &tn.right), len),
               Loc::Here(i) => {
                 let elts = tn.elts.remove_elt_at(i);
@@ -539,7 +539,7 @@ macro_rules! avltree {
         }
       }
 
-      pub(crate) fn get<'a, Q: Sized + Ord + Debug>(&'a self, k: &Q) -> Option<&'a V> 
+      pub(crate) fn get<'a, Q: ?Sized + Ord + Debug>(&'a self, k: &Q) -> Option<&'a V>
         where K: Borrow<Q>
       {
         match self {
@@ -561,7 +561,7 @@ macro_rules! avltree {
 
       #[allow(dead_code)]
       pub(crate) fn invariant(&self, len: usize) -> () {
-        fn in_range<K,V>(lower: Option<&K>, upper: Option<&K>, elts: &Elts<K,V>) 
+        fn in_range<K,V>(lower: Option<&K>, upper: Option<&K>, elts: &Elts<K,V>)
           -> bool
           where K: Ord + Clone + Debug, V: Clone + Debug
         {
@@ -575,7 +575,7 @@ macro_rules! avltree {
                 (&elts.keys).into_iter().all(|k| upper.cmp(k) == Ordering::Greater) })
         }
 
-        fn sorted<K,V>(elts: &Elts<K,V>) -> bool 
+        fn sorted<K,V>(elts: &Elts<K,V>) -> bool
           where K: Ord + Clone + Debug, V: Clone + Debug
         {
           if elts.keys.len() == 1 { true }
@@ -591,21 +591,21 @@ macro_rules! avltree {
           }
         }
 
-        fn check<K,V>(t: &Tree<K,V>, lower: Option<&K>, upper: Option<&K>, len: usize) 
+        fn check<K,V>(t: &Tree<K,V>, lower: Option<&K>, upper: Option<&K>, len: usize)
           -> (u16, usize)
           where K: Ord + Clone + Debug, V: Clone + Debug
         {
           match *t {
             Tree::Empty => (0, len),
             Tree::Node(ref tn) => {
-              if !in_range(lower, upper, &tn.elts) { 
-                panic!("tree invariant violated lower {:?} upper {:?} elts {:?}, tree {:?}", 
+              if !in_range(lower, upper, &tn.elts) {
+                panic!("tree invariant violated lower {:?} upper {:?} elts {:?}, tree {:?}",
                   lower, upper, &tn.elts, t)
               };
               if !sorted(&tn.elts) { panic!("elements isn't sorted") };
-              let (thl, len) = 
+              let (thl, len) =
                 check(&tn.left, lower, tn.elts.min_elt().map(|(k, _)| k), len);
-              let (thr, len) = 
+              let (thr, len) =
                 check(&tn.right, tn.elts.max_elt().map(|(k, _)| k), upper, len);
               let th = 1 + max(thl, thr);
               let (hl, hr) = (tn.left.height(), tn.right.height());
