@@ -1,7 +1,8 @@
 # immutable chunk map
 
-A cache efficient immutable map with lookup performance equivalent to BTreeMap,
-and reasonably good insertion performance (for a persistent structure).
+A cache efficient immutable map with lookup performance equivalent to BTreeMap
+written using only safe rust (and std), and reasonably good insertion
+performance, in line with other persistent map libraries.
 
 A graph of lookup performance of various data structures using i64 keys. Full
 test data in the results.gnumeric spreadsheet. Tests performed on an Intel Core
