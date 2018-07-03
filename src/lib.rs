@@ -3,6 +3,8 @@
 //! threads at once, but have slightly lower single threaded overhead. Each module is duplicated for
 //! rc/arc. e.g. `rc::map` uses `Rc`, `arc::map` uses `Arc`.
 
+extern crate arrayvec;
+
 #[macro_use]
 mod macros;
 
