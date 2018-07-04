@@ -4,8 +4,7 @@ macro_rules! avltree {
         use arrayvec::ArrayVec;
         use std::{
             cmp::{Ord, Ordering, max, min}, fmt::Debug,
-            borrow::Borrow, slice, iter, vec, ops::{Bound, RangeBounds},
-            marker::PhantomData,
+            borrow::Borrow, slice, iter, vec, ops::Bound
         };
 
         // until we get 128 bit machines with exabytes of memory
@@ -307,15 +306,14 @@ macro_rules! avltree {
         }
 
         #[derive(Debug)]
-        pub struct Iter<'a, Q, R, K, V>
+        pub struct Iter<'a, Q, K, V>
         where
             Q: Ord,
-            R: RangeBounds<Q>,
             K: 'a + Borrow<Q> + Ord + Clone + Debug,
             V: 'a + Clone + Debug
         {
-            q: PhantomData<Q>,
-            range: R,
+            ubound: Bound<Q>,
+            lbound: Bound<Q>,
             stack: ArrayVec<[(bool, &'a Node<K,V>); MAX_DEPTH]>,
             elts: Option<iter::Zip<slice::Iter<'a, K>, slice::Iter<'a, V>>>,
             current: Option<&'a K>,
@@ -324,32 +322,31 @@ macro_rules! avltree {
             current_rev: Option<&'a K>,
         }
 
-        impl<'a, Q, R, K, V> Iter<'a, Q, R, K, V>
+        impl<'a, Q, K, V> Iter<'a, Q, K, V>
         where
             Q: Ord,
-            R: RangeBounds<Q>,
             K: 'a + Borrow<Q> + Ord + Clone + Debug,
             V: 'a + Clone + Debug
         {
             // is at least one element of the chunk in bounds
             fn any_elts_above_lbound(&self, n: &'a Node<K, V>) -> bool {
                 let l = n.elts.keys.len();
-                match self.range.start_bound() {
+                match self.lbound {
                     Bound::Unbounded => true,
-                    Bound::Included(bound) =>
+                    Bound::Included(ref bound) =>
                         l == 0 || n.elts.keys[l - 1].borrow() >= bound,
-                    Bound::Excluded(bound) =>
+                    Bound::Excluded(ref bound) =>
                         l == 0 || n.elts.keys[l - 1].borrow() > bound
                 }
             }
 
             fn any_elts_below_ubound(&self, n: &'a Node<K, V>) -> bool {
                 let l = n.elts.keys.len();
-                match self.range.end_bound() {
+                match self.ubound {
                     Bound::Unbounded => true,
-                    Bound::Included(bound) =>
+                    Bound::Included(ref bound) =>
                         l == 0 || n.elts.keys[0].borrow() <= bound,
-                    Bound::Excluded(bound) =>
+                    Bound::Excluded(ref bound) =>
                         l == 0 || n.elts.keys[0].borrow() < bound
                 }
             }
@@ -359,26 +356,25 @@ macro_rules! avltree {
             }
 
             fn above_lbound(&self, k: &'a K) -> bool {
-                match self.range.start_bound() {
+                match self.lbound {
                     Bound::Unbounded => true,
-                    Bound::Included(bound) => k.borrow() >= bound,
-                    Bound::Excluded(bound) => k.borrow() > bound
+                    Bound::Included(ref bound) => k.borrow() >= bound,
+                    Bound::Excluded(ref bound) => k.borrow() > bound
                 }
             }
 
             fn below_ubound(&self, k: &'a K) -> bool {
-                match self.range.end_bound() {
+                match self.ubound {
                     Bound::Unbounded => true,
-                    Bound::Included(bound) => k.borrow() <= bound,
-                    Bound::Excluded(bound) => k.borrow() < bound
+                    Bound::Included(ref bound) => k.borrow() <= bound,
+                    Bound::Excluded(ref bound) => k.borrow() < bound
                 }
             }
         }
 
-        impl<'a, Q, R, K, V> Iterator for Iter<'a, Q, R, K, V>
+        impl<'a, Q, K, V> Iterator for Iter<'a, Q, K, V>
         where
             Q: Ord,
-            R: RangeBounds<Q>,
             K: 'a + Borrow<Q> + Ord + Clone + Debug,
             V: 'a + Clone + Debug
         {
@@ -436,10 +432,9 @@ macro_rules! avltree {
             }
         }
 
-        impl<'a, Q, R, K, V> DoubleEndedIterator for Iter<'a, Q, R, K, V>
+        impl<'a, Q, K, V> DoubleEndedIterator for Iter<'a, Q, K, V>
         where
             Q: Ord,
-            R: RangeBounds<Q>,
             K: 'a + Borrow<Q> + Ord + Clone + Debug,
             V: 'a + Clone + Debug
         {
@@ -499,28 +494,28 @@ macro_rules! avltree {
 
         impl<'a, K, V> IntoIterator for &'a Tree<K, V>
         where
-            K: 'a + Borrow<&'a K> + Ord + Clone + Debug,
+            K: 'a + Borrow<K> + Ord + Clone + Debug,
             V: 'a + Clone + Debug
         {
             type Item = (&'a K, &'a V);
-            type IntoIter = Iter<'a, &'a K, (Bound<&'a K>, Bound<&'a K>), K, V>;
+            type IntoIter = Iter<'a, K, K, V>;
             fn into_iter(self) -> Self::IntoIter {
-                let bound: (Bound<&'a K>, Bound<&'a K>) =
-                    (Bound::Unbounded, Bound::Unbounded);
-                self.range(bound)
+                self.range(Bound::Unbounded, Bound::Unbounded)
             }
         }
 
         impl<K,V> Tree<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
             pub(crate) fn new() -> Self { Tree::Empty }
 
-            pub(crate) fn range<'a, Q, R>(&'a self, range: R) -> Iter<'a, Q, R, K, V>
-            where Q: Ord, K: Borrow<Q>, R: RangeBounds<Q>
+            pub(crate) fn range<'a, Q>(
+                &'a self, lbound: Bound<Q>, ubound: Bound<Q>
+            ) -> Iter<'a, Q, K, V>
+            where Q: Ord, K: Borrow<Q>
             {
                 match self {
                     &Tree::Empty =>
                         Iter {
-                            range, q: PhantomData,
+                            lbound, ubound,
                             stack: ArrayVec::<[_; MAX_DEPTH]>::new(),
                             elts: None, current: None,
                             stack_rev: ArrayVec::<[_; MAX_DEPTH]>::new(),
@@ -534,7 +529,7 @@ macro_rules! avltree {
                         stack.push((false, n));
                         stack_rev.push((false, n));
                         Iter {
-                            q: PhantomData, range, stack, elts: None,
+                            lbound, ubound, stack, elts: None,
                             current: None, stack_rev, elts_rev: None,
                             current_rev: None
                         }

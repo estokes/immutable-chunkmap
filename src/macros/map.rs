@@ -1,7 +1,7 @@
 macro_rules! map {
     ($treeimport:path) => {
         use $treeimport::{Tree, Iter};
-        use std::{fmt::Debug, borrow::Borrow, ops::{Bound, RangeBounds}};
+        use std::{fmt::Debug, borrow::Borrow, ops::Bound};
 
         /// This Map uses a similar strategy to BTreeMap to ensure cache
         /// efficient performance on modern hardware while still providing
@@ -34,11 +34,11 @@ macro_rules! map {
 
         impl<'a, K, V> IntoIterator for &'a Map<K, V>
         where
-            K: 'a + Borrow<&'a K> + Ord + Clone + Debug,
+            K: 'a + Borrow<K> + Ord + Clone + Debug,
             V: 'a + Clone + Debug
         {
             type Item = (&'a K, &'a V);
-            type IntoIter = Iter<'a, &'a K, (Bound<&'a K>, Bound<&'a K>), K, V>;
+            type IntoIter = Iter<'a, K, K, V>;
             fn into_iter(self) -> Self::IntoIter { self.root.into_iter() }
         }
 
@@ -127,10 +127,10 @@ macro_rules! map {
             /// constant space. N is the number of elements in the
             /// range, and M is the number of elements you examine
             /// with next, or next_back.
-            pub fn range<'a, Q, R>(&'a self, range: R) -> Iter<'a, Q, R, K, V>
-            where Q: Ord, K: Borrow<Q>, R: RangeBounds<Q>
-            {
-                self.root.range(range)
+            pub fn range<'a, Q>(
+                &'a self, lbound: Bound<Q>, ubound: Bound<Q>
+            ) -> Iter<'a, Q, K, V> where Q: Ord, K: Borrow<Q> {
+                self.root.range(lbound, ubound)
             }
 
             #[allow(dead_code)]
