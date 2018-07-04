@@ -283,12 +283,55 @@ macro_rules! avltree {
         }
 
         pub struct Iter<'a, K: 'a + Ord + Clone + Debug, V: 'a + Clone + Debug> {
+            lower_bound: Bound<&'a K>,
+            upper_bound: Bound<&'a K>
             stack: ArrayVec<[(bool, &'a Node<K,V>); MAX_DEPTH]>,
             elts: Option<iter::Zip<slice::Iter<'a, K>, slice::Iter<'a, V>>>,
             current: Option<&'a K>,
             stack_rev: ArrayVec<[(bool, &'a Node<K,V>); MAX_DEPTH]>,
             elts_rev: Option<iter::Zip<slice::Iter<'a, K>, slice::Iter<'a, V>>>,
             current_rev: Option<&'a K>,
+        }
+
+        impl<'a, K, V> Iter<'a, K, V> {
+            // is at least one element of the chunk in bounds
+            fn any_elts_above_lbound(&self, n: &'a Node<K, V>) -> bool {
+                let l = n.elts.keys.len();
+                match self.lower_bound {
+                    Bound::Unbounded => true,
+                    Bound::Included(bound) => l == 0 || n.elts.keys[l - 1] >= bound,
+                    Bound::Excluded(bound) => l == 0 || n.elts.keys[l - 1] > bound
+                }
+            }
+
+            fn any_elts_below_ubound(&self, n: &'a Node<K, V>) -> bool {
+                let l = n.elts.keys.len();
+                match self.upper_bound {
+                    Bound::Ubounded => true,
+                    Bound::Included(bound) => l == 0 || n.elts.keys[0] <= bound,
+                    Bound::Excluded(bound) => l == 0 || n.elts.keys[0] < bound
+                }
+            }
+
+            fn any_elts_in_bounds(&self, n: &'a Node<K, V>) -> bool {
+                self.any_elts_above_lbound(n) || self.any_elts_below_ubound(n)
+            }
+
+            fn above_lbound(&self, k: &'a K) -> bool {
+                match self.lower_bound {
+                    Bound::Unbounded => true,
+                    Bound::Included(bound) => k >= bound,
+                    Bound::Excluded(bound) => k > bound
+                }
+            }
+
+            fn below_ubound(&self, k: &'a K) -> bool {
+                match self.upper_bound {
+                    Bound::Ubounded => true,
+                    Bound::Included(bound) => k <= bound,
+                    Bound::Excluded(bound) => k < bound
+                }
+            }
         }
 
         impl<'a, K, V> Iterator for Iter<'a, K, V>
@@ -300,14 +343,19 @@ macro_rules! avltree {
                     match &mut self.elts {
                         &mut None => (),
                         &mut Some(ref mut s) =>
-                            match s.next() {
-                                None => (),
-                                Some((k, v)) => {
-                                    if let Some(k_) = self.current_rev {
-                                        if k >= k_ { return None }
+                            loop {
+                                match s.next() {
+                                    None => break,
+                                    Some((k, v)) => {
+                                        if let Some(k_) = self.current_rev {
+                                            if k >= k_ { return None }
+                                        }
+                                        if !self.below_ubound(k) { return None }
+                                        self.current = Some(k);
+                                        if self.above_lbound(k) {
+                                            return Some((k, v))
+                                        }
                                     }
-                                    self.current = Some(k);
-                                    return Some((k, v))
                                 }
                             }
                     };
@@ -316,18 +364,27 @@ macro_rules! avltree {
                     let top = self.stack.len() - 1;
                     let (visited, current) = self.stack[top];
                     if visited {
-                        self.elts = Some((&(*current.elts)).into_iter());
+                        if self.any_elts_in_bounds(current) {
+                            self.elts = Some((&(*current.elts)).into_iter());
+                        }
                         self.stack.pop();
                         match current.right {
                             Tree::Empty => (),
-                            Tree::Node(ref n) => self.stack.push((false, n))
+                            Tree::Node(ref n) => {
+                                if self.any_elts_below_ubound(n) {
+                                    self.stack.push((false, n))
+                                }
+                            }
                         };
-                    }
-                    else {
+                    } else {
                         self.stack[top].0 = true;
                         match current.left {
                             Tree::Empty => (),
-                            Tree::Node(ref n) => self.stack.push((false, n))
+                            Tree::Node(ref n) => {
+                                if self.any_elts_above_lbound(n) {
+                                    self.stack.push((false, n))
+                                }
+                            }
                         }
                     }
                 }
@@ -434,14 +491,18 @@ macro_rules! avltree {
                         Tree::Empty => panic!("tree heights wrong"),
                         Tree::Node(ref ln) =>
                             if ln.left.height() >= ln.right.height() {
-                                Tree::create(&ln.left, &ln.elts, &Tree::create(&ln.right, elts, r))
+                                Tree::create(
+                                    &ln.left, &ln.elts, &Tree::create(&ln.right, elts, r)
+                                )
                             } else {
                                 match ln.right {
                                     Tree::Empty => panic!("tree heights wrong"),
                                     Tree::Node(ref lrn) =>
-                                        Tree::create(&Tree::create(&ln.left, &ln.elts, &lrn.left),
-                                                     &lrn.elts,
-                                                     &Tree::create(&lrn.right, elts, r))
+                                        Tree::create(
+                                            &Tree::create(&ln.left, &ln.elts, &lrn.left),
+                                            &lrn.elts,
+                                            &Tree::create(&lrn.right, elts, r)
+                                        )
                                 }
                             }
                     }
@@ -450,14 +511,18 @@ macro_rules! avltree {
                         Tree::Empty => panic!("tree heights are wrong"),
                         Tree::Node(ref rn) =>
                             if rn.right.height() >= rn.left.height() {
-                                Tree::create(&Tree::create(l, elts, &rn.left), &rn.elts, &rn.right)
+                                Tree::create(
+                                    &Tree::create(l, elts, &rn.left), &rn.elts, &rn.right
+                                )
                             } else {
                                 match rn.left {
                                     Tree::Empty => panic!("tree heights are wrong"),
                                     Tree::Node(ref rln) =>
-                                        Tree::create(&Tree::create(l, elts, &rln.left),
-                                                     &rln.elts,
-                                                     &Tree::create(&rln.right, &rn.elts, &rn.right))
+                                        Tree::create(
+                                            &Tree::create(l, elts, &rln.left),
+                                            &rln.elts,
+                                            &Tree::create(&rln.right, &rn.elts, &rn.right)
+                                        )
                                 }
                             }
                     }
@@ -466,15 +531,17 @@ macro_rules! avltree {
                 }
             }
 
-            fn insert_chunk(&self, len: usize, chunk: &mut Vec<(K, V)>, tmp: &mut Vec<(K, V)>)
-                            -> (Self, usize)
-            {
+            fn insert_chunk(
+                &self, len: usize, chunk: &mut Vec<(K, V)>, tmp: &mut Vec<(K, V)>
+            ) -> (Self, usize) {
                 match self {
-                    &Tree::Empty =>
+                    &Tree::Empty => {
                         if chunk.len() == 0 { (Tree::Empty, len) }
-                    else {
-                        let (elts, len, _) = Elts::empty().insert_chunk(chunk, len, true).unwrap();
-                        (Tree::create(&Tree::Empty, &$pinit(elts), &Tree::Empty), len)
+                        else {
+                            let (elts, len, _) =
+                                Elts::empty().insert_chunk(chunk, len, true).unwrap();
+                            (Tree::create(&Tree::Empty, &$pinit(elts), &Tree::Empty), len)
+                        }
                     },
                     &Tree::Node(ref tn) => {
                         let leaf =
@@ -506,7 +573,9 @@ macro_rules! avltree {
                 }
             }
 
-            pub(crate) fn insert_sorted(&self, len: usize, elts: &[(&K, &V)]) -> (Self, usize) {
+            pub(crate) fn insert_sorted(
+                &self, len: usize, elts: &[(&K, &V)]
+            ) -> (Self, usize) {
                 let mut t = (self.clone(), len);
                 let mut chunk = Vec::<(K, V)>::new();
                 let mut tmp = Vec::<(K, V)>::new();
@@ -518,7 +587,9 @@ macro_rules! avltree {
                     } else {
                         chunk.sort_unstable_by(|&(ref k0, _), &(ref k1, _)| k0.cmp(k1));
                         chunk.dedup_by(|&mut (ref k0, _), &mut (ref k1, _)| k0 == k1);
-                        while chunk.len() > 0 { t = t.0.insert_chunk(t.1, &mut chunk, &mut tmp); }
+                        while chunk.len() > 0 {
+                            t = t.0.insert_chunk(t.1, &mut chunk, &mut tmp);
+                        }
                         assert_eq!(tmp.len(), 0)
                     }
                 }
@@ -528,7 +599,10 @@ macro_rules! avltree {
             pub(crate) fn insert(&self, len: usize, k: &K, v: &V) -> (Self, usize) {
                 match self {
                     &Tree::Empty =>
-                        (Tree::create(&Tree::Empty, &$pinit(Elts::singleton(k, v)), &Tree::Empty), len + 1),
+                        (Tree::create(
+                            &Tree::Empty,
+                            &$pinit(Elts::singleton(k, v)), &Tree::Empty),
+                         len + 1),
                     &Tree::Node(ref tn) => {
                         let leaf =
                             match (&tn.left, &tn.right) {
@@ -589,9 +663,9 @@ macro_rules! avltree {
                 }
             }
 
-            pub(crate) fn remove<Q: ?Sized + Ord>(&self, len: usize, k: &Q) -> (Self, usize)
-            where K: Borrow<Q>
-            {
+            pub(crate) fn remove<Q: ?Sized + Ord>(
+                &self, len: usize, k: &Q
+            ) -> (Self, usize) where K: Borrow<Q> {
                 match self {
                     &Tree::Empty => (Tree::Empty, len),
                     &Tree::Node(ref tn) =>
@@ -619,9 +693,9 @@ macro_rules! avltree {
                 }
             }
 
-            pub(crate) fn get<'a, Q: ?Sized + Ord + Debug>(&'a self, k: &Q) -> Option<&'a V>
-            where K: Borrow<Q>
-            {
+            pub(crate) fn get<'a, Q: ?Sized + Ord + Debug>(
+                &'a self, k: &Q
+            ) -> Option<&'a V> where K: Borrow<Q> {
                 match self {
                     &Tree::Empty => None,
                     &Tree::Node(ref tn) =>
@@ -640,11 +714,11 @@ macro_rules! avltree {
             }
 
             #[allow(dead_code)]
-                pub(crate) fn invariant(&self, len: usize) -> () {
-                fn in_range<K,V>(lower: Option<&K>, upper: Option<&K>, elts: &Elts<K,V>)
-                                 -> bool
-                where K: Ord + Clone + Debug, V: Clone + Debug
-                {
+            pub(crate) fn invariant(&self, len: usize) -> () {
+                fn in_range<K,V>(
+                    lower: Option<&K>, upper: Option<&K>, elts: &Elts<K,V>
+                ) -> bool
+                where K: Ord + Clone + Debug, V: Clone + Debug {
                     (match lower {
                         None => true,
                         Some(lower) =>
