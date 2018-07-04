@@ -4,7 +4,8 @@ macro_rules! avltree {
         use arrayvec::ArrayVec;
         use std::{
             cmp::{Ord, Ordering, max, min}, fmt::Debug,
-            borrow::Borrow, slice, iter, vec, ops::{Bound, RangeBounds}
+            borrow::Borrow, slice, iter, vec, ops::{Bound, RangeBounds},
+            marker::PhantomData,
         };
 
         // until we get 128 bit machines with exabytes of memory
@@ -282,9 +283,16 @@ macro_rules! avltree {
             Node($ptyp<Node<K,V>>)
         }
 
-        pub struct Iter<'a, K: 'a + Ord + Clone + Debug, V: 'a + Clone + Debug> {
-            lower_bound: Bound<&'a K>,
-            upper_bound: Bound<&'a K>
+        #[derive(Debug)]
+        pub struct Iter<'a, Q, R, K, V>
+        where
+            Q: Ord,
+            R: RangeBounds<Q>,
+            K: 'a + Borrow<Q> + Ord + Clone + Debug,
+            V: 'a + Clone + Debug
+        {
+            q: PhantomData<Q>,
+            range: R,
             stack: ArrayVec<[(bool, &'a Node<K,V>); MAX_DEPTH]>,
             elts: Option<iter::Zip<slice::Iter<'a, K>, slice::Iter<'a, V>>>,
             current: Option<&'a K>,
@@ -293,23 +301,33 @@ macro_rules! avltree {
             current_rev: Option<&'a K>,
         }
 
-        impl<'a, K, V> Iter<'a, K, V> {
+        impl<'a, Q, R, K, V> Iter<'a, Q, R, K, V>
+        where
+            Q: Ord,
+            R: RangeBounds<Q>,
+            K: 'a + Borrow<Q> + Ord + Clone + Debug,
+            V: 'a + Clone + Debug
+        {
             // is at least one element of the chunk in bounds
             fn any_elts_above_lbound(&self, n: &'a Node<K, V>) -> bool {
                 let l = n.elts.keys.len();
-                match self.lower_bound {
+                match self.range.start_bound() {
                     Bound::Unbounded => true,
-                    Bound::Included(bound) => l == 0 || n.elts.keys[l - 1] >= bound,
-                    Bound::Excluded(bound) => l == 0 || n.elts.keys[l - 1] > bound
+                    Bound::Included(bound) =>
+                        l == 0 || n.elts.keys[l - 1].borrow() >= bound,
+                    Bound::Excluded(bound) =>
+                        l == 0 || n.elts.keys[l - 1].borrow() > bound
                 }
             }
 
             fn any_elts_below_ubound(&self, n: &'a Node<K, V>) -> bool {
                 let l = n.elts.keys.len();
-                match self.upper_bound {
-                    Bound::Ubounded => true,
-                    Bound::Included(bound) => l == 0 || n.elts.keys[0] <= bound,
-                    Bound::Excluded(bound) => l == 0 || n.elts.keys[0] < bound
+                match self.range.end_bound() {
+                    Bound::Unbounded => true,
+                    Bound::Included(bound) =>
+                        l == 0 || n.elts.keys[0].borrow() <= bound,
+                    Bound::Excluded(bound) =>
+                        l == 0 || n.elts.keys[0].borrow() < bound
                 }
             }
 
@@ -318,46 +336,50 @@ macro_rules! avltree {
             }
 
             fn above_lbound(&self, k: &'a K) -> bool {
-                match self.lower_bound {
+                match self.range.start_bound() {
                     Bound::Unbounded => true,
-                    Bound::Included(bound) => k >= bound,
-                    Bound::Excluded(bound) => k > bound
+                    Bound::Included(bound) => k.borrow() >= bound,
+                    Bound::Excluded(bound) => k.borrow() > bound
                 }
             }
 
             fn below_ubound(&self, k: &'a K) -> bool {
-                match self.upper_bound {
-                    Bound::Ubounded => true,
-                    Bound::Included(bound) => k <= bound,
-                    Bound::Excluded(bound) => k < bound
+                match self.range.end_bound() {
+                    Bound::Unbounded => true,
+                    Bound::Included(bound) => k.borrow() <= bound,
+                    Bound::Excluded(bound) => k.borrow() < bound
                 }
             }
         }
 
-        impl<'a, K, V> Iterator for Iter<'a, K, V>
-        where K: 'a + Ord + Clone + Debug, V: 'a + Clone + Debug
+        impl<'a, Q, R, K, V> Iterator for Iter<'a, Q, R, K, V>
+        where
+            Q: Ord,
+            R: RangeBounds<Q>,
+            K: 'a + Borrow<Q> + Ord + Clone + Debug,
+            V: 'a + Clone + Debug
         {
             type Item = (&'a K, &'a V);
             fn next(&mut self) -> Option<Self::Item> {
                 loop {
-                    match &mut self.elts {
-                        &mut None => (),
-                        &mut Some(ref mut s) =>
-                            loop {
-                                match s.next() {
-                                    None => break,
-                                    Some((k, v)) => {
-                                        if let Some(k_) = self.current_rev {
-                                            if k >= k_ { return None }
-                                        }
-                                        if !self.below_ubound(k) { return None }
-                                        self.current = Some(k);
-                                        if self.above_lbound(k) {
-                                            return Some((k, v))
-                                        }
+                    loop {
+                        let (k, v) =
+                            match &mut self.elts {
+                                &mut None => break,
+                                &mut Some(ref mut s) =>
+                                    match s.next() {
+                                        None => break,
+                                        Some((k, v)) => (k, v)
                                     }
-                                }
-                            }
+                            };
+                        if let Some(back) = self.current_rev {
+                            if k >= back { return None }
+                        }
+                        if !self.below_ubound(k) { return None }
+                        self.current = Some(k);
+                        if self.above_lbound(k) {
+                            return Some((k, v))
+                        }
                     };
                     if self.stack.is_empty() { return None }
                     self.elts = None;
@@ -391,42 +413,61 @@ macro_rules! avltree {
             }
         }
 
-        impl<'a, K, V> DoubleEndedIterator for Iter<'a, K, V>
-        where K: 'a + Ord + Clone + Debug, V: 'a + Clone + Debug
+        impl<'a, Q, R, K, V> DoubleEndedIterator for Iter<'a, Q, R, K, V>
+        where
+            Q: Ord,
+            R: RangeBounds<Q>,
+            K: 'a + Borrow<Q> + Ord + Clone + Debug,
+            V: 'a + Clone + Debug
         {
             fn next_back(&mut self) -> Option<Self::Item> {
                 loop {
-                    match &mut self.elts_rev {
-                        &mut None => (),
-                        &mut Some(ref mut s) =>
-                            match s.next_back() {
-                                None => (),
-                                Some((k, v)) => {
-                                    if let Some(k_) = self.current {
-                                        if k <= k_ { return None }
+                    loop {
+                        let (k, v) =
+                            match &mut self.elts_rev {
+                                &mut None => break,
+                                &mut Some(ref mut s) =>
+                                    match s.next_back() {
+                                        None => break,
+                                        Some((k, v)) => (k, v)
                                     }
-                                    self.current_rev = Some(k);
-                                    return Some((k, v))
-                                }
-                            }
+                            };
+                        if let Some(front) = self.current {
+                            if k <= front { return None }
+                        }
+                        if !self.above_lbound(k) { return None }
+                        self.current_rev = Some(k);
+                        if self.below_ubound(k) {
+                            return Some((k, v))
+                        }
                     };
                     if self.stack_rev.is_empty() { return None }
                     self.elts_rev = None;
                     let top = self.stack_rev.len() - 1;
                     let (visited, current) = self.stack_rev[top];
                     if visited {
-                        self.elts_rev = Some((&(*current.elts)).into_iter());
+                        if self.any_elts_in_bounds(current) {
+                            self.elts_rev = Some((&(*current.elts)).into_iter());
+                        }
                         self.stack_rev.pop();
                         match current.left {
                             Tree::Empty => (),
-                            Tree::Node(ref n) => self.stack_rev.push((false, n))
+                            Tree::Node(ref n) => {
+                                if self.any_elts_above_lbound(n) {
+                                    self.stack_rev.push((false, n))
+                                }
+                            }
                         };
                     }
                     else {
                         self.stack_rev[top].0 = true;
                         match current.right {
                             Tree::Empty => (),
-                            Tree::Node(ref n) => self.stack_rev.push((false, n))
+                            Tree::Node(ref n) => {
+                                if self.any_elts_below_ubound(n) {
+                                    self.stack_rev.push((false, n))
+                                }
+                            }
                         }
                     }
                 }
@@ -434,14 +475,29 @@ macro_rules! avltree {
         }
 
         impl<'a, K, V> IntoIterator for &'a Tree<K, V>
-        where K: 'a + Ord + Clone + Debug, V: 'a + Clone + Debug
+        where
+            K: 'a + Borrow<&'a K> + Ord + Clone + Debug,
+            V: 'a + Clone + Debug
         {
             type Item = (&'a K, &'a V);
-            type IntoIter = Iter<'a, K, V>;
+            type IntoIter = Iter<'a, &'a K, (Bound<&'a K>, Bound<&'a K>), K, V>;
             fn into_iter(self) -> Self::IntoIter {
+                let bound: (Bound<&'a K>, Bound<&'a K>) =
+                    (Bound::Unbounded, Bound::Unbounded);
+                self.range(bound)
+            }
+        }
+
+        impl<K,V> Tree<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
+            pub(crate) fn new() -> Self { Tree::Empty }
+
+            pub(crate) fn range<'a, Q, R>(&'a self, range: R) -> Iter<'a, Q, R, K, V>
+            where Q: Ord, K: Borrow<Q>, R: RangeBounds<Q>
+            {
                 match self {
                     &Tree::Empty =>
                         Iter {
+                            range, q: PhantomData,
                             stack: ArrayVec::<[_; MAX_DEPTH]>::new(),
                             elts: None, current: None,
                             stack_rev: ArrayVec::<[_; MAX_DEPTH]>::new(),
@@ -455,16 +511,13 @@ macro_rules! avltree {
                         stack.push((false, n));
                         stack_rev.push((false, n));
                         Iter {
-                            stack, elts: None, current: None,
-                            stack_rev, elts_rev: None, current_rev: None
+                            q: PhantomData, range, stack, elts: None,
+                            current: None, stack_rev, elts_rev: None,
+                            current_rev: None
                         }
                     }
                 }
             }
-        }
-
-        impl<K,V> Tree<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
-            pub(crate) fn new() -> Self { Tree::Empty }
 
             fn height(&self) -> u16 {
                 match self {
