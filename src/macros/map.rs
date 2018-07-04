@@ -1,7 +1,7 @@
 macro_rules! map {
     ($treeimport:path) => {
         use $treeimport::{Tree, Iter};
-        use std::{fmt::Debug, borrow::Borrow, ops::Bound};
+        use std::{fmt::Debug, borrow::Borrow, ops::{Bound, RangeBounds}};
 
         /// This Map uses a similar strategy to BTreeMap to ensure cache
         /// efficient performance on modern hardware while still providing
@@ -114,6 +114,24 @@ macro_rules! map {
 
             /// get the number of elements in the map O(1)
             pub fn length(&self) -> usize { self.len }
+
+            /// return an iterator over the subset of elements in the
+            /// map that are within the specified range. The rust
+            /// built in range operator implements RangeBounds, so the
+            /// easiest way to use this function is for example with
+            /// an int map, map.range(4..10). You would then only see
+            /// mappings for the keys between 4 (inclusive) and 10
+            /// (exclusive).
+            ///
+            /// The returned iterator runs in O(log(N) + M) time, and
+            /// constant space. N is the number of elements in the
+            /// range, and M is the number of elements you examine
+            /// with next, or next_back.
+            pub fn range<'a, Q, R>(&'a self, range: R) -> Iter<'a, Q, R, K, V>
+            where Q: Ord, K: Borrow<Q>, R: RangeBounds<Q>
+            {
+                self.root.range(range)
+            }
 
             #[allow(dead_code)]
             pub(crate) fn invariant(&self) -> () { self.root.invariant(self.len) }
