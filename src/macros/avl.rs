@@ -53,6 +53,17 @@ macro_rules! avltree {
             vals: Vec<V>
         }
 
+        enum InsertChunk<K: Ord + Clone + Debug, V: Clone + Debug> {
+            InsertLeft(Vec<(K, V)>),
+            InsertRight(Vec<(K, V)>),
+            Inserted {
+                elts: Elts<K, V>,
+                len: usize,
+                insert_left: Vec<(K, V)>,
+                insert_right: Vec<(K, V)>
+            },
+        }
+
         impl<K,V> Elts<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
             fn singleton(k: &K, v: &V) -> Self {
                 let mut keys = Vec::<K>::new();
@@ -63,7 +74,7 @@ macro_rules! avltree {
             }
 
             fn empty() -> Self { Elts {keys: Vec::<K>::new(), vals: Vec::<V>::new()} }
-
+            
             fn get<Q: ?Sized + Ord>(&self, k: &Q) -> Loc where K: Borrow<Q> {
                 let len = self.len();
                 if len == 0 { Loc::NotPresent(0) }
@@ -92,11 +103,17 @@ macro_rules! avltree {
             }
 
             // chunk must be sorted
-            fn insert_chunk(&self, chunk: &mut Vec<(K, V)>, len: usize, leaf: bool)
-                            -> Result<(Self, usize, usize), Dir>
-            {
+            fn insert_chunk(
+                &self, mut chunk: Vec<(K, V)>, len: usize, leaf: bool
+            ) -> InsertChunk<K, V> {
                 assert!(chunk.len() <= SIZE);
-                if chunk.len() == 0 { Result::Ok((self.clone(), len, 0)) }
+                if chunk.len() == 0 {
+                    InsertChunk::Inserted {
+                        elts: self.clone(), len,
+                        insert_left: Vec::new(),
+                        insert_right: Vec::new()
+                    }
+                }
                 else if self.len() == 0 {
                     let mut t = Elts::empty();
                     let n = chunk.len();
@@ -107,16 +124,23 @@ macro_rules! avltree {
                     }
                     t.keys.reverse();
                     t.vals.reverse();
-                    Result::Ok((t, len + n, 0))
+                    InsertChunk::Inserted {
+                        elts: t,
+                        len: len + n,
+                        insert_left: Vec::new(),
+                        insert_right: Vec::new()
+                    }
                 } else {
                     let full = !leaf || self.len() == SIZE;
                     if full && self.get(&chunk[chunk.len() - 1].0) == Loc::InLeft {
-                        Result::Err(Dir::InLeft)
+                        InsertChunk::InsertLeft(chunk)
                     } else if full && self.get(&chunk[0].0) == Loc::InRight {
-                        Result::Err(Dir::InRight)
+                        InsertChunk::InsertRight(chunk)
                     } else {
                         let mut t = self.clone();
                         let mut len = len;
+                        let mut insert_left = Vec::new();
+                        let mut insert_right = Vec::new();
                         let n = chunk.len();
                         for _ in 0..n {
                             let (k, v) = chunk.pop().unwrap();
@@ -131,8 +155,7 @@ macro_rules! avltree {
                                         t.vals.insert(i, v);
                                         len = len + 1;
                                     } else {
-                                        chunk.insert(
-                                            0,
+                                        insert_right.push(
                                             (t.keys.pop().unwrap(),
                                              t.vals.pop().unwrap())
                                         );
@@ -145,7 +168,7 @@ macro_rules! avltree {
                                         t.vals.insert(0, v);
                                         len = len + 1;
                                     } else {
-                                        chunk.insert(0, (k, v))
+                                        insert_left.push((k, v))
                                     },
                                 Loc::InRight =>
                                     if leaf && t.len() < SIZE {
@@ -153,17 +176,17 @@ macro_rules! avltree {
                                         t.vals.push(v);
                                         len = len + 1;
                                     } else {
-                                        chunk.insert(0, (k, v))
+                                        insert_right.push((k, v))
                                     }
                             }
                         }
-                        if chunk.len() > 0 {
-                            chunk.sort_unstable_by(
-                                |&(ref k1, _), &(ref k2, _)| k1.cmp(k2));
+                        insert_left.sort_unstable_by(
+                            |&(ref k1, _), &(ref k2, _)| k1.cmp(k2));
+                        insert_right.sort_unstable_by(
+                            |&(ref k1, _), &(ref k2, _)| k1.cmp(k2));
+                        InsertChunk::Inserted {
+                            elts: t, len, insert_left, insert_right
                         }
-                        let mut i = 0;
-                        while i < chunk.len() && chunk[i].0 < t.keys[0] { i = i + 1; }
-                        Result::Ok((t, len, i))
                     }
                 }
             }
@@ -584,15 +607,17 @@ macro_rules! avltree {
                 }
             }
 
-            fn insert_chunk(
-                &self, len: usize, chunk: &mut Vec<(K, V)>, tmp: &mut Vec<(K, V)>
-            ) -> (Self, usize) {
+            fn insert_chunk(&self, len: usize, chunk: Vec<(K, V)>) -> (Self, usize) {
                 match self {
                     &Tree::Empty => {
                         if chunk.len() == 0 { (Tree::Empty, len) }
                         else {
-                            let (elts, len, _) =
-                                Elts::empty().insert_chunk(chunk, len, true).unwrap();
+                            let (elts, len) =
+                                match Elts::empty().insert_chunk(chunk, len, true) {
+                                    InsertChunk::Inserted {elts, len, ..} => (elts, len),
+                                    InsertChunk::InsertLeft(_)
+                                        | InsertChunk::InsertRight(_) => unreachable!()
+                                };
                             (Tree::create(&Tree::Empty, &$pinit(elts), &Tree::Empty), len)
                         }
                     },
@@ -602,23 +627,24 @@ macro_rules! avltree {
                                 (&Tree::Empty, &Tree::Empty) => true,
                                 (_, _) => false
                             };
+                        if chunk.len() == 0 { return (self.clone(), len) }
                         match tn.elts.insert_chunk(chunk, len, leaf) {
-                            Result::Ok((elts, len, split)) =>
-                                if chunk.len() == 0 {
+                            InsertChunk::Inserted {elts, len, insert_left, insert_right} =>
+                                if insert_left.len() == 0 && insert_right.len() == 0 {
                                     (Tree::create(&tn.left, &$pinit(elts), &tn.right), len)
                                 } else {
-                                    let n = chunk.len() - split;
-                                    for _ in 0..n { tmp.push(chunk.pop().unwrap()); }
-                                    let (l, len) = tn.left.insert_chunk(len, chunk, tmp);
-                                    for _ in 0..n { chunk.push(tmp.pop().unwrap()) };
-                                    (Tree::bal(&l, &$pinit(elts), &tn.right), len)
+                                    let (l, len) =
+                                        tn.left.insert_chunk(len, insert_left);
+                                    let (r, len) =
+                                        tn.right.insert_chunk(len, insert_right);
+                                    (Tree::bal(&l, &$pinit(elts), &r), len)
                                 },
-                            Result::Err(Dir::InLeft) => {
-                                let (l, len) = tn.left.insert_chunk(len, chunk, tmp);
+                            InsertChunk::InsertLeft(chunk) => {
+                                let (l, len) = tn.left.insert_chunk(len, chunk);
                                 (Tree::bal(&l, &tn.elts, &tn.right), len)
                             },
-                            Result::Err(Dir::InRight) => {
-                                let (r, len) = tn.right.insert_chunk(len, chunk, tmp);
+                            InsertChunk::InsertRight(chunk) => {
+                                let (r, len) = tn.right.insert_chunk(len, chunk);
                                 (Tree::bal(&tn.left, &tn.elts, &r), len)
                             }
                         }
@@ -630,8 +656,7 @@ macro_rules! avltree {
                 &self, len: usize, elts: &[(&K, &V)]
             ) -> (Self, usize) {
                 let mut t = (self.clone(), len);
-                let mut chunk = Vec::<(K, V)>::new();
-                let mut tmp = Vec::<(K, V)>::new();
+                let mut chunk = Vec::<(K, V)>::with_capacity(SIZE);
                 let mut i = 0;
                 while i < elts.len() || chunk.len() > 0 {
                     if i < elts.len() && chunk.len() < SIZE {
@@ -640,10 +665,9 @@ macro_rules! avltree {
                     } else {
                         chunk.sort_unstable_by(|&(ref k0, _), &(ref k1, _)| k0.cmp(k1));
                         chunk.dedup_by(|&mut (ref k0, _), &mut (ref k1, _)| k0 == k1);
-                        while chunk.len() > 0 {
-                            t = t.0.insert_chunk(t.1, &mut chunk, &mut tmp);
-                        }
-                        assert_eq!(tmp.len(), 0)
+                        let mut ready = Vec::with_capacity(SIZE);
+                        ::std::mem::swap(&mut chunk, &mut ready);
+                        t = t.0.insert_chunk(t.1, ready);
                     }
                 }
                 t
