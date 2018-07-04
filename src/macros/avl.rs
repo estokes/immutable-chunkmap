@@ -314,7 +314,7 @@ macro_rules! avltree {
             }
 
             fn any_elts_in_bounds(&self, n: &'a Node<K, V>) -> bool {
-                self.any_elts_above_lbound(n) || self.any_elts_below_ubound(n)
+                self.any_elts_above_lbound(n) && self.any_elts_below_ubound(n)
             }
 
             fn above_lbound(&self, k: &'a K) -> bool {
