@@ -161,6 +161,13 @@ macro_rules! tests {
                 let pairs2 : Vec<(&T, &T)> = v2.iter().map(|k| (k, k)).collect();
                 t = t.0.insert_sorted(t.1, &pairs2);
                 t.0.invariant(t.1);
+                {
+                    let mut i = 0;
+                    for k in &v {
+                        if i % CHECK != 0 { assert_eq!(t.0.get(&k).unwrap(), k); }
+                        i += 1
+                    }
+                }
                 for k in &v2 { assert_eq!(t.0.get(&k).unwrap(), k); }
             }
 

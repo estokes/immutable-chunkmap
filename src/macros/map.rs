@@ -77,7 +77,9 @@ macro_rules! map {
             ///   assert_eq!(m.get(k), Option::Some(v))
             /// }
             /// ```
-            pub fn insert_sorted(&self, elts: &[(&K, &V)]) -> Self {
+            pub fn insert_sorted<E: IntoIterator<Item=(K, V)>>(
+                &self, elts: E
+            ) -> Self {
                 let (t, len) = self.root.insert_sorted(self.len, elts);
                 Map { len: len, root: t }
             }

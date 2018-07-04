@@ -3,7 +3,8 @@
 * IntoIterator no longer heap allocates
 * Implement collection range api
 * Implement DoubleEndedIterator
-* insert_sorted improved
+* insert_sorted performance improved on degenerate cases
+* insert_sorted now takes IntoIterator instead of an explicit slice
 
 0.1.2
 Initial public release

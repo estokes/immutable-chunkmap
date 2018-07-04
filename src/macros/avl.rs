@@ -647,24 +647,24 @@ macro_rules! avltree {
                 }
             }
 
-            pub(crate) fn insert_sorted(
-                &self, len: usize, elts: &[(&K, &V)]
+            pub(crate) fn insert_sorted<E: IntoIterator<Item=(K, V)>>(
+                &self, len: usize, elts: E
             ) -> (Self, usize) {
                 let mut t = (self.clone(), len);
                 let mut chunk = Vec::<(K, V)>::with_capacity(SIZE);
-                let mut i = 0;
-                while i < elts.len() || chunk.len() > 0 {
-                    if i < elts.len() && chunk.len() < SIZE {
-                        chunk.push((elts[i].0.clone(), elts[i].1.clone()));
-                        i = i + 1;
-                    } else {
-                        chunk.sort_unstable_by(|&(ref k0, _), &(ref k1, _)| k0.cmp(k1));
-                        chunk.dedup_by(|&mut (ref k0, _), &mut (ref k1, _)| k0 == k1);
-                        let mut ready = Vec::with_capacity(SIZE);
-                        ::std::mem::swap(&mut chunk, &mut ready);
-                        t = t.0.insert_chunk(t.1, ready);
+                let add = |t: (Self, usize), mut chunk: Vec<(K, V)>| -> (Self, usize) {
+                    chunk.sort_unstable_by(|&(ref k0, _), &(ref k1, _)| k0.cmp(k1));
+                    chunk.dedup_by(|&mut (ref k0, _), &mut (ref k1, _)| k0 == k1);
+                    t.0.insert_chunk(t.1, chunk)
+                };
+                for kv in elts {
+                    chunk.push(kv);
+                    if chunk.len() >= SIZE {
+                        t = add(t, chunk);
+                        chunk = Vec::with_capacity(SIZE);
                     }
                 }
+                if chunk.len() > 0 { t = add(t, chunk) }
                 t
             }
 
