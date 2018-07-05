@@ -106,17 +106,13 @@ macro_rules! map {
             pub fn len(&self) -> usize { self.len }
 
             /// return an iterator over the subset of elements in the
-            /// map that are within the specified range. The rust
-            /// built in range operator implements RangeBounds, so the
-            /// easiest way to use this function is for example with
-            /// an int map, map.range(4..10). You would then only see
-            /// mappings for the keys between 4 (inclusive) and 10
-            /// (exclusive).
+            /// map that are within the specified range.
             ///
             /// The returned iterator runs in O(log(N) + M) time, and
             /// constant space. N is the number of elements in the
-            /// range, and M is the number of elements you examine
-            /// with next, or next_back.
+            /// tree, and M is the number of elements you examine.
+            ///
+            /// if lbound >= ubound the returned iterator will be empty
             pub fn range<'a, Q>(
                 &'a self, lbound: Bound<Q>, ubound: Bound<Q>
             ) -> Iter<'a, Q, K, V> where Q: Ord, K: Borrow<Q> {

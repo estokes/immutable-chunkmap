@@ -11,7 +11,7 @@ macro_rules! tests {
             };
 
             const STRSIZE: usize = 10;
-            const SIZE: usize = 100000;
+            const SIZE: usize = 250000;
             const CHECK: usize = 1000;
 
             trait Rand: Sized {
@@ -238,119 +238,143 @@ macro_rules! tests {
             #[test]
             fn test_map_range_small() {
                 let mut v = Vec::new();
-                v.extend((0..5000).into_iter());
+                v.extend((-5000..5000).into_iter());
                 let t = map::Map::new().insert_sorted(v.iter().map(|x| (*x, *x)));
                 t.invariant();
-                assert_eq!(t.len(), 5000);
+                assert_eq!(t.len(), 10000);
                 {
                     let mut i = 0;
                     for e in &t {
                         assert_eq!(e.0, e.1);
                         assert_eq!(&v[i], e.0);
-                        assert!(i < 5000);
+                        assert!(i < 10000);
                         i += 1
                     }
-                    assert_eq!(i, 5000)
+                    assert_eq!(i, 10000)
                 }
-                // left
                 {
-                    let mut i = 0;
+                    let mut i = 5000;
                     for e in t.range(Included(0), Excluded(100)) {
                         assert_eq!(e.0, e.1);
                         assert_eq!(&v[i], e.0);
-                        assert!(i < 100);
+                        assert!(i < 5100);
                         i += 1
                     }
-                    assert_eq!(i, 100)
+                    assert_eq!(i, 5100)
                 }
                 {
-                    let mut i = 0;
+                    let mut i = 5000;
                     for e in t.range(Excluded(0), Included(100)) {
                         assert_eq!(e.0, e.1);
                         assert_eq!(&v[i + 1], e.0);
-                        assert!(i < 100);
+                        assert!(i < 5100);
                         i += 1
                     }
-                    assert_eq!(i, 100)
+                    assert_eq!(i, 5100)
                 }
-                // middle
                 {
-                    let mut i = 2300;
+                    let mut i = 7300;
                     for e in t.range(Included(2300), Excluded(3500)) {
                         assert_eq!(e.0, e.1);
                         assert_eq!(&v[i], e.0);
-                        assert!(i < 3500);
+                        assert!(i < 8500);
                         i += 1
                     }
-                    assert_eq!(i, 3500)
+                    assert_eq!(i, 8500)
                 }
-                // right
                 {
-                    let mut i = 2900;
+                    let mut i = 7900;
                     for e in t.range(Included(2900), Unbounded) {
                         assert_eq!(e.0, e.1);
                         assert_eq!(&v[i], e.0);
-                        assert!(i < 5000);
+                        assert!(i < 10000);
                         i += 1
                     }
-                    assert_eq!(i, 5000)
+                    assert_eq!(i, 10000)
+                }
+                {
+                    let mut i = 0;
+                    for e in t.range(Included(-5000), Excluded(-4000)) {
+                        assert_eq!(e.0, e.1);
+                        assert_eq!(&v[i], e.0);
+                        assert!(i < 1000);
+                        i += 1
+                    }
+                    assert_eq!(i, 1000)
+                }
+                {
+                    let mut i = 0;
+                    for _ in t.range(Excluded(-5000), Excluded(-4999)) {
+                        i += 1
+                    }
+                    assert_eq!(i, 0)
+                }
+                {
+                    let mut i = 0;
+                    for _ in t.range(Included(1), Included(0)) {
+                        i += 1
+                    }
+                    assert_eq!(i, 0)
                 }
             }
 
             fn test_map_range<T: Borrow<T> + Ord + Clone + Debug + Rand>() {
                 let mut v = randvec::<T>(SIZE);
                 v.sort_unstable();
+                v.dedup();
                 let mut t : map::Map<T, T> = map::Map::new();
                 t = t.insert_sorted(v.iter().map(|x| (x.clone(), x.clone())));
-                let (start, len) = loop {
+                t.invariant();
+                let (start, end) = loop {
                     let mut r = rand::thread_rng();
                     let i = r.gen_range(0, SIZE - 1);
                     let j = r.gen_range(0, SIZE - 1);
                     if i == j { continue }
-                    else if i < j { break (i, j - i) }
-                    else { break (j, i - j) }
+                    else if i < j { break (i, j) }
+                    else { break (j, i) }
                 };
+                println!("start: {:?}:{:?} end {:?}:{:?} len {:?}", start, v[start],
+                         end, v[end], v.len());
                 {
-                    let mut i = start;                
+                    let mut i = start;
                     let lbound = Included(v[i].clone());
-                    let ubound = Excluded(v[i + len].clone());
+                    let ubound = Excluded(v[end].clone());
                     for (k0, k1) in t.range(lbound, ubound) {
                         assert_eq!(k0, k1);
                         assert_eq!(k0, &v[i]);
-                        assert!(i < len);
+                        assert!(i < end);
                         i += 1;
                     }
-                    assert_eq!(len, i);
+                    assert_eq!(i, end);
                 }
                 {
                     let mut i = start;                
                     let lbound = Excluded(v[i].clone());
-                    let ubound = Included(v[i + len].clone());
+                    let ubound = Included(v[end].clone());
                     for (k0, k1) in t.range(lbound, ubound) {
                         assert_eq!(k0, k1);
                         assert_eq!(k0, &v[i + 1]);
-                        assert!(i < len);
+                        assert!(i < end);
                         i += 1;
                     }
-                    assert_eq!(len, i);
+                    assert_eq!(i, end);
                 }
                 {
                     let mut i = 0;
-                    let len = start + len;
                     let lbound = Unbounded;
-                    let ubound = Excluded(v[len].clone());
+                    let ubound = Excluded(v[end].clone());
                     for (k0, k1) in t.range(lbound, ubound) {
                         assert_eq!(k0, k1);
                         assert_eq!(k0, &v[i]);
-                        assert!(i < len);
+                        assert!(i < end);
                         i += 1;
                     }
-                    assert_eq!(len, i);
+                    assert_eq!(i, end);
                 }
                 {
-                    let mut i = start + len;
-                    let lbound = Included(v[i].clone());
-                    let ubound = Excluded(v[i + len].clone());
+                    let mut i = end - 1;
+                    let lbound = Included(v[start].clone());
+                    let ubound = Excluded(v[end].clone());
                     let mut r = t.range(lbound, ubound);
                     while let Some((k0, k1)) = r.next_back() {
                         assert_eq!(k0, k1);
@@ -358,7 +382,7 @@ macro_rules! tests {
                         assert!(i >= start);
                         i -= 1;
                     }
-                    assert_eq!(start, i);
+                    assert_eq!(start - 1, i);
                 }
             }
 
