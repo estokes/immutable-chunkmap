@@ -1,10 +1,9 @@
-1.0
-* Start semantic versioning
-* IntoIterator no longer heap allocates
+0.2.0
+* iteration runs in constant space
 * Implement collection range api
 * Implement DoubleEndedIterator
 * insert_sorted performance improved on degenerate cases
-* insert_sorted now takes IntoIterator instead of an explicit slice
+* BREAKING: insert_sorted now takes IntoIterator instead of an explicit slice
 
 0.1.2
 Initial public release
