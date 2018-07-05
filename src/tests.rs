@@ -12,7 +12,7 @@ macro_rules! tests {
 
             const STRSIZE: usize = 10;
             const SIZE: usize = 500000;
-            const CHECK: usize = 1000;
+            const CHECK: usize = 10000;
 
             trait Rand: Sized {
                 fn rand<R: Rng>(r: &mut R) -> Self;
