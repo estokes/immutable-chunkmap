@@ -46,34 +46,22 @@ macro_rules! map {
             /// Create a new empty map
             pub fn new() -> Self { Map { len: 0, root: Tree::new() } }
 
-            /// This method of insertion can be orders of magnitude
-            /// faster than inserting elements one by one. Assuming
-            /// you are inserting a large number of elements relative
-            /// to the size of the map (1/10 +). Assuming your
-            /// elements are already sorted, or nearly sorted.
+            /// This method inserts many elements at once, skipping
+            /// the intermediate node allocations where possible,
+            /// which in most cases provides a significant speedup. It
+            /// is able to skip more allocations if the data is
+            /// sorted, however it will still work with unsorted data.
             ///
-            /// A word of warning however. If you're inserting small
-            /// chunks (< 1/10) relative to the size of the map, or
-            /// your chunks are not sorted, this method will still
-            /// work, but it may be significantly slower than adding
-            /// each element one by one.
-            ///
-            /// Regardless of whether the input is sorted or not, and
-            /// regardless of it's size relative to the size of the
-            /// map, this method runs in log(N) time where N is the
-            /// size of the map.
             /// #Examples
             ///```
             /// use self::immutable_chunkmap::rc::map::Map;
             ///
-            /// let v = vec![(1, 3), (10, 1), (-12, 2), (44, 0), (50, -1)];
-            /// let mut refs: Vec<(&i64, &i64)> =
-            ///     v.iter().map(|&(ref k, ref v)| (k, v)).collect();
-            /// refs.sort_unstable_by_key(|&(k, _)| k);
+            /// let mut v = vec![(1, 3), (10, 1), (-12, 2), (44, 0), (50, -1)];
+            /// v.sort_unstable_by_key(|&(k, _)| k);
             ///
-            /// let m = Map::new().insert_sorted(&refs);
+            /// let m = Map::new().insert_sorted(v.iter().map(|(k, v)| (*k, *v)));
             ///
-            /// for &(ref k, ref v) in &v {
+            /// for (k, v) in &v {
             ///   assert_eq!(m.get(k), Option::Some(v))
             /// }
             /// ```
