@@ -1,49 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `src/macros/map.rs`.">
-    <meta name="keywords" content="rust, rustlang, rust-lang">
-
-    <title>map.rs.html -- source</title>
-
-    <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
-    <link rel="stylesheet" type="text/css" href="../../../main.css">
-    
-
-    
-    
-</head>
-<body class="rustdoc source">
-    <!--[if lte IE 8]>
-    <div class="warning">
-        This old browser is unsupported and will most likely display funky
-        things.
-    </div>
-    <![endif]-->
-
-    
-
-    <nav class="sidebar">
-        
-        
-    </nav>
-
-    <nav class="sub">
-        <form class="search-form js-only">
-            <div class="search-container">
-                <input class="search-input" name="search"
-                       autocomplete="off"
-                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
-                       type="search">
-            </div>
-        </form>
-    </nav>
-
-    <section id='main' class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/macros/map.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>map.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -150,173 +105,151 @@
 <span id="105">105</span>
 <span id="106">106</span>
 <span id="107">107</span>
+<span id="108">108</span>
+<span id="109">109</span>
+<span id="110">110</span>
+<span id="111">111</span>
+<span id="112">112</span>
+<span id="113">113</span>
+<span id="114">114</span>
+<span id="115">115</span>
+<span id="116">116</span>
+<span id="117">117</span>
+<span id="118">118</span>
+<span id="119">119</span>
+<span id="120">120</span>
+<span id="121">121</span>
+<span id="122">122</span>
+<span id="123">123</span>
+<span id="124">124</span>
+<span id="125">125</span>
+<span id="126">126</span>
 </pre><pre class="rust ">
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">map</span> {
-  (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">treeimport</span>:<span class="ident">path</span>) <span class="op">=&gt;</span> {
-    <span class="kw">use</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">treeimport</span>::{<span class="ident">Tree</span>, <span class="ident">Iter</span>};
-    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>::<span class="ident">Debug</span>;
-    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Borrow</span>;
+    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">treeimport</span>:<span class="ident">path</span>) <span class="op">=&gt;</span> {
+        <span class="kw">use</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">treeimport</span>::{<span class="ident">Tree</span>, <span class="ident">Iter</span>};
+        <span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">fmt</span>::<span class="ident">Debug</span>, <span class="ident">borrow</span>::<span class="ident">Borrow</span>, <span class="ident">ops</span>::<span class="ident">Bound</span>};
 
-    <span class="doccomment">/// This Map uses a similar strategy to BTreeMap to ensure cache</span>
-    <span class="doccomment">/// efficient performance on modern hardware while still providing</span>
-    <span class="doccomment">/// log(N) get, insert, and remove operations.</span>
-    <span class="doccomment">/// # Examples</span>
-    <span class="doccomment">/// ```</span>
-    <span class="doccomment">/// use std::string::String;</span>
-    <span class="doccomment">/// use self::immutable_chunkmap::rc::map::Map;</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// let m =</span>
-    <span class="doccomment">///    Map::new()</span>
-    <span class="doccomment">///    .insert(&amp;String::from(&quot;1&quot;), &amp;1)</span>
-    <span class="doccomment">///    .insert(&amp;String::from(&quot;2&quot;), &amp;2)</span>
-    <span class="doccomment">///    .insert(&amp;String::from(&quot;3&quot;), &amp;3);</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// assert_eq!(m.get(&quot;1&quot;), Option::Some(&amp;1));</span>
-    <span class="doccomment">/// assert_eq!(m.get(&quot;2&quot;), Option::Some(&amp;2));</span>
-    <span class="doccomment">/// assert_eq!(m.get(&quot;3&quot;), Option::Some(&amp;3));</span>
-    <span class="doccomment">/// assert_eq!(m.get(&quot;4&quot;), Option::None);</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// for (k, v) in &amp;m {</span>
-    <span class="doccomment">///   println!(&quot;key {}, val: {}&quot;, k, v)</span>
-    <span class="doccomment">/// }</span>
-    <span class="doccomment">/// ```</span>
-    <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">PartialOrd</span>, <span class="ident">Ord</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Map</span><span class="op">&lt;</span><span class="ident">K</span>: <span class="ident">Ord</span> <span class="op">+</span> <span class="ident">Clone</span> <span class="op">+</span> <span class="ident">Debug</span>, <span class="ident">V</span>: <span class="ident">Clone</span> <span class="op">+</span> <span class="ident">Debug</span><span class="op">&gt;</span> {
-      <span class="ident">len</span>: <span class="ident">usize</span>,
-      <span class="ident">root</span>: <span class="ident">Tree</span><span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">V</span><span class="op">&gt;</span>
-    }
+        <span class="doccomment">/// This Map uses a similar strategy to BTreeMap to ensure cache</span>
+        <span class="doccomment">/// efficient performance on modern hardware while still providing</span>
+        <span class="doccomment">/// log(N) get, insert, and remove operations.</span>
+        <span class="doccomment">/// # Examples</span>
+        <span class="doccomment">/// ```</span>
+        <span class="doccomment">/// use std::string::String;</span>
+        <span class="doccomment">/// use self::immutable_chunkmap::rc::map::Map;</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// let m =</span>
+        <span class="doccomment">///    Map::new()</span>
+        <span class="doccomment">///    .insert(&amp;String::from(&quot;1&quot;), &amp;1)</span>
+        <span class="doccomment">///    .insert(&amp;String::from(&quot;2&quot;), &amp;2)</span>
+        <span class="doccomment">///    .insert(&amp;String::from(&quot;3&quot;), &amp;3);</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// assert_eq!(m.get(&quot;1&quot;), Option::Some(&amp;1));</span>
+        <span class="doccomment">/// assert_eq!(m.get(&quot;2&quot;), Option::Some(&amp;2));</span>
+        <span class="doccomment">/// assert_eq!(m.get(&quot;3&quot;), Option::Some(&amp;3));</span>
+        <span class="doccomment">/// assert_eq!(m.get(&quot;4&quot;), Option::None);</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// for (k, v) in &amp;m {</span>
+        <span class="doccomment">///   println!(&quot;key {}, val: {}&quot;, k, v)</span>
+        <span class="doccomment">/// }</span>
+        <span class="doccomment">/// ```</span>
+        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">PartialOrd</span>, <span class="ident">Ord</span>)]</span>
+        <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Map</span><span class="op">&lt;</span><span class="ident">K</span>: <span class="ident">Ord</span> <span class="op">+</span> <span class="ident">Clone</span> <span class="op">+</span> <span class="ident">Debug</span>, <span class="ident">V</span>: <span class="ident">Clone</span> <span class="op">+</span> <span class="ident">Debug</span><span class="op">&gt;</span> {
+            <span class="ident">len</span>: <span class="ident">usize</span>,
+            <span class="ident">root</span>: <span class="ident">Tree</span><span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">V</span><span class="op">&gt;</span>
+        }
 
-    <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>,<span class="ident">K</span>,<span class="ident">V</span><span class="op">&gt;</span> <span class="ident">IntoIterator</span> <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Map</span><span class="op">&lt;</span><span class="ident">K</span>,<span class="ident">V</span><span class="op">&gt;</span>
-      <span class="kw">where</span> <span class="ident">K</span>: <span class="lifetime">&#39;a</span> <span class="op">+</span> <span class="ident">Ord</span> <span class="op">+</span> <span class="ident">Clone</span> <span class="op">+</span> <span class="ident">Debug</span>, <span class="ident">V</span>: <span class="lifetime">&#39;a</span> <span class="op">+</span> <span class="ident">Clone</span> <span class="op">+</span> <span class="ident">Debug</span>
-    {
-      <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> (<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">K</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">V</span>);
-      <span class="kw">type</span> <span class="ident">IntoIter</span> <span class="op">=</span> <span class="ident">Iter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">K</span>, <span class="ident">V</span><span class="op">&gt;</span>;
-      <span class="kw">fn</span> <span class="ident">into_iter</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="self">Self</span>::<span class="ident">IntoIter</span> { <span class="self">self</span>.<span class="ident">root</span>.<span class="ident">into_iter</span>() }
-    }
+        <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">K</span>, <span class="ident">V</span><span class="op">&gt;</span> <span class="ident">IntoIterator</span> <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Map</span><span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">V</span><span class="op">&gt;</span>
+        <span class="kw">where</span>
+            <span class="ident">K</span>: <span class="lifetime">&#39;a</span> <span class="op">+</span> <span class="ident">Borrow</span><span class="op">&lt;</span><span class="ident">K</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Ord</span> <span class="op">+</span> <span class="ident">Clone</span> <span class="op">+</span> <span class="ident">Debug</span>,
+            <span class="ident">V</span>: <span class="lifetime">&#39;a</span> <span class="op">+</span> <span class="ident">Clone</span> <span class="op">+</span> <span class="ident">Debug</span>
+        {
+            <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> (<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">K</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">V</span>);
+            <span class="kw">type</span> <span class="ident">IntoIter</span> <span class="op">=</span> <span class="ident">Iter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">K</span>, <span class="ident">K</span>, <span class="ident">V</span><span class="op">&gt;</span>;
+            <span class="kw">fn</span> <span class="ident">into_iter</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="self">Self</span>::<span class="ident">IntoIter</span> { <span class="self">self</span>.<span class="ident">root</span>.<span class="ident">into_iter</span>() }
+        }
 
-    <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">K</span>,<span class="ident">V</span><span class="op">&gt;</span> <span class="ident">Map</span><span class="op">&lt;</span><span class="ident">K</span>,<span class="ident">V</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">K</span>: <span class="ident">Ord</span> <span class="op">+</span> <span class="ident">Clone</span> <span class="op">+</span> <span class="ident">Debug</span>, <span class="ident">V</span>: <span class="ident">Clone</span> <span class="op">+</span> <span class="ident">Debug</span> {
-      <span class="doccomment">/// Create a new empty map</span>
-      <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="self">Self</span> { <span class="ident">Map</span> { <span class="ident">len</span>: <span class="number">0</span>, <span class="ident">root</span>: <span class="ident">Tree</span>::<span class="ident">new</span>() } }
+        <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">V</span><span class="op">&gt;</span> <span class="ident">Map</span><span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">V</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">K</span>: <span class="ident">Ord</span> <span class="op">+</span> <span class="ident">Clone</span> <span class="op">+</span> <span class="ident">Debug</span>, <span class="ident">V</span>: <span class="ident">Clone</span> <span class="op">+</span> <span class="ident">Debug</span> {
+            <span class="doccomment">/// Create a new empty map</span>
+            <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="self">Self</span> { <span class="ident">Map</span> { <span class="ident">len</span>: <span class="number">0</span>, <span class="ident">root</span>: <span class="ident">Tree</span>::<span class="ident">new</span>() } }
 
-      <span class="doccomment">/// This method of insertion can be orders of magnitude faster than inserting elements one by</span>
-      <span class="doccomment">/// one. Assuming you are inserting a large number of elements relative to the size of the</span>
-      <span class="doccomment">/// map (1/10 +). Assuming your elements are already sorted, or nearly sorted.</span>
-      <span class="doccomment">///</span>
-      <span class="doccomment">/// A word of warning however. If you&#39;re inserting small chunks (&lt; 1/10) relative to the size</span>
-      <span class="doccomment">/// of the map, or your chunks are not sorted, this method will still work, but it may be</span>
-      <span class="doccomment">/// significantly slower than adding each element one by one.</span>
-      <span class="doccomment">///</span>
-      <span class="doccomment">/// Regardless of whether the input is sorted or not, and regardless of it&#39;s size relative to</span>
-      <span class="doccomment">/// the size of the map, this method runs in log(N) time where N is the size of the map.</span>
-      <span class="doccomment">/// #Examples</span>
-      <span class="doccomment">/// ```</span>
-      <span class="doccomment">/// use self::immutable_chunkmap::rc::map::Map;</span>
-      <span class="doccomment">///</span>
-      <span class="doccomment">/// let v = vec![(1, 3), (10, 1), (-12, 2), (44, 0), (50, -1)];</span>
-      <span class="doccomment">/// let mut refs: Vec&lt;(&amp;i64, &amp;i64)&gt; = v.iter().map(|&amp;(ref k, ref v)| (k, v)).collect();</span>
-      <span class="doccomment">/// refs.sort_unstable_by_key(|&amp;(k, _)| k);</span>
-      <span class="doccomment">///</span>
-      <span class="doccomment">/// let m = Map::new().insert_sorted(&amp;refs);</span>
-      <span class="doccomment">///</span>
-      <span class="doccomment">/// for &amp;(ref k, ref v) in &amp;v {</span>
-      <span class="doccomment">///   assert_eq!(m.get(k), Option::Some(v))</span>
-      <span class="doccomment">/// }</span>
-      <span class="doccomment">/// ```</span>
-      <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">insert_sorted</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">elts</span>: <span class="kw-2">&amp;</span>[(<span class="kw-2">&amp;</span><span class="ident">K</span>, <span class="kw-2">&amp;</span><span class="ident">V</span>)]) <span class="op">-&gt;</span> <span class="self">Self</span> {
-        <span class="kw">let</span> (<span class="ident">t</span>, <span class="ident">len</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">root</span>.<span class="ident">insert_sorted</span>(<span class="self">self</span>.<span class="ident">len</span>, <span class="ident">elts</span>);
-        <span class="ident">Map</span> { <span class="ident">len</span>: <span class="ident">len</span>, <span class="ident">root</span>: <span class="ident">t</span> }
-      }
+            <span class="doccomment">/// This method inserts many elements at once, skipping</span>
+            <span class="doccomment">/// the intermediate node allocations where possible,</span>
+            <span class="doccomment">/// which in most cases provides a significant speedup. It</span>
+            <span class="doccomment">/// is able to skip more allocations if the data is</span>
+            <span class="doccomment">/// sorted, however it will still work with unsorted data.</span>
+            <span class="doccomment">///</span>
+            <span class="doccomment">/// #Examples</span>
+            <span class="doccomment">///```</span>
+            <span class="doccomment">/// use self::immutable_chunkmap::rc::map::Map;</span>
+            <span class="doccomment">///</span>
+            <span class="doccomment">/// let mut v = vec![(1, 3), (10, 1), (-12, 2), (44, 0), (50, -1)];</span>
+            <span class="doccomment">/// v.sort_unstable_by_key(|&amp;(k, _)| k);</span>
+            <span class="doccomment">///</span>
+            <span class="doccomment">/// let m = Map::new().insert_sorted(v.iter().map(|(k, v)| (*k, *v)));</span>
+            <span class="doccomment">///</span>
+            <span class="doccomment">/// for (k, v) in &amp;v {</span>
+            <span class="doccomment">///   assert_eq!(m.get(k), Option::Some(v))</span>
+            <span class="doccomment">/// }</span>
+            <span class="doccomment">/// ```</span>
+            <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">insert_sorted</span><span class="op">&lt;</span><span class="ident">E</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">=</span>(<span class="ident">K</span>, <span class="ident">V</span>)<span class="op">&gt;&gt;</span>(
+                <span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">elts</span>: <span class="ident">E</span>
+            ) <span class="op">-&gt;</span> <span class="self">Self</span> {
+                <span class="kw">let</span> (<span class="ident">t</span>, <span class="ident">len</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">root</span>.<span class="ident">insert_sorted</span>(<span class="self">self</span>.<span class="ident">len</span>, <span class="ident">elts</span>);
+                <span class="ident">Map</span> { <span class="ident">len</span>: <span class="ident">len</span>, <span class="ident">root</span>: <span class="ident">t</span> }
+            }
 
-      <span class="doccomment">/// return a new map with (k, v) inserted into it. If k already exists in the old map, the</span>
-      <span class="doccomment">/// new map will contain the new binding, not the old. This method runs in log(N) time, where</span>
-      <span class="doccomment">/// N is the size of the map.</span>
-      <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">insert</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">k</span>: <span class="kw-2">&amp;</span><span class="ident">K</span>, <span class="ident">v</span>: <span class="kw-2">&amp;</span><span class="ident">V</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
-        <span class="kw">let</span> (<span class="ident">t</span>, <span class="ident">len</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">root</span>.<span class="ident">insert</span>(<span class="self">self</span>.<span class="ident">len</span>, <span class="ident">k</span>, <span class="ident">v</span>);
-        <span class="ident">Map</span> { <span class="ident">len</span>: <span class="ident">len</span>, <span class="ident">root</span>: <span class="ident">t</span> }
-      }
+            <span class="doccomment">/// return a new map with (k, v) inserted into it. If k already</span>
+            <span class="doccomment">/// exists in the old map, the new map will contain the new</span>
+            <span class="doccomment">/// binding, not the old. This method runs in log(N) time, where</span>
+            <span class="doccomment">/// N is the size of the map. `k` and `v` will be cloned on</span>
+            <span class="doccomment">/// insert, and on subsuquent inserts or removals, if `k` or `v`</span>
+            <span class="doccomment">/// is expensive to clone, pass an `Rc` or `Arc` pointer to it</span>
+            <span class="doccomment">/// instead. A `Box` won&#39;t work, because it can&#39;t be shared, so</span>
+            <span class="doccomment">/// clone will deep copy the contents.</span>
+            <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">insert</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">k</span>: <span class="kw-2">&amp;</span><span class="ident">K</span>, <span class="ident">v</span>: <span class="kw-2">&amp;</span><span class="ident">V</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+                <span class="kw">let</span> (<span class="ident">t</span>, <span class="ident">len</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">root</span>.<span class="ident">insert</span>(<span class="self">self</span>.<span class="ident">len</span>, <span class="ident">k</span>, <span class="ident">v</span>);
+                <span class="ident">Map</span> { <span class="ident">len</span>: <span class="ident">len</span>, <span class="ident">root</span>: <span class="ident">t</span> }
+            }
 
-      <span class="doccomment">/// lookup the mapping for k. If it doesn&#39;t exist return None. Runs in log(N) time where N is</span>
-      <span class="doccomment">/// the size of the map.</span>
-      <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">Q</span>: <span class="question-mark">?</span><span class="ident">Sized</span> <span class="op">+</span> <span class="ident">Ord</span> <span class="op">+</span> <span class="ident">Debug</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>, <span class="ident">k</span>: <span class="kw-2">&amp;</span><span class="ident">Q</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">V</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">K</span>: <span class="ident">Borrow</span><span class="op">&lt;</span><span class="ident">Q</span><span class="op">&gt;</span>
-      { <span class="self">self</span>.<span class="ident">root</span>.<span class="ident">get</span>(<span class="ident">k</span>) }
+            <span class="doccomment">/// lookup the mapping for k. If it doesn&#39;t exist return</span>
+            <span class="doccomment">/// None. Runs in log(N) time where N is the size of the</span>
+            <span class="doccomment">/// map.</span>
+            <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">Q</span>: <span class="question-mark">?</span><span class="ident">Sized</span> <span class="op">+</span> <span class="ident">Ord</span> <span class="op">+</span> <span class="ident">Debug</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>, <span class="ident">k</span>: <span class="kw-2">&amp;</span><span class="ident">Q</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">V</span><span class="op">&gt;</span>
+            <span class="kw">where</span> <span class="ident">K</span>: <span class="ident">Borrow</span><span class="op">&lt;</span><span class="ident">Q</span><span class="op">&gt;</span>
+            { <span class="self">self</span>.<span class="ident">root</span>.<span class="ident">get</span>(<span class="ident">k</span>) }
 
-      <span class="doccomment">/// return a new map with the mapping under k removed. Runs in log(N) time, where N is the</span>
-      <span class="doccomment">/// size of the map</span>
-      <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">remove</span><span class="op">&lt;</span><span class="ident">Q</span>: <span class="ident">Sized</span> <span class="op">+</span> <span class="ident">Ord</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">k</span>: <span class="kw-2">&amp;</span><span class="ident">Q</span>) <span class="op">-&gt;</span> <span class="self">Self</span>
-        <span class="kw">where</span> <span class="ident">K</span>: <span class="ident">Borrow</span><span class="op">&lt;</span><span class="ident">Q</span><span class="op">&gt;</span>
-      {
-        <span class="kw">let</span> (<span class="ident">t</span>, <span class="ident">len</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">root</span>.<span class="ident">remove</span>(<span class="self">self</span>.<span class="ident">len</span>, <span class="ident">k</span>);
-        <span class="ident">Map</span> {<span class="ident">root</span>: <span class="ident">t</span>, <span class="ident">len</span>: <span class="ident">len</span>}
-      }
+            <span class="doccomment">/// return a new map with the mapping under k</span>
+            <span class="doccomment">/// removed. Runs in log(N) time, where N is the size of</span>
+            <span class="doccomment">/// the map</span>
+            <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">remove</span><span class="op">&lt;</span><span class="ident">Q</span>: <span class="ident">Sized</span> <span class="op">+</span> <span class="ident">Ord</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">k</span>: <span class="kw-2">&amp;</span><span class="ident">Q</span>) <span class="op">-&gt;</span> <span class="self">Self</span>
+            <span class="kw">where</span> <span class="ident">K</span>: <span class="ident">Borrow</span><span class="op">&lt;</span><span class="ident">Q</span><span class="op">&gt;</span>
+            {
+                <span class="kw">let</span> (<span class="ident">t</span>, <span class="ident">len</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">root</span>.<span class="ident">remove</span>(<span class="self">self</span>.<span class="ident">len</span>, <span class="ident">k</span>);
+                <span class="ident">Map</span> {<span class="ident">root</span>: <span class="ident">t</span>, <span class="ident">len</span>: <span class="ident">len</span>}
+            }
 
-      <span class="doccomment">/// get the number of elements in the map O(1)</span>
-      <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">length</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> { <span class="self">self</span>.<span class="ident">len</span> }
+            <span class="doccomment">/// get the number of elements in the map O(1)</span>
+            <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> { <span class="self">self</span>.<span class="ident">len</span> }
 
-      <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
-      <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">invariant</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> () { <span class="self">self</span>.<span class="ident">root</span>.<span class="ident">invariant</span>(<span class="self">self</span>.<span class="ident">len</span>) }
-    }
-  };
+            <span class="doccomment">/// return an iterator over the subset of elements in the</span>
+            <span class="doccomment">/// map that are within the specified range.</span>
+            <span class="doccomment">///</span>
+            <span class="doccomment">/// The returned iterator runs in O(log(N) + M) time, and</span>
+            <span class="doccomment">/// constant space. N is the number of elements in the</span>
+            <span class="doccomment">/// tree, and M is the number of elements you examine.</span>
+            <span class="doccomment">///</span>
+            <span class="doccomment">/// if lbound &gt;= ubound the returned iterator will be empty</span>
+            <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">range</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">Q</span><span class="op">&gt;</span>(
+                <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>, <span class="ident">lbound</span>: <span class="ident">Bound</span><span class="op">&lt;</span><span class="ident">Q</span><span class="op">&gt;</span>, <span class="ident">ubound</span>: <span class="ident">Bound</span><span class="op">&lt;</span><span class="ident">Q</span><span class="op">&gt;</span>
+            ) <span class="op">-&gt;</span> <span class="ident">Iter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">Q</span>, <span class="ident">K</span>, <span class="ident">V</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">Q</span>: <span class="ident">Ord</span>, <span class="ident">K</span>: <span class="ident">Borrow</span><span class="op">&lt;</span><span class="ident">Q</span><span class="op">&gt;</span> {
+                <span class="self">self</span>.<span class="ident">root</span>.<span class="ident">range</span>(<span class="ident">lbound</span>, <span class="ident">ubound</span>)
+            }
+
+            <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
+            <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">invariant</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> () { <span class="self">self</span>.<span class="ident">root</span>.<span class="ident">invariant</span>(<span class="self">self</span>.<span class="ident">len</span>) }
+        }
+    };
 }
 </pre>
-</section>
-    <section id='search' class="content hidden"></section>
-
-    <section class="footer"></section>
-
-    <aside id="help" class="hidden">
-        <div>
-            <h1 class="hidden">Help</h1>
-
-            <div class="shortcuts">
-                <h2>Keyboard Shortcuts</h2>
-
-                <dl>
-                    <dt>?</dt>
-                    <dd>Show this help dialog</dd>
-                    <dt>S</dt>
-                    <dd>Focus the search field</dd>
-                    <dt>&larrb;</dt>
-                    <dd>Move up in search results</dd>
-                    <dt>&rarrb;</dt>
-                    <dd>Move down in search results</dd>
-                    <dt>&#9166;</dt>
-                    <dd>Go to active search result</dd>
-                    <dt>+</dt>
-                    <dd>Collapse/expand all sections</dd>
-                </dl>
-            </div>
-
-            <div class="infos">
-                <h2>Search Tricks</h2>
-
-                <p>
-                    Prefix searches with a type followed by a colon (e.g.
-                    <code>fn:</code>) to restrict the search to a given type.
-                </p>
-
-                <p>
-                    Accepted types are: <code>fn</code>, <code>mod</code>,
-                    <code>struct</code>, <code>enum</code>,
-                    <code>trait</code>, <code>type</code>, <code>macro</code>,
-                    and <code>const</code>.
-                </p>
-
-                <p>
-                    Search functions by type signature (e.g.
-                    <code>vec -> usize</code> or <code>* -> vec</code>)
-                </p>
-            </div>
-        </div>
-    </aside>
-
-    
-
-    <script>
-        window.rootPath = "../../../";
-        window.currentCrate = "immutable_chunkmap";
-    </script>
-    <script src="../../../main.js"></script>
-    <script defer src="../../../search-index.js"></script>
-</body>
-</html>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "immutable_chunkmap";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>

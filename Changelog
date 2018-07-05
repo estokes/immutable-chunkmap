@@ -4,6 +4,7 @@
 * Implement DoubleEndedIterator
 * insert_sorted performance improved on degenerate cases
 * BREAKING: insert_sorted now takes IntoIterator instead of an explicit slice
+* BREAKING: change the name of length to len, like BTreeMap
 
 0.1.2
 Initial public release
