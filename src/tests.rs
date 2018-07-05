@@ -11,7 +11,7 @@ macro_rules! tests {
             };
 
             const STRSIZE: usize = 10;
-            const SIZE: usize = 250000;
+            const SIZE: usize = 500000;
             const CHECK: usize = 1000;
 
             trait Rand: Sized {
@@ -134,7 +134,9 @@ macro_rules! tests {
             }
 
             fn test_insert_sorted<T: Ord + Clone + Debug + Rand>() {
-                let v = randvec::<T>(SIZE);
+                let mut v = randvec::<T>(SIZE);
+                v.sort_unstable();
+                v.dedup();
                 let mut t =
                     avl::Tree::new().insert_sorted(
                         0usize, v.iter().map(|k| (k.clone(), k.clone())));
@@ -154,12 +156,14 @@ macro_rules! tests {
                         if i % CHECK == 0 {
                             assert_eq!(t.0.get(&k), Option::None);
                         } else {
-                            assert_eq!(t.0.get(&k).unwrap(), k);
+                            assert_eq!(t.0.get(&k), Option::Some(k));
                         }
                         i = i + 1;
                     }
                 };
-                let v2 = randvec::<T>(SIZE);
+                let mut v2 = randvec::<T>(SIZE);
+                v2.sort_unstable();
+                v2.dedup();
                 t = t.0.insert_sorted(t.1, v2.iter().map(|k| (k.clone(), k.clone())));
                 t.0.invariant(t.1);
                 {
