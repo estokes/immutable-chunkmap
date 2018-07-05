@@ -57,19 +57,19 @@ macro_rules! tests {
                 t
             }
 
-//            #[test]
+            #[test]
             fn test_insert_int_seq_asc() {
                 let (_, len) = insert(0..SIZE);
                 if len != SIZE { panic!("length is wrong expected 10000 got {}", len) }
             }
 
-//            #[test]
+            #[test]
             fn test_insert_int_seq_dec() {
                 let (_, len) = insert((0..SIZE).rev());
                 if len != SIZE {panic!("length is wrong expected 10000 got {}", len)}
             }
 
-//            #[test]
+            #[test]
             fn test_insert_int_rand() {
                 insert(randvec::<i32>(SIZE)); ()
             }
@@ -82,10 +82,10 @@ macro_rules! tests {
                 }
             }
 
-//            #[test]
+            #[test]
             fn test_get_int_rand() { test_get_rand::<i32>() }
 
-//            #[test]
+            #[test]
             fn test_get_str_rand() { test_get_rand::<String>() }
 
             fn test_insert_remove_rand<T: Ord + Clone + Debug + Rand>() {
@@ -102,13 +102,13 @@ macro_rules! tests {
                 }
             }
 
-//            #[test]
+            #[test]
             fn test_int_insert_remove_rand() { test_insert_remove_rand::<i32>() }
 
-//            #[test]
+            #[test]
             fn test_str_insert_remove_rand() { test_insert_remove_rand::<String>() }
 
-//            #[test]
+            #[test]
             fn test_insert_sorted_small() {
                 let v: Vec<i32> = vec![1, 9, 16, 11, 7, 12, 8, 12, 12, 11, 9, 12, 9, 7, 16, 9, 1, 9, 1, 1, 22, 112];
                 let mut t = avl::Tree::new().insert_sorted(0, v.iter().map(|k| (*k, *k)));
@@ -172,10 +172,10 @@ macro_rules! tests {
                 for k in &v2 { assert_eq!(t.0.get(&k).unwrap(), k); }
             }
 
-//            #[test]
+            #[test]
             fn test_int_insert_sorted() { test_insert_sorted::<i32>() }
 
-//            #[test]
+            #[test]
             fn test_str_insert_sorted() { test_insert_sorted::<String>() }
 
             fn test_map_rand<T: Ord + Clone + Debug + Rand>() {
@@ -207,10 +207,10 @@ macro_rules! tests {
                 }
             }
 
-//            #[test]
+            #[test]
             fn test_int_map_rand() { test_map_rand::<i32>() }
 
-//            #[test]
+            #[test]
             fn test_str_map_rand() { test_map_rand::<String>() }
 
             fn test_map_iter<T: Borrow<T> + Ord + Clone + Debug + Rand>() {
@@ -229,10 +229,10 @@ macro_rules! tests {
                 }
             }
 
-//            #[test]
+            #[test]
             fn test_int_map_iter() { test_map_iter::<i32>() }
 
-//            #[test]
+            #[test]
             fn test_string_map_iter() { test_map_iter::<String>() }
 
             #[test]
@@ -240,14 +240,61 @@ macro_rules! tests {
                 let mut v = Vec::new();
                 v.extend((0..5000).into_iter());
                 let t = map::Map::new().insert_sorted(v.iter().map(|x| (*x, *x)));
-                let mut i = 0;
-                for e in t.range(Included(0), Excluded(100)) {
-                    assert_eq!(e.0, e.1);
-                    assert_eq!(&v[i], e.0);
-                    assert!(i < 100);
-                    i += 1
+                t.invariant();
+                assert_eq!(t.len(), 5000);
+                {
+                    let mut i = 0;
+                    for e in &t {
+                        assert_eq!(e.0, e.1);
+                        assert_eq!(&v[i], e.0);
+                        assert!(i < 5000);
+                        i += 1
+                    }
+                    assert_eq!(i, 5000)
                 }
-                assert_eq!(i, 100)
+                // left
+                {
+                    let mut i = 0;
+                    for e in t.range(Included(0), Excluded(100)) {
+                        assert_eq!(e.0, e.1);
+                        assert_eq!(&v[i], e.0);
+                        assert!(i < 100);
+                        i += 1
+                    }
+                    assert_eq!(i, 100)
+                }
+                {
+                    let mut i = 0;
+                    for e in t.range(Excluded(0), Included(100)) {
+                        assert_eq!(e.0, e.1);
+                        assert_eq!(&v[i + 1], e.0);
+                        assert!(i < 100);
+                        i += 1
+                    }
+                    assert_eq!(i, 100)
+                }
+                // middle
+                {
+                    let mut i = 2300;
+                    for e in t.range(Included(2300), Excluded(3500)) {
+                        assert_eq!(e.0, e.1);
+                        assert_eq!(&v[i], e.0);
+                        assert!(i < 3500);
+                        i += 1
+                    }
+                    assert_eq!(i, 3500)
+                }
+                // right
+                {
+                    let mut i = 2900;
+                    for e in t.range(Included(2900), Unbounded) {
+                        assert_eq!(e.0, e.1);
+                        assert_eq!(&v[i], e.0);
+                        assert!(i < 5000);
+                        i += 1
+                    }
+                    assert_eq!(i, 5000)
+                }
             }
 
             fn test_map_range<T: Borrow<T> + Ord + Clone + Debug + Rand>() {
@@ -315,14 +362,14 @@ macro_rules! tests {
                 }
             }
 
-//            #[test]
+            #[test]
             fn test_int_map_range() { test_map_range::<i32>() }
 
-//            #[test]
+            #[test]
             fn test_string_map_range() { test_map_range::<String>() }
         }
     };
 }
 
 tests!(rc);
-//tests!(arc);
+tests!(arc);

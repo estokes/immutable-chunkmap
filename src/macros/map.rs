@@ -103,7 +103,7 @@ macro_rules! map {
             }
 
             /// get the number of elements in the map O(1)
-            pub fn length(&self) -> usize { self.len }
+            pub fn len(&self) -> usize { self.len }
 
             /// return an iterator over the subset of elements in the
             /// map that are within the specified range. The rust

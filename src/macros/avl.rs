@@ -412,7 +412,7 @@ macro_rules! avltree {
                         match current.right {
                             Tree::Empty => (),
                             Tree::Node(ref n) => {
-                                if self.any_elts_below_ubound(n) {
+                                if self.any_elts_below_ubound(n) || !n.left.is_empty() {
                                     self.stack.push((false, n))
                                 }
                             }
@@ -422,7 +422,7 @@ macro_rules! avltree {
                         match current.left {
                             Tree::Empty => (),
                             Tree::Node(ref n) => {
-                                if self.any_elts_above_lbound(n) {
+                                if self.any_elts_above_lbound(n) || !n.right.is_empty() {
                                     self.stack.push((false, n))
                                 }
                             }
@@ -471,7 +471,7 @@ macro_rules! avltree {
                         match current.left {
                             Tree::Empty => (),
                             Tree::Node(ref n) => {
-                                if self.any_elts_above_lbound(n) {
+                                if self.any_elts_above_lbound(n) || !n.right.is_empty() {
                                     self.stack_rev.push((false, n))
                                 }
                             }
@@ -482,7 +482,7 @@ macro_rules! avltree {
                         match current.right {
                             Tree::Empty => (),
                             Tree::Node(ref n) => {
-                                if self.any_elts_below_ubound(n) {
+                                if self.any_elts_below_ubound(n) || !n.left.is_empty() {
                                     self.stack_rev.push((false, n))
                                 }
                             }
@@ -537,6 +537,13 @@ macro_rules! avltree {
                 }
             }
 
+            fn is_empty(&self) -> bool {
+                match self {
+                    Tree::Empty => true,
+                    Tree::Node(..) => false
+                }
+            }
+            
             fn height(&self) -> u16 {
                 match self {
                     &Tree::Empty => 0,
