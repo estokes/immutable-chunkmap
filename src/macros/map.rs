@@ -13,9 +13,9 @@ macro_rules! map {
         ///
         /// let m =
         ///    Map::new()
-        ///    .insert(&String::from("1"), &1)
-        ///    .insert(&String::from("2"), &2)
-        ///    .insert(&String::from("3"), &3);
+        ///    .insert(String::from("1"), 1).0
+        ///    .insert(String::from("2"), 2).0
+        ///    .insert(String::from("3"), 3).0;
         ///
         /// assert_eq!(m.get("1"), Option::Some(&1));
         /// assert_eq!(m.get("2"), Option::Some(&2));
