@@ -4,17 +4,12 @@ macro_rules! avltree {
         use arrayvec::ArrayVec;
         use std::{
             cmp::{Ord, Ordering, max, min}, fmt::Debug,
-            borrow::Borrow, slice, iter, vec, ops::Bound
+            borrow::Borrow, slice, iter, vec, ops::Bound,
+            mem::swap
         };
 
         // until we get 128 bit machines with exabytes of memory
         const MAX_DEPTH : usize = 64;
-
-        #[derive(Debug)]
-        enum Dir {
-            InRight,
-            InLeft
-        }
 
         #[derive(PartialEq)]
         enum Loc {
@@ -22,16 +17,6 @@ macro_rules! avltree {
             InLeft,
             NotPresent(usize), // the index in the array where the element would be if it was present
             Here(usize) // the index in the array where the equal element is
-        }
-
-        impl Loc {
-            fn to_dir(&self) -> Dir {
-                match self {
-                    &Loc::InLeft => Dir::InLeft,
-                    &Loc::InRight => Dir::InRight,
-                    &Loc::NotPresent(_) | &Loc::Here(_) => panic!("invalid dir")
-                }
-            }
         }
 
         /*
@@ -63,12 +48,23 @@ macro_rules! avltree {
             },
         }
 
+        enum Insert<K: Ord + Clone + Debug, V: Clone + Debug> {
+            InsertLeft(K, V),
+            InsertRight(K, V),
+            Inserted {
+                elts: Elts<K, V>,
+                len: usize,
+                overflow: Option<(K, V)>,
+                previous: Option<(K, V)>
+            }
+        }
+
         impl<K,V> Elts<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
-            fn singleton(k: &K, v: &V) -> Self {
+            fn singleton(k: K, v: V) -> Self {
                 let mut keys = Vec::<K>::new();
                 let mut vals = Vec::<V>::new();
-                keys.push(k.clone());
-                vals.push(v.clone());
+                keys.push(k);
+                vals.push(v);
                 Elts { keys: keys, vals: vals }
             }
 
@@ -194,47 +190,59 @@ macro_rules! avltree {
             // element should be added. If add places the element in the middle
             // of a full vector, then there will be overflow that must
             // be added right
-            fn insert(
-                &self, k: &K, v: &V, len: usize, leaf: bool
-            ) -> Result<(Self, Option<(K,V)>, usize), Dir> {
-                match self.get(k) {
+            fn insert(&self, mut k: K, mut v: V, len: usize, leaf: bool) -> Insert<K, V> {
+                match self.get(&k) {
                     Loc::Here(i) => {
                         let mut t = self.clone();
-                        t.keys[i] = k.clone();
-                        t.vals[i] = v.clone();
-                        Result::Ok((t, None, len))
-                    }
+                        swap(&mut t.keys[i], &mut k);
+                        swap(&mut t.vals[i], &mut v);
+                        Insert::Inserted {
+                            elts: t, len, overflow: None, previous: Some((k, v))
+                        }
+                    },
                     Loc::NotPresent(i) =>
                         if self.len() < SIZE {
                             let mut t = self.clone();
-                            t.keys.insert(i, k.clone());
-                            t.vals.insert(i, v.clone());
-                            Result::Ok((t, None, len + 1))
+                            t.keys.insert(i, k);
+                            t.vals.insert(i, v);
+                            Insert::Inserted {
+                                elts: t, len: len + 1, overflow: None, previous: None
+                            }
                         } else {
                             // we need to add it here, but to do that we have
                             // to take an element out, so we return that overflow element
                             let mut t = self.clone();
-                            let overflow = (t.keys.pop().unwrap(), t.vals.pop().unwrap());
-                            t.keys.insert(i, k.clone());
-                            t.vals.insert(i, v.clone());
-                            Result::Ok((t, Some(overflow), len))
+                            let overflow =
+                                Some((t.keys.pop().unwrap(), t.vals.pop().unwrap()));
+                            t.keys.insert(i, k);
+                            t.vals.insert(i, v);
+                            Insert::Inserted {elts: t, len, overflow, previous: None}
                         },
-                    loc @ Loc::InLeft | loc @ Loc::InRight =>
-                        if !leaf || self.len() == SIZE { Result::Err(loc.to_dir()) }
-                    else {
-                        let mut t = self.clone();
-                        match loc {
-                            Loc::InLeft => {
-                                t.keys.insert(0, k.clone());
-                                t.vals.insert(0, v.clone());
-                            },
-                            Loc::InRight => {
-                                t.keys.push(k.clone());
-                                t.vals.push(v.clone());
-                            },
-                            _ => unreachable!("bug")
-                        };
-                        Result::Ok((t, None, len + 1))
+                    loc @ Loc::InLeft | loc @ Loc::InRight => {
+                        if !leaf || self.len() == SIZE {
+                            match loc {
+                                Loc::InLeft => Insert::InsertLeft(k, v),
+                                Loc::InRight => Insert::InsertRight(k, v),
+                                Loc::Here(..) | Loc::NotPresent(..) => unreachable!()
+                            }
+                        }
+                        else {
+                            let mut t = self.clone();
+                            match loc {
+                                Loc::InLeft => {
+                                    t.keys.insert(0, k);
+                                    t.vals.insert(0, v);
+                                },
+                                Loc::InRight => {
+                                    t.keys.push(k);
+                                    t.vals.push(v);
+                                },
+                                _ => unreachable!("bug")
+                            };
+                            Insert::Inserted {
+                                elts: t, len: len + 1, overflow: None, previous: None
+                            }
+                        }
                     }
                 }
             }
@@ -675,13 +683,15 @@ macro_rules! avltree {
                 t
             }
 
-            pub(crate) fn insert(&self, len: usize, k: &K, v: &V) -> (Self, usize) {
+            pub(crate) fn insert(
+                &self, len: usize, k: K, v: V
+            ) -> (Self, usize, Option<(K, V)>) {
                 match self {
                     &Tree::Empty =>
                         (Tree::create(
                             &Tree::Empty,
                             &$pinit(Elts::singleton(k, v)), &Tree::Empty),
-                         len + 1),
+                         len + 1, None),
                     &Tree::Node(ref tn) => {
                         let leaf =
                             match (&tn.left, &tn.right) {
@@ -689,20 +699,26 @@ macro_rules! avltree {
                                 (_, _) => false
                             };
                         match tn.elts.insert(k, v, len, leaf) {
-                            Result::Ok((elts, None, len)) =>
-                                (Tree::create(&tn.left, &$pinit(elts), &tn.right), len),
-                            Result::Ok((elts, Some((ovk, ovv)), len)) => {
-                                let (r, len) = tn.right.insert(len, &ovk, &ovv);
-                                (Tree::bal(&tn.left, &$pinit(elts), &r), len)
-                            }
-                            Result::Err(Dir::InLeft) => {
-                                let (l, len) = tn.left.insert(len, k, v);
-                                (Tree::bal(&l, &tn.elts, &tn.right), len)
-                            }
-                            Result::Err(Dir::InRight) => {
-                                let (r, len) = tn.right.insert(len, k, v);
-                                (Tree::bal(&tn.left, &tn.elts, &r), len)
-                            }
+                            Insert::InsertLeft(k, v) => {
+                                let (l, len, prev) = tn.left.insert(len, k, v);
+                                (Tree::bal(&l, &tn.elts, &tn.right), len, prev)
+                            },
+                            Insert::InsertRight(k, v) => {
+                                let (r, len, prev) = tn.right.insert(len, k, v);
+                                (Tree::bal(&tn.left, &tn.elts, &r), len, prev)
+                            },
+                            Insert::Inserted {elts, len, overflow, previous} => {
+                                match overflow {
+                                    None =>
+                                        (Tree::create(&tn.left, &$pinit(elts), &tn.right),
+                                         len, previous),
+                                    Some((ovk, ovv)) => {
+                                        let (r, len, _) = tn.right.insert(len, ovk, ovv);
+                                        (Tree::bal(&tn.left, &$pinit(elts), &r),
+                                         len, previous)
+                                    }
+                                }
+                            },
                         }
                     }
                 }

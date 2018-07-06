@@ -48,13 +48,13 @@ macro_rules! tests {
             fn insert<I, T>(r: I) -> (avl::Tree<T, T>, usize)
             where I: IntoIterator<Item=T>, T: Ord + Clone + Debug
             {
-                let mut t = (avl::Tree::new(), 0);
+                let mut t = (avl::Tree::new(), 0, None);
                 for i in r {
-                    t = t.0.insert(t.1, &i, &i);
+                    t = t.0.insert(t.1, i.clone(), i.clone());
                     if t.1 % CHECK == 0 { t.0.invariant(t.1); }
                 }
                 t.0.invariant(t.1);
-                t
+                (t.0, t.1)
             }
 
             #[test]
@@ -90,12 +90,14 @@ macro_rules! tests {
 
             fn test_insert_remove_rand<T: Ord + Clone + Debug + Rand>() {
                 let v = randvec::<T>(SIZE);
-                let mut t = (avl::Tree::new(), 0);
+                let mut t = (avl::Tree::new(), 0, None);
                 for k in &v {
-                    t = t.0.insert(t.1, &k, &k);
+                    t = t.0.insert(t.1, k, k);
                     assert_eq!(*t.0.get(&k).unwrap(), k);
                     if t.1 % CHECK == 0 {
-                        t = t.0.remove(t.1, &k);
+                        let (tree, len) = t.0.remove(t.1, &k);
+                        t.0 = tree;
+                        t.1 = len;
                         assert_eq!(t.0.get(&k), Option::None);
                         t.0.invariant(t.1);
                     }
@@ -187,7 +189,7 @@ macro_rules! tests {
                 let mut t = map::Map::new();
                 let mut i = 0;
                 for k in &v {
-                    t = t.insert(&k, &k);
+                    t = t.insert(k, k).0;
                     assert_eq!(*t.get(&k).unwrap(), k);
                     if i % CHECK == 0 { 
                         t.invariant();
@@ -220,7 +222,7 @@ macro_rules! tests {
             fn test_map_iter<T: Borrow<T> + Ord + Clone + Debug + Rand>() {
                 let v = randvec::<T>(SIZE);
                 let mut t : map::Map<T, T> = map::Map::new();
-                for k in &v { t = t.insert(&k, &k) };
+                for k in &v { t = t.insert(k.clone(), k.clone()).0 };
                 t.invariant();
                 let mut vs = v.clone(); 
                 vs.sort_unstable();

@@ -75,14 +75,10 @@ macro_rules! map {
             /// return a new map with (k, v) inserted into it. If k already
             /// exists in the old map, the new map will contain the new
             /// binding, not the old. This method runs in log(N) time, where
-            /// N is the size of the map. `k` and `v` will be cloned on
-            /// insert, and on subsuquent inserts or removals, if `k` or `v`
-            /// is expensive to clone, pass an `Rc` or `Arc` pointer to it
-            /// instead. A `Box` won't work, because it can't be shared, so
-            /// clone will deep copy the contents.
-            pub fn insert(&self, k: &K, v: &V) -> Self {
-                let (t, len) = self.root.insert(self.len, k, v);
-                Map { len: len, root: t }
+            /// N is the size of the map.
+            pub fn insert(&self, k: K, v: V) -> (Self, Option<(K, V)>) {
+                let (t, len, prev) = self.root.insert(self.len, k, v);
+                (Map { len: len, root: t }, prev)
             }
 
             /// lookup the mapping for k. If it doesn't exist return

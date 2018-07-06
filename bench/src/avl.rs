@@ -40,14 +40,14 @@ fn bench_remove(m: TreeMap<i64, i64>, d: &Vec<i64>) -> Duration {
 }
 
 pub(crate) fn run(size: usize) {
-  let (m, d, insert) = bench_insert(size);
-  let (_, _, inserts) = bench_insert_sorted(size);
-  let get = bench_get(&m, &d);
-  let rm = bench_remove(m, &d);
-  println!("{},{},{},{},0,{}",
-      size,
-      utils::to_ns_per(insert, size),
-      utils::to_ns_per(inserts, size),
-      utils::to_ns_per(get, size),
-      utils::to_ns_per(rm, size));
+    let (m, d, insert) = bench_insert(size);
+    let (_, _, inserts) = bench_insert_sorted(size);
+    let get = bench_get(&m, &d);
+    let rm = bench_remove(m, &d);
+    println!("{},{},{},{},0,{}",
+             size,
+             utils::to_ns_per(insert, size),
+             utils::to_ns_per(inserts, size),
+             utils::to_ns_per(get, size),
+             utils::to_ns_per(rm, size));
 }
