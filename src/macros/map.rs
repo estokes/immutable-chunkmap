@@ -72,25 +72,26 @@ macro_rules! map {
                 Map { len: len, root: t }
             }
 
-            /// return a new map with (k, v) inserted into it. If k already
-            /// exists in the old map, the new map will contain the new
-            /// binding, not the old. This method runs in log(N) time, where
-            /// N is the size of the map.
+            /// return a new map with (k, v) inserted into it. If k
+            /// already exists in the old map, the old binding will be
+            /// returned, and the new map will contain the new
+            /// binding. This method runs in log(N) time and log(N)
+            /// space, where N is the size of the map.
             pub fn insert(&self, k: K, v: V) -> (Self, Option<(K, V)>) {
                 let (t, len, prev) = self.root.insert(self.len, k, v);
                 (Map { len: len, root: t }, prev)
             }
 
             /// lookup the mapping for k. If it doesn't exist return
-            /// None. Runs in log(N) time where N is the size of the
-            /// map.
+            /// None. Runs in log(N) time and constant space. where N
+            /// is the size of the map.
             pub fn get<'a, Q: ?Sized + Ord + Debug>(&'a self, k: &Q) -> Option<&'a V>
             where K: Borrow<Q>
             { self.root.get(k) }
 
             /// return a new map with the mapping under k
-            /// removed. Runs in log(N) time, where N is the size of
-            /// the map
+            /// removed. Runs in log(N) time and log(N) space, where N
+            /// is the size of the map
             pub fn remove<Q: Sized + Ord>(&self, k: &Q) -> Self
             where K: Borrow<Q>
             {
@@ -98,7 +99,7 @@ macro_rules! map {
                 Map {root: t, len: len}
             }
 
-            /// get the number of elements in the map O(1)
+            /// get the number of elements in the map O(1) time and space
             pub fn len(&self) -> usize { self.len }
 
             /// return an iterator over the subset of elements in the

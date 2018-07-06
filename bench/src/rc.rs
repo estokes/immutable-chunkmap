@@ -29,7 +29,7 @@ fn bench_insert_sorted(len: usize) -> (Map<i64, i64>, Vec<i64>, Duration) {
 fn bench_insert(data: &Vec<i64>) -> Duration {
     let mut m = Map::new();
     let begin = Instant::now();
-    for k in data { m = m.insert(k, k); }
+    for k in data { m = m.insert(k, k).0; }
     begin.elapsed()
 }
 
