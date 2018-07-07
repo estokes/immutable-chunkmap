@@ -37,14 +37,15 @@ macro_rules! avltree {
             vals: Vec<V>
         }
 
-        enum InsertChunk<K: Ord + Clone + Debug, V: Clone + Debug> {
-            InsertLeft(Vec<(K, V)>),
-            InsertRight(Vec<(K, V)>),
-            Inserted {
+        enum UpdateChunk<K: Ord + Clone + Debug, V: Clone + Debug, D: Debug> {
+            UpdateLeft(Vec<D>),
+            UpdateRight(Vec<D>),
+            Updated {
                 elts: Elts<K, V>,
                 len: usize,
-                insert_left: Vec<(K, V)>,
-                insert_right: Vec<(K, V)>
+                update_left: Vec<D>,
+                update_right: Vec<D>,
+                overflow_right: Vec<(K, V)>
             },
         }
 
@@ -98,89 +99,124 @@ macro_rules! avltree {
             }
 
             // chunk must be sorted
-            fn insert_chunk(
-                &self, mut chunk: Vec<(K, V)>, len: usize, leaf: bool
-            ) -> InsertChunk<K, V> {
+            fn update_chunk<D, KF, UF>(
+                &self,
+                mut chunk: Vec<D>,
+                mut len: usize,
+                leaf: bool,
+                kf: KF,
+                uf: UF
+            ) -> UpdateChunk<K, V, D>
+            where KF: FnMut(&D) -> &K,
+                  UF: FnMut(D, Option<&V>) -> Option<(K, V)>,
+                  D: Debug
+            {
                 assert!(chunk.len() <= SIZE);
                 if chunk.len() == 0 {
-                    InsertChunk::Inserted {
+                    UpdateChunk::Updated {
                         elts: self.clone(), len,
-                        insert_left: Vec::new(),
-                        insert_right: Vec::new()
+                        update_left: Vec::new(),
+                        update_right: Vec::new(),
+                        overflow_right: Vec::new(),
                     }
                 }
                 else if self.len() == 0 {
-                    let mut t = Elts::empty();
-                    let n = chunk.len();
-                    for _ in 0..n {
-                        let (k, v) = chunk.pop().unwrap();
-                        t.keys.push(k);
-                        t.vals.push(v);
+                    let mut elts = Elts::empty();
+                    for d in chunk.drain(0..) {
+                        match uf(d, None) {
+                            None => (),
+                            Some((k, v)) => {
+                                elts.keys.push(k);
+                                elts.vals.push(v);
+                                len += 1;
+                            }
+                        }
                     }
-                    t.keys.reverse();
-                    t.vals.reverse();
-                    InsertChunk::Inserted {
-                        elts: t,
-                        len: len + n,
-                        insert_left: Vec::new(),
-                        insert_right: Vec::new()
+                    elts.keys.reverse();
+                    elts.vals.reverse();
+                    UpdateChunk::Updated {
+                        elts, len,
+                        update_left: Vec::new(),
+                        update_right: Vec::new(),
+                        overflow_right: Vec::new(),
                     }
                 } else {
                     let full = !leaf || self.len() == SIZE;
-                    if full && self.get(&chunk[chunk.len() - 1].0) == Loc::InLeft {
-                        InsertChunk::InsertLeft(chunk)
-                    } else if full && self.get(&chunk[0].0) == Loc::InRight {
-                        InsertChunk::InsertRight(chunk)
+                    if full && self.get(kf(&chunk[chunk.len() - 1])) == Loc::InLeft {
+                        UpdateChunk::UpdateLeft(chunk)
+                    } else if full && self.get(kf(&chunk[0])) == Loc::InRight {
+                        UpdateChunk::UpdateRight(chunk)
                     } else {
-                        let mut t = self.clone();
-                        let mut len = len;
-                        let mut insert_left = Vec::new();
-                        let mut insert_right = Vec::new();
-                        let n = chunk.len();
-                        for _ in 0..n {
-                            let (k, v) = chunk.pop().unwrap();
-                            match t.get(&k) {
+                        let mut elts = self.clone();
+                        let mut update_left = Vec::new();
+                        let mut update_right = Vec::new();
+                        let mut overflow_right = Vec::new();
+                        for d in chunk.drain(0..) {
+                            match elts.get(kf(&d)) {
                                 Loc::Here(i) => {
-                                    t.keys[i] = k;
-                                    t.vals[i] = v;
+                                    match uf(d, Some(&elts.vals[i])) {
+                                        None => {
+                                            elts.keys.remove(i);
+                                            elts.vals.remove(i);
+                                            len -= 1
+                                        },
+                                        Some((k, v)) => {
+                                            elts.keys[i] = k;
+                                            elts.vals[i] = v;
+                                        }
+                                    }
                                 },
                                 Loc::NotPresent(i) =>
-                                    if t.len() < SIZE {
-                                        t.keys.insert(i, k);
-                                        t.vals.insert(i, v);
-                                        len = len + 1;
-                                    } else {
-                                        insert_right.push(
-                                            (t.keys.pop().unwrap(),
-                                             t.vals.pop().unwrap())
-                                        );
-                                        t.keys.insert(i, k);
-                                        t.vals.insert(i, v);
+                                    match uf(d, None) {
+                                        None => (),
+                                        Some((k, v)) => {
+                                            if elts.len() < SIZE {
+                                                elts.keys.insert(i, k);
+                                                elts.vals.insert(i, v);
+                                                len += 1;
+                                            } else {
+                                                overflow_right.push(
+                                                    (elts.keys.pop().unwrap(),
+                                                     elts.vals.pop().unwrap())
+                                                );
+                                                elts.keys.insert(i, k);
+                                                elts.vals.insert(i, v);
+                                            }
+                                        }
                                     },
                                 Loc::InLeft =>
-                                    if leaf && t.keys.len() < SIZE {
-                                        t.keys.insert(0, k);
-                                        t.vals.insert(0, v);
-                                        len = len + 1;
+                                    if leaf && elts.keys.len() < SIZE {
+                                        match uf(d, None) {
+                                            None => (),
+                                            Some((k, v)) => {
+                                                elts.keys.insert(0, k);
+                                                elts.vals.insert(0, v);
+                                                len += 1
+                                            }
+                                        }
                                     } else {
-                                        insert_left.push((k, v))
+                                        update_left.push(d)
                                     },
                                 Loc::InRight =>
-                                    if leaf && t.len() < SIZE {
-                                        t.keys.push(k);
-                                        t.vals.push(v);
-                                        len = len + 1;
+                                    if leaf && elts.len() < SIZE {
+                                        match uf(d, None) {
+                                            None => (),
+                                            Some((k, v)) => {
+                                                elts.keys.push(k);
+                                                elts.vals.push(v);
+                                                len += 1;
+                                            }
+                                        }
                                     } else {
-                                        insert_right.push((k, v))
+                                        update_right.push(d)
                                     }
                             }
                         }
-                        insert_left.sort_unstable_by(
-                            |&(ref k1, _), &(ref k2, _)| k1.cmp(k2));
-                        insert_right.sort_unstable_by(
-                            |&(ref k1, _), &(ref k2, _)| k1.cmp(k2));
-                        InsertChunk::Inserted {
-                            elts: t, len, insert_left, insert_right
+                        update_left.sort_unstable_by(|d0, d1| kf(d0).cmp(kf(d1)));
+                        update_right.sort_unstable_by(|d0, d1| kf(d0).cmp(kf(d1)));
+                        overflow_right.reverse();
+                        UpdateChunk::Updated {
+                            elts, len, update_left, update_right, overflow_right
                         }
                     }
                 }
