@@ -14,9 +14,9 @@ macro_rules! avltree {
         #[derive(PartialEq)]
         enum Loc {
             InRight,
-            InLeft,
-            NotPresent(usize), // the index in the array where the element would be if it was present
-            Here(usize) // the index in the array where the equal element is
+            InLeft,            
+            NotPresent(usize),
+            Here(usize)
         }
 
         /*
