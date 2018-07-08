@@ -38,8 +38,8 @@ macro_rules! avltree {
         }
 
         enum UpdateChunk<K: Ord + Clone + Debug, V: Clone + Debug, D> {
-            UpdateLeft(Vec<D>),
-            UpdateRight(Vec<D>),
+            UpdateLeft(Vec<(K, D)>),
+            UpdateRight(Vec<(K, D)>),
             Created {
                 elts: Elts<K, V>,
                 len: usize
@@ -47,8 +47,8 @@ macro_rules! avltree {
             Updated {
                 elts: Elts<K, V>,
                 len: usize,
-                update_left: Vec<D>,
-                update_right: Vec<D>,
+                update_left: Vec<(K, D)>,
+                update_right: Vec<(K, D)>,
                 overflow_right: Vec<(K, V)>
             },
         }
@@ -107,24 +107,22 @@ macro_rules! avltree {
             }
 
             // chunk must be sorted
-            fn update_chunk<D, KF, UF>(
+            fn update_chunk<D, F>(
                 &self,
-                mut chunk: Vec<D>,
+                mut chunk: Vec<(K, D)>,
                 mut len: usize,
                 leaf: bool,
-                kf: &mut KF,
-                uf: &mut UF
+                f: &mut F
             ) -> UpdateChunk<K, V, D>
-            where KF: FnMut(&D) -> &K,
-                  UF: FnMut(D, Option<&V>) -> Option<(K, V)>,
+            where F: FnMut(&K, D, Option<&V>) -> Option<V>,
             {
                 assert!(chunk.len() <= SIZE && chunk.len() > 0);
                 if self.len() == 0 {
                     let mut elts = Elts::with_capacity(chunk.len());
-                    for d in chunk.drain(0..) {
-                        match uf(d, None) {
+                    for (k, d) in chunk.drain(0..) {
+                        match f(&k, d, None) {
                             None => (),
-                            Some((k, v)) => {
+                            Some(v) => {
                                 elts.keys.push(k);
                                 elts.vals.push(v);
                                 len += 1;
@@ -134,23 +132,23 @@ macro_rules! avltree {
                     UpdateChunk::Created { elts, len }
                 } else {
                     let full = !leaf || self.len() >= SIZE;
-                    if full && self.get((*kf)(&chunk[chunk.len() - 1])) == Loc::InLeft {
+                    if full && self.get(&chunk[chunk.len() - 1].0) == Loc::InLeft {
                         UpdateChunk::UpdateLeft(chunk)
-                    } else if full && self.get((*kf)(&chunk[0])) == Loc::InRight {
+                    } else if full && self.get(&chunk[0].0) == Loc::InRight {
                         UpdateChunk::UpdateRight(chunk)
                     } else {
                         let mut elts = Elts::with_capacity(chunk.len() + self.len());
                         let mut pos = 0;
                         let mut update_left = Vec::new();
                         let mut update_right = Vec::new();
-                        for d in chunk.drain(0..) {
+                        for (k, d) in chunk.drain(0..) {
                             loop {
                                 if pos >= self.len() {
-                                    if !leaf { update_right.push(d) }
+                                    if !leaf { update_right.push((k, d)) }
                                     else {
-                                        match (*uf)(d, None) {
+                                        match f(&k, d, None) {
                                             None => (),
-                                            Some((k, v)) => {
+                                            Some(v) => {
                                                 elts.keys.push(k);
                                                 elts.vals.push(v);
                                             }
@@ -158,18 +156,18 @@ macro_rules! avltree {
                                     }
                                     break
                                 }
-                                match (*kf)(&d).cmp(&self.keys[pos]) {
+                                match k.cmp(&self.keys[pos]) {
                                     Ordering::Greater => {
                                         elts.keys.push(self.keys[pos].clone());
                                         elts.vals.push(self.vals[pos].clone());
                                         pos += 1;
                                     },
                                     Ordering::Less => {
-                                        if pos == 0 && !leaf { update_left.push(d) }
+                                        if pos == 0 && !leaf { update_left.push((k, d)) }
                                         else {
-                                            match (*uf)(d, None) {
+                                            match f(&k, d, None) {
                                                 None => (),
-                                                Some((k, v)) => {
+                                                Some(v) => {
                                                     elts.keys.push(k);
                                                     elts.vals.push(v);
                                                 }
@@ -178,9 +176,9 @@ macro_rules! avltree {
                                         break
                                     },
                                     Ordering::Equal => {
-                                        match (*uf)(d, Some(&self.vals[pos])) {
+                                        match f(&k, d, Some(&self.vals[pos])) {
                                             None => (),
-                                            Some((k, v)) => {
+                                            Some(v) => {
                                                 elts.keys.push(k);
                                                 elts.vals.push(v);
                                             }
@@ -644,24 +642,22 @@ macro_rules! avltree {
                 }
             }
 
-            fn update_chunk<D, KF, UF>(
+            fn update_chunk<D, F>(
                 &self,
                 len: usize,
-                chunk: Vec<D>,
-                kf: &mut KF,
-                uf: &mut UF
+                chunk: Vec<(K, D)>,
+                f: &mut F,
             ) -> (Self, usize)
-            where KF: FnMut(&D) -> &K,
-                  UF: FnMut(D, Option<&V>) -> Option<(K, V)>
+            where F: FnMut(&K, D, Option<&V>) -> Option<V>
             {
                 if chunk.len() == 0 { return (self.clone(), len) }
                 match self {
                     &Tree::Empty => {
                         let (elts, len) = {
                             let t = Elts::empty();
-                            match t.update_chunk(chunk, len, true, kf, uf) {
-                                UpdateChunk::Created r => (r.elts, r.len),
-                                UpdateChunk::Updated _ => unreachable!(),
+                            match t.update_chunk(chunk, len, true, f) {
+                                UpdateChunk::Created {elts, len} => (elts, len),
+                                UpdateChunk::Updated {..} => unreachable!(),
                                 UpdateChunk::UpdateLeft(_) => unreachable!(),
                                 UpdateChunk::UpdateRight(_) => unreachable!()
                             }
@@ -674,7 +670,7 @@ macro_rules! avltree {
                                 (&Tree::Empty, &Tree::Empty) => true,
                                 (_, _) => false
                             };
-                        match tn.elts.update_chunk(chunk, len, leaf, kf, uf) {
+                        match tn.elts.update_chunk(chunk, len, leaf, f) {
                             UpdateChunk::Created { elts, len } =>
                                 (Tree::create(&tn.left, &$pinit(elts), &tn.right), len),
                             UpdateChunk::Updated {
@@ -686,19 +682,19 @@ macro_rules! avltree {
                                     (Tree::create(&tn.left, &$pinit(elts), &tn.right), len)
                                 } else {
                                     let (l, len) =
-                                        tn.left.update_chunk(len, update_left, kf, uf);
+                                        tn.left.update_chunk(len, update_left, f);
                                     let (r, len) =
                                         tn.right.insert_chunk(len, overflow_right);
                                     let (r, len) =
-                                        r.update_chunk(len, update_right, kf, uf);
+                                        r.update_chunk(len, update_right, f);
                                     (Tree::bal(&l, &$pinit(elts), &r), len)
                                 },
                             UpdateChunk::UpdateLeft(chunk) => {
-                                let (l, len) = tn.left.update_chunk(len, chunk, kf, uf);
+                                let (l, len) = tn.left.update_chunk(len, chunk, f);
                                 (Tree::bal(&l, &tn.elts, &tn.right), len)
                             },
                             UpdateChunk::UpdateRight(chunk) => {
-                                let (r, len) = tn.right.update_chunk(len, chunk, kf, uf);
+                                let (r, len) = tn.right.update_chunk(len, chunk, f);
                                 (Tree::bal(&tn.left, &tn.elts, &r), len)
                             }
                         }
@@ -707,25 +703,20 @@ macro_rules! avltree {
             }
 
             fn insert_chunk(&self, len: usize, chunk: Vec<(K, V)>) -> (Self, usize) {
-                self.update_chunk(
-                    len, chunk,
-                    &mut |&(ref k, _)| k,
-                    &mut |(k, v), _| Some((k, v))
-                )
+                self.update_chunk(len, chunk, &mut |_, v, _| Some(v))
             }
 
-            pub(crate) fn update_sorted<D, E, KF, UF>(
-                &self, len: usize, elts: E, kf: &mut KF, uf: &mut UF
+            pub(crate) fn update_many<D, E, F>(
+                &self, len: usize, elts: E, f: &mut F,
             ) -> (Self, usize)
-            where E: IntoIterator<Item=D>,
-                  KF: FnMut(&D) -> &K,
-                  UF: FnMut(D, Option<&V>) -> Option<(K, V)> {
+            where E: IntoIterator<Item=(K, D)>,
+                  F: FnMut(&K, D, Option<&V>) -> Option<V> {
                 let mut t = (self.clone(), len);
-                let mut chunk = Vec::<D>::with_capacity(SIZE);
-                let add = |t: (Self, usize), mut chunk: Vec<D>| -> (Self, usize) {
-                    chunk.sort_unstable_by(|&d0, &d1| kf(d0).cmp(kf(d1)));
-                    chunk.dedup_by(|&mut d0, &mut d1| kf(d0) == kf(d1));
-                    t.0.update_chunk(t.1, chunk, kf, uf)
+                let mut chunk = Vec::<(K, D)>::with_capacity(SIZE);
+                let add = |t: (Self, usize), mut chunk: Vec<(K, D)>| -> (Self, usize) {
+                    chunk.sort_unstable_by(|&(ref k0, _), &(ref k1, _)| k0.cmp(k1));
+                    chunk.dedup_by(|&mut (ref k0, _), &mut (ref k1, _)| k0 == k1);
+                    t.0.update_chunk(t.1, chunk, f)
                 };
                 for d in elts {
                     chunk.push(d);
@@ -738,10 +729,10 @@ macro_rules! avltree {
                 t
             }
 
-            pub(crate) fn insert_sorted<E: IntoIterator<Item=(K, V)>>(
+            pub(crate) fn insert_many<E: IntoIterator<Item=(K, V)>>(
                 &self, len: usize, elts: E
             ) -> (Self, usize) {
-                self.update_sorted(
+                self.update_many(
                     len, elts,
                     &mut |&(ref k, _)| k,
                     &mut |(k, v), _| Some((k, v))

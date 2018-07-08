@@ -46,11 +46,10 @@ macro_rules! map {
             /// Create a new empty map
             pub fn new() -> Self { Map { len: 0, root: Tree::new() } }
 
-            /// This method inserts many elements at once, skipping
-            /// the intermediate node allocations where possible,
-            /// which in most cases provides a significant speedup. It
-            /// is able to skip more allocations if the data is
-            /// sorted, however it will still work with unsorted data.
+            /// This will insert many elements at once, and is
+            /// potentially a lot faster than inserting one by one,
+            /// especially if the data is sorted. It is just a wrapper
+            /// around the more general update_many method.
             ///
             /// #Examples
             ///```
@@ -59,17 +58,58 @@ macro_rules! map {
             /// let mut v = vec![(1, 3), (10, 1), (-12, 2), (44, 0), (50, -1)];
             /// v.sort_unstable_by_key(|&(k, _)| k);
             ///
-            /// let m = Map::new().insert_sorted(v.iter().map(|(k, v)| (*k, *v)));
+            /// let m = Map::new().insert_many(v.iter().map(|(k, v)| (*k, *v)));
             ///
             /// for (k, v) in &v {
             ///   assert_eq!(m.get(k), Option::Some(v))
             /// }
             /// ```
-            pub fn insert_sorted<E: IntoIterator<Item=(K, V)>>(
+            pub fn insert_many<E: IntoIterator<Item=(K, V)>>(
                 &self, elts: E
             ) -> Self {
-                let (t, len) = self.root.insert_sorted(self.len, elts);
-                Map { len: len, root: t }
+                let (root, len) = self.root.insert_sorted(self.len, elts);
+                Map { len, root }
+            }
+
+            /// This method updates multiple bindings in one call.
+            /// Given an iterator of an arbitrary type D, a key
+            /// extraction function on D, an update function taking D,
+            /// the current binding in the map, if any, and producing
+            /// the new binding, if any, this method will produce a
+            /// new map with updated bindings of many elements at
+            /// once. It will skip intermediate node allocations where
+            /// possible. If the data in elts is sorted, it will be
+            /// able to skip many more intermediate allocations, and
+            /// can produce a speedup of about 10x compared to
+            /// inserting/updating one by one. In some cases it can be
+            /// as fast as using a hashmap.
+            ///
+            /// This method will panic if kf, and uf return
+            /// inconsistent keys.
+            ///
+            /// #Examples
+            /// ```
+            /// use self::immutable_chunkmap::rc::map::Map;
+            ///
+            /// let m = Map::new().insert_many(0..4.map(|k| (k, k)));
+            /// let m = m.update_many(
+            ///     0..4,
+            ///     &mut |k| k,
+            ///     &mut |k, cur| Some((*k, cur.unwrap() + 1))
+            /// );
+            /// assert_eq!(
+            ///     m.into_iter().map(|(k, v)| (*k, *v)).collect<Vec<_>>(),
+            ///     vec![(0, 1), (1, 2), (2, 3), (3, 4)]
+            /// );
+            /// ```
+            pub fn update_many<D, E, KF, UF>(
+                &self, elts: E, kf: &mut KF, uf: &mut UF
+            ) -> (Self, usize)
+            where E: IntoIterator<Item=D>,
+                  KF: FnMut(&D) -> &K,
+                  UF: FnMut(D, Option<&V>) -> Option<(K, V)> {
+                let (root, len) = self.root.update_sorted(self.len, elts, kf, uf);
+                Map { len, root }
             }
 
             /// return a new map with (k, v) inserted into it. If k
