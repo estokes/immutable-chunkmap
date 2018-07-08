@@ -738,6 +738,16 @@ macro_rules! avltree {
                 t
             }
 
+            pub(crate) fn insert_sorted<E: IntoIterator<Item=(K, V)>>(
+                &self, len: usize, elts: E
+            ) -> (Self, usize) {
+                self.update_sorted(
+                    len, elts,
+                    &mut |&(ref k, _)| k,
+                    &mut |(k, v), _| Some((k, v))
+                )
+            }
+
             pub(crate) fn insert(
                 &self, len: usize, k: K, v: V
             ) -> (Self, usize, Option<(K, V)>) {
