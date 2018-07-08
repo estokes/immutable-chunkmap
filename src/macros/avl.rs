@@ -37,7 +37,7 @@ macro_rules! avltree {
             vals: Vec<V>
         }
 
-        enum UpdateChunk<K: Ord + Clone + Debug, V: Clone + Debug, D: Debug> {
+        enum UpdateChunk<K: Ord + Clone + Debug, V: Clone + Debug, D> {
             UpdateLeft(Vec<D>),
             UpdateRight(Vec<D>),
             Updated {
@@ -69,7 +69,11 @@ macro_rules! avltree {
                 Elts { keys: keys, vals: vals }
             }
 
-            fn empty() -> Self { Elts {keys: Vec::<K>::new(), vals: Vec::<V>::new()} }
+            fn empty() -> Self { Elts {keys: Vec::new(), vals: Vec::new()} }
+
+            fn with_capacity(n: usize) -> Self {
+                Elts { keys: Vec::with_capacity(n), vals: Vec::with_capacity(n) }
+            }
             
             fn get<Q: ?Sized + Ord>(&self, k: &Q) -> Loc where K: Borrow<Q> {
                 let len = self.len();
@@ -104,12 +108,11 @@ macro_rules! avltree {
                 mut chunk: Vec<D>,
                 mut len: usize,
                 leaf: bool,
-                kf: KF,
-                uf: UF
+                kf: &mut KF,
+                uf: &mut UF
             ) -> UpdateChunk<K, V, D>
             where KF: FnMut(&D) -> &K,
                   UF: FnMut(D, Option<&V>) -> Option<(K, V)>,
-                  D: Debug
             {
                 assert!(chunk.len() <= SIZE);
                 if chunk.len() == 0 {
@@ -121,7 +124,7 @@ macro_rules! avltree {
                     }
                 }
                 else if self.len() == 0 {
-                    let mut elts = Elts::empty();
+                    let mut elts = Elts::with_capacity(chunk.len());
                     for d in chunk.drain(0..) {
                         match uf(d, None) {
                             None => (),
@@ -132,8 +135,6 @@ macro_rules! avltree {
                             }
                         }
                     }
-                    elts.keys.reverse();
-                    elts.vals.reverse();
                     UpdateChunk::Updated {
                         elts, len,
                         update_left: Vec::new(),
@@ -141,80 +142,79 @@ macro_rules! avltree {
                         overflow_right: Vec::new(),
                     }
                 } else {
-                    let full = !leaf || self.len() == SIZE;
-                    if full && self.get(kf(&chunk[chunk.len() - 1])) == Loc::InLeft {
+                    let full = !leaf || self.len() >= SIZE;
+                    if full && self.get((*kf)(&chunk[chunk.len() - 1])) == Loc::InLeft {
                         UpdateChunk::UpdateLeft(chunk)
-                    } else if full && self.get(kf(&chunk[0])) == Loc::InRight {
+                    } else if full && self.get((*kf)(&chunk[0])) == Loc::InRight {
                         UpdateChunk::UpdateRight(chunk)
                     } else {
-                        let mut elts = self.clone();
+                        let mut elts = Elts::with_capacity(chunk.len() + self.len());
+                        let mut pos = 0;
                         let mut update_left = Vec::new();
                         let mut update_right = Vec::new();
-                        let mut overflow_right = Vec::new();
                         for d in chunk.drain(0..) {
-                            match elts.get(kf(&d)) {
-                                Loc::Here(i) => {
-                                    match uf(d, Some(&elts.vals[i])) {
-                                        None => {
-                                            elts.keys.remove(i);
-                                            elts.vals.remove(i);
-                                            len -= 1
-                                        },
-                                        Some((k, v)) => {
-                                            elts.keys[i] = k;
-                                            elts.vals[i] = v;
-                                        }
-                                    }
-                                },
-                                Loc::NotPresent(i) =>
-                                    match uf(d, None) {
-                                        None => (),
-                                        Some((k, v)) => {
-                                            if elts.len() < SIZE {
-                                                elts.keys.insert(i, k);
-                                                elts.vals.insert(i, v);
-                                                len += 1;
-                                            } else {
-                                                overflow_right.push(
-                                                    (elts.keys.pop().unwrap(),
-                                                     elts.vals.pop().unwrap())
-                                                );
-                                                elts.keys.insert(i, k);
-                                                elts.vals.insert(i, v);
-                                            }
-                                        }
-                                    },
-                                Loc::InLeft =>
-                                    if leaf && elts.keys.len() < SIZE {
-                                        match uf(d, None) {
-                                            None => (),
-                                            Some((k, v)) => {
-                                                elts.keys.insert(0, k);
-                                                elts.vals.insert(0, v);
-                                                len += 1
-                                            }
-                                        }
-                                    } else {
-                                        update_left.push(d)
-                                    },
-                                Loc::InRight =>
-                                    if leaf && elts.len() < SIZE {
-                                        match uf(d, None) {
+                            loop {
+                                if pos >= self.len() {
+                                    if !leaf { update_right.push(d) }
+                                    else {
+                                        match (*uf)(d, None) {
                                             None => (),
                                             Some((k, v)) => {
                                                 elts.keys.push(k);
                                                 elts.vals.push(v);
-                                                len += 1;
                                             }
                                         }
-                                    } else {
-                                        update_right.push(d)
                                     }
+                                    break
+                                }
+                                match (*kf)(&d).cmp(&self.keys[pos]) {
+                                    Ordering::Greater => {
+                                        elts.keys.push(self.keys[pos].clone());
+                                        elts.vals.push(self.vals[pos].clone());
+                                        pos += 1;
+                                    },
+                                    Ordering::Less => {
+                                        if pos == 0 && !leaf { update_left.push(d) }
+                                        else {
+                                            match (*uf)(d, None) {
+                                                None => (),
+                                                Some((k, v)) => {
+                                                    elts.keys.push(k);
+                                                    elts.vals.push(v);
+                                                }
+                                            }
+                                        }
+                                        break
+                                    },
+                                    Ordering::Equal => {
+                                        match (*uf)(d, Some(&self.vals[pos])) {
+                                            None => (),
+                                            Some((k, v)) => {
+                                                elts.keys.push(k);
+                                                elts.vals.push(v);
+                                            }
+                                        }
+                                        pos += 1;
+                                        break
+                                    },
+                                }
                             }
                         }
-                        update_left.sort_unstable_by(|d0, d1| kf(d0).cmp(kf(d1)));
-                        update_right.sort_unstable_by(|d0, d1| kf(d0).cmp(kf(d1)));
-                        overflow_right.reverse();
+                        while pos < self.len() {
+                            elts.keys.push(self.keys[pos].clone());
+                            elts.vals.push(self.vals[pos].clone());
+                            pos += 1;
+                        }
+                        let overflow_right = {
+                            if elts.len() <= SIZE { Vec::new() }
+                            else {
+                                let k = elts.keys.split_off(SIZE);
+                                let v = elts.vals.split_off(SIZE);
+                                k.into_iter().zip(v.into_iter()).collect::<Vec<_>>()
+                            }
+                        };
+                        elts.keys.shrink_to_fit();
+                        elts.vals.shrink_to_fit();
                         UpdateChunk::Updated {
                             elts, len, update_left, update_right, overflow_right
                         }
@@ -653,17 +653,28 @@ macro_rules! avltree {
                 }
             }
 
-            fn insert_chunk(&self, len: usize, chunk: Vec<(K, V)>) -> (Self, usize) {
+            fn update_chunk<D, KF, UF>(
+                &self,
+                len: usize,
+                chunk: Vec<D>,
+                kf: &mut KF,
+                uf: &mut UF
+            ) -> (Self, usize)
+            where KF: FnMut(&D) -> &K,
+                  UF: FnMut(D, Option<&V>) -> Option<(K, V)>
+            {
                 match self {
                     &Tree::Empty => {
                         if chunk.len() == 0 { (Tree::Empty, len) }
                         else {
-                            let (elts, len) =
-                                match Elts::empty().insert_chunk(chunk, len, true) {
-                                    InsertChunk::Inserted {elts, len, ..} => (elts, len),
-                                    InsertChunk::InsertLeft(_)
-                                        | InsertChunk::InsertRight(_) => unreachable!()
-                                };
+                            let (elts, len) = {
+                                let t = Elts::empty();
+                                match t.update_chunk(chunk, len, true, kf, uf) {
+                                    UpdateChunk::Updated {elts, len, ..} => (elts, len),
+                                    UpdateChunk::UpdateLeft(_)
+                                        | UpdateChunk::UpdateRight(_) => unreachable!()
+                                }
+                            };
                             (Tree::create(&Tree::Empty, &$pinit(elts), &Tree::Empty), len)
                         }
                     },
