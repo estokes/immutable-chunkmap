@@ -4,7 +4,7 @@ macro_rules! avltree {
         use arrayvec::ArrayVec;
         use std::{
             cmp::{Ord, Ordering, max, min}, fmt::Debug,
-            borrow::Borrow, slice, iter, vec, ops::Bound,
+            borrow::Borrow, slice, iter, vec, ops::{Bound, Index},
             mem::swap
         };
 
@@ -64,13 +64,20 @@ macro_rules! avltree {
             }
         }
 
+        impl<K, V> Index<usize> for Elts<K, V>
+        where K: Ord + Clone + Debug, V: Clone + Debug {
+            type Output = (K, V);
+
+            fn index(&self, index: usize) -> &Self::Output {
+                &(self.keys[index], self.vals[index])
+            }
+        }
+
         impl<K,V> Elts<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
             fn singleton(k: K, v: V) -> Self {
-                let mut keys = Vec::<K>::new();
-                let mut vals = Vec::<V>::new();
-                keys.push(k);
-                vals.push(v);
-                Elts { keys: keys, vals: vals }
+                let mut t = Elts::with_capacity(1);
+                t.push(k, v);
+                t
             }
 
             fn empty() -> Self { Elts {keys: Vec::new(), vals: Vec::new()} }
@@ -106,6 +113,11 @@ macro_rules! avltree {
                 }
             }
 
+            fn push(&mut self, (k, v): (K, V)) {
+                self.keys.push(k);
+                self.vals.push(v);
+            }
+
             // chunk must be sorted
             fn update_chunk<D, F>(
                 &self,
@@ -123,8 +135,7 @@ macro_rules! avltree {
                         match f(&k, d, None) {
                             None => (),
                             Some(v) => {
-                                elts.keys.push(k);
-                                elts.vals.push(v);
+                                elts.push((k, v));
                                 len += 1;
                             }
                         }
@@ -145,43 +156,26 @@ macro_rules! avltree {
                             loop {
                                 if pos >= self.len() {
                                     if !leaf { update_right.push((k, d)) }
-                                    else {
-                                        match f(&k, d, None) {
-                                            None => (),
-                                            Some(v) => {
-                                                elts.keys.push(k);
-                                                elts.vals.push(v);
-                                            }
-                                        }
+                                    else if let Some(v) = f(&k, d, None) {
+                                        elts.push((k, v))
                                     }
                                     break
                                 }
                                 match k.cmp(&self.keys[pos]) {
                                     Ordering::Greater => {
-                                        elts.keys.push(self.keys[pos].clone());
-                                        elts.vals.push(self.vals[pos].clone());
+                                        elts.push(self[pos].clone());
                                         pos += 1;
                                     },
                                     Ordering::Less => {
                                         if pos == 0 && !leaf { update_left.push((k, d)) }
-                                        else {
-                                            match f(&k, d, None) {
-                                                None => (),
-                                                Some(v) => {
-                                                    elts.keys.push(k);
-                                                    elts.vals.push(v);
-                                                }
-                                            }
+                                        else if let Some(v) = f(&k, d, None) {
+                                            elts.push((k, v))
                                         }
                                         break
                                     },
                                     Ordering::Equal => {
-                                        match f(&k, d, Some(&self.vals[pos])) {
-                                            None => (),
-                                            Some(v) => {
-                                                elts.keys.push(k);
-                                                elts.vals.push(v);
-                                            }
+                                        if let Some(v) = f(&k, d, Some(&self[pos].1)) {
+                                            elts.push((k, v))
                                         }
                                         pos += 1;
                                         break
@@ -190,8 +184,7 @@ macro_rules! avltree {
                             }
                         }
                         while pos < self.len() {
-                            elts.keys.push(self.keys[pos].clone());
-                            elts.vals.push(self.vals[pos].clone());
+                            elts.push(self[pos].clone());
                             pos += 1;
                         }
                         let overflow_right = {
@@ -225,24 +218,27 @@ macro_rules! avltree {
                             elts: t, len, overflow: None, previous: Some((k, v))
                         }
                     },
-                    Loc::NotPresent(i) =>
-                        if self.len() < SIZE {
-                            let mut t = self.clone();
-                            t.keys.insert(i, k);
-                            t.vals.insert(i, v);
-                            Insert::Inserted {
-                                elts: t, len: len + 1, overflow: None, previous: None
+                    Loc::NotPresent(i) => {
+                        let mut elts = Elts::with_capacity(self.len() + 1);
+                        for j in 0..self.len() {
+                            if j == i {
+                                elts.keys.push(k);
+                                elts.vals.push(v);
                             }
-                        } else {
-                            // we need to add it here, but to do that we have
-                            // to take an element out, so we return that overflow element
-                            let mut t = self.clone();
-                            let overflow =
-                                Some((t.keys.pop().unwrap(), t.vals.pop().unwrap()));
-                            t.keys.insert(i, k);
-                            t.vals.insert(i, v);
-                            Insert::Inserted {elts: t, len, overflow, previous: None}
-                        },
+                            elts.keys.push(self.keys[j].clone());
+                            elts.vals.push(self.vals[j].clone());
+                        }
+                        let (overflow, len) = {
+                            if elts.len() <= SIZE { (None, len + 1) }
+                            else {
+                                let ovf =
+                                    (elts.keys.pop().unwrap(),
+                                     elts.vals.pop().unwrap());
+                                (Some(ovf), len)
+                            }
+                        };
+                        Insert::Inserted { elts, len, overflow, previous: None }
+                    },
                     loc @ Loc::InLeft | loc @ Loc::InRight => {
                         if !leaf || self.len() == SIZE {
                             match loc {
@@ -252,20 +248,28 @@ macro_rules! avltree {
                             }
                         }
                         else {
-                            let mut t = self.clone();
+                            let mut elts = Elts::with_capacity(self.len() + 1);
                             match loc {
                                 Loc::InLeft => {
-                                    t.keys.insert(0, k);
-                                    t.vals.insert(0, v);
+                                    elts.keys.push(k);
+                                    elts.vals.push(v);
+                                    for i in 0..self.len() {
+                                        elts.keys.push(self.keys[i].clone());
+                                        elts.vals.push(self.vals[i].clone());
+                                    }
                                 },
                                 Loc::InRight => {
-                                    t.keys.push(k);
-                                    t.vals.push(v);
+                                    for i in 0..self.len() {
+                                        elts.keys.push(self.keys[i].clone());
+                                        elts.vals.push(self.vals[i].clone());
+                                    }
+                                    elts.keys.push(k);
+                                    elts.vals.push(v);
                                 },
                                 _ => unreachable!("bug")
                             };
                             Insert::Inserted {
-                                elts: t, len: len + 1, overflow: None, previous: None
+                                elts, len: len + 1, overflow: None, previous: None
                             }
                         }
                     }
@@ -732,11 +736,7 @@ macro_rules! avltree {
             pub(crate) fn insert_many<E: IntoIterator<Item=(K, V)>>(
                 &self, len: usize, elts: E
             ) -> (Self, usize) {
-                self.update_many(
-                    len, elts,
-                    &mut |&(ref k, _)| k,
-                    &mut |(k, v), _| Some((k, v))
-                )
+                self.update_many(len, elts, &mut |_, v, _| Some(v))
             }
 
             pub(crate) fn insert(

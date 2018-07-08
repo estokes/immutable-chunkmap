@@ -67,7 +67,7 @@ macro_rules! map {
             pub fn insert_many<E: IntoIterator<Item=(K, V)>>(
                 &self, elts: E
             ) -> Self {
-                let (root, len) = self.root.insert_sorted(self.len, elts);
+                let (root, len) = self.root.insert_many(self.len, elts);
                 Map { len, root }
             }
 
@@ -102,13 +102,10 @@ macro_rules! map {
             ///     vec![(0, 1), (1, 2), (2, 3), (3, 4)]
             /// );
             /// ```
-            pub fn update_many<D, E, KF, UF>(
-                &self, elts: E, kf: &mut KF, uf: &mut UF
-            ) -> (Self, usize)
-            where E: IntoIterator<Item=D>,
-                  KF: FnMut(&D) -> &K,
-                  UF: FnMut(D, Option<&V>) -> Option<(K, V)> {
-                let (root, len) = self.root.update_sorted(self.len, elts, kf, uf);
+            pub fn update_many<D, E, F>(&self, elts: E, f: &mut F) -> Self
+            where E: IntoIterator<Item=(K, D)>,
+                  F: FnMut(&K, D, Option<&V>) -> Option<V> {
+                let (root, len) = self.root.update_many(self.len, elts, f);
                 Map { len, root }
             }
 
