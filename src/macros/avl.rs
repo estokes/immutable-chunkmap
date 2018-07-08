@@ -40,6 +40,10 @@ macro_rules! avltree {
         enum UpdateChunk<K: Ord + Clone + Debug, V: Clone + Debug, D> {
             UpdateLeft(Vec<D>),
             UpdateRight(Vec<D>),
+            Created {
+                elts: Elts<K, V>,
+                len: usize
+            },
             Updated {
                 elts: Elts<K, V>,
                 len: usize,
@@ -114,16 +118,8 @@ macro_rules! avltree {
             where KF: FnMut(&D) -> &K,
                   UF: FnMut(D, Option<&V>) -> Option<(K, V)>,
             {
-                assert!(chunk.len() <= SIZE);
-                if chunk.len() == 0 {
-                    UpdateChunk::Updated {
-                        elts: self.clone(), len,
-                        update_left: Vec::new(),
-                        update_right: Vec::new(),
-                        overflow_right: Vec::new(),
-                    }
-                }
-                else if self.len() == 0 {
+                assert!(chunk.len() <= SIZE && chunk.len() > 0);
+                if self.len() == 0 {
                     let mut elts = Elts::with_capacity(chunk.len());
                     for d in chunk.drain(0..) {
                         match uf(d, None) {
@@ -135,12 +131,7 @@ macro_rules! avltree {
                             }
                         }
                     }
-                    UpdateChunk::Updated {
-                        elts, len,
-                        update_left: Vec::new(),
-                        update_right: Vec::new(),
-                        overflow_right: Vec::new(),
-                    }
+                    UpdateChunk::Created { elts, len }
                 } else {
                     let full = !leaf || self.len() >= SIZE;
                     if full && self.get((*kf)(&chunk[chunk.len() - 1])) == Loc::InLeft {
@@ -663,20 +654,19 @@ macro_rules! avltree {
             where KF: FnMut(&D) -> &K,
                   UF: FnMut(D, Option<&V>) -> Option<(K, V)>
             {
+                if chunk.len() == 0 { return (self.clone(), len) }
                 match self {
                     &Tree::Empty => {
-                        if chunk.len() == 0 { (Tree::Empty, len) }
-                        else {
-                            let (elts, len) = {
-                                let t = Elts::empty();
-                                match t.update_chunk(chunk, len, true, kf, uf) {
-                                    UpdateChunk::Updated {elts, len, ..} => (elts, len),
-                                    UpdateChunk::UpdateLeft(_)
-                                        | UpdateChunk::UpdateRight(_) => unreachable!()
-                                }
-                            };
-                            (Tree::create(&Tree::Empty, &$pinit(elts), &Tree::Empty), len)
-                        }
+                        let (elts, len) = {
+                            let t = Elts::empty();
+                            match t.update_chunk(chunk, len, true, kf, uf) {
+                                UpdateChunk::Created r => (r.elts, r.len),
+                                UpdateChunk::Updated _ => unreachable!(),
+                                UpdateChunk::UpdateLeft(_) => unreachable!(),
+                                UpdateChunk::UpdateRight(_) => unreachable!()
+                            }
+                        };
+                        (Tree::create(&Tree::Empty, &$pinit(elts), &Tree::Empty), len)
                     },
                     &Tree::Node(ref tn) => {
                         let leaf =
@@ -684,24 +674,31 @@ macro_rules! avltree {
                                 (&Tree::Empty, &Tree::Empty) => true,
                                 (_, _) => false
                             };
-                        if chunk.len() == 0 { return (self.clone(), len) }
-                        match tn.elts.insert_chunk(chunk, len, leaf) {
-                            InsertChunk::Inserted {elts, len, insert_left, insert_right} =>
-                                if insert_left.len() == 0 && insert_right.len() == 0 {
+                        match tn.elts.update_chunk(chunk, len, leaf, kf, uf) {
+                            UpdateChunk::Created { elts, len } =>
+                                (Tree::create(&tn.left, &$pinit(elts), &tn.right), len),
+                            UpdateChunk::Updated {
+                                elts, len, update_left, update_right, overflow_right
+                            } =>
+                                if update_left.len() == 0
+                                && update_right.len() == 0
+                                && overflow_right.len() == 0 {
                                     (Tree::create(&tn.left, &$pinit(elts), &tn.right), len)
                                 } else {
                                     let (l, len) =
-                                        tn.left.insert_chunk(len, insert_left);
+                                        tn.left.update_chunk(len, update_left, kf, uf);
                                     let (r, len) =
-                                        tn.right.insert_chunk(len, insert_right);
+                                        tn.right.insert_chunk(len, overflow_right);
+                                    let (r, len) =
+                                        r.update_chunk(len, update_right, kf, uf);
                                     (Tree::bal(&l, &$pinit(elts), &r), len)
                                 },
-                            InsertChunk::InsertLeft(chunk) => {
-                                let (l, len) = tn.left.insert_chunk(len, chunk);
+                            UpdateChunk::UpdateLeft(chunk) => {
+                                let (l, len) = tn.left.update_chunk(len, chunk, kf, uf);
                                 (Tree::bal(&l, &tn.elts, &tn.right), len)
                             },
-                            InsertChunk::InsertRight(chunk) => {
-                                let (r, len) = tn.right.insert_chunk(len, chunk);
+                            UpdateChunk::UpdateRight(chunk) => {
+                                let (r, len) = tn.right.update_chunk(len, chunk, kf, uf);
                                 (Tree::bal(&tn.left, &tn.elts, &r), len)
                             }
                         }
@@ -709,18 +706,29 @@ macro_rules! avltree {
                 }
             }
 
-            pub(crate) fn insert_sorted<E: IntoIterator<Item=(K, V)>>(
-                &self, len: usize, elts: E
-            ) -> (Self, usize) {
+            fn insert_chunk(&self, len: usize, chunk: Vec<(K, V)>) -> (Self, usize) {
+                self.update_chunk(
+                    len, chunk,
+                    &mut |&(ref k, _)| k,
+                    &mut |(k, v), _| Some((k, v))
+                )
+            }
+
+            pub(crate) fn update_sorted<D, E, KF, UF>(
+                &self, len: usize, elts: E, kf: &mut KF, uf: &mut UF
+            ) -> (Self, usize)
+            where E: IntoIterator<Item=D>,
+                  KF: FnMut(&D) -> &K,
+                  UF: FnMut(D, Option<&V>) -> Option<(K, V)> {
                 let mut t = (self.clone(), len);
-                let mut chunk = Vec::<(K, V)>::with_capacity(SIZE);
-                let add = |t: (Self, usize), mut chunk: Vec<(K, V)>| -> (Self, usize) {
-                    chunk.sort_unstable_by(|&(ref k0, _), &(ref k1, _)| k0.cmp(k1));
-                    chunk.dedup_by(|&mut (ref k0, _), &mut (ref k1, _)| k0 == k1);
-                    t.0.insert_chunk(t.1, chunk)
+                let mut chunk = Vec::<D>::with_capacity(SIZE);
+                let add = |t: (Self, usize), mut chunk: Vec<D>| -> (Self, usize) {
+                    chunk.sort_unstable_by(|&d0, &d1| kf(d0).cmp(kf(d1)));
+                    chunk.dedup_by(|&mut d0, &mut d1| kf(d0) == kf(d1));
+                    t.0.update_chunk(t.1, chunk, kf, uf)
                 };
-                for kv in elts {
-                    chunk.push(kv);
+                for d in elts {
+                    chunk.push(d);
                     if chunk.len() >= SIZE {
                         t = add(t, chunk);
                         chunk = Vec::with_capacity(SIZE);
