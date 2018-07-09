@@ -736,31 +736,36 @@ macro_rules! avltree {
                 self.update_many(len, elts, &mut |_, v, _| Some(v))
             }
 
-            pub(crate) fn insert(
-                &self, len: usize, k: K, v: V
-            ) -> (Self, usize, Option<(K, V)>) {
+            pub(crate) fn update<D, F>(
+                &self, len: usize, k: K, d: D, f: &mut F
+            ) -> (Self, usize, Option<(K, V)>)
+            where F: FnMut(&K, D, Option<&V>) -> Option<V> {
                 match self {
                     &Tree::Empty =>
-                        (Tree::create(
-                            &Tree::Empty,
-                            &$pinit(Elts::singleton(k, v)), &Tree::Empty),
-                         len + 1, None),
+                        match f(&k, d, None) {
+                            None => (self.clone(), len, None),
+                            Some(v) =>
+                                (Tree::create(
+                                    &Tree::Empty,
+                                    &$pinit(Elts::singleton(k, v)), &Tree::Empty),
+                                 len + 1, None)
+                        },
                     &Tree::Node(ref tn) => {
                         let leaf =
                             match (&tn.left, &tn.right) {
                                 (&Tree::Empty, &Tree::Empty) => true,
                                 (_, _) => false
                             };
-                        match tn.elts.insert(k, v, len, leaf) {
-                            Insert::InsertLeft(k, v) => {
-                                let (l, len, prev) = tn.left.insert(len, k, v);
+                        match tn.elts.update(k, d, len, leaf, f) {
+                            Update::UpdateLeft(k, d) => {
+                                let (l, len, prev) = tn.left.update(len, k, d, f);
                                 (Tree::bal(&l, &tn.elts, &tn.right), len, prev)
                             },
-                            Insert::InsertRight(k, v) => {
-                                let (r, len, prev) = tn.right.insert(len, k, v);
+                            Update::UpdateRight(k, d) => {
+                                let (r, len, prev) = tn.right.update(len, k, d, f);
                                 (Tree::bal(&tn.left, &tn.elts, &r), len, prev)
                             },
-                            Insert::Inserted {elts, len, overflow, previous} => {
+                            Update::Updated {elts, len, overflow, previous} => {
                                 match overflow {
                                     None =>
                                         (Tree::create(&tn.left, &$pinit(elts), &tn.right),
@@ -775,6 +780,10 @@ macro_rules! avltree {
                         }
                     }
                 }
+            }
+
+            fn insert(&self, len: usize, k: K, v: V) -> (Self, usize, Option<(K, V)>) {
+                self.update(len, k, v, &mut |_, v, _| Some(v))
             }
 
             fn min_elts<'a>(&'a self) -> Option<&'a $ptyp<Elts<K,V>>> {
