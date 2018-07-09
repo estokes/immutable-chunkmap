@@ -4,8 +4,7 @@ macro_rules! avltree {
         use arrayvec::ArrayVec;
         use std::{
             cmp::{Ord, Ordering, max, min}, fmt::Debug,
-            borrow::Borrow, slice, iter, vec, ops::{Bound, Index},
-            mem::swap
+            borrow::Borrow, slice, iter, vec, ops::Bound
         };
 
         // until we get 128 bit machines with exabytes of memory
@@ -64,20 +63,15 @@ macro_rules! avltree {
             }
         }
 
-        impl<K, V> Index<usize> for Elts<K, V>
-        where K: Ord + Clone + Debug, V: Clone + Debug {
-            type Output = (K, V);
-
-            fn index(&self, index: usize) -> &Self::Output {
-                &(self.keys[index], self.vals[index])
-            }
-        }
-
         impl<K,V> Elts<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
             fn singleton(k: K, v: V) -> Self {
                 let mut t = Elts::with_capacity(1);
-                t.push(k, v);
+                t.push((k, v));
                 t
+            }
+
+            fn cix(&self, i: usize) -> (K, V) {
+                (self.keys[i].clone(), self.vals[i].clone())
             }
 
             fn empty() -> Self { Elts {keys: Vec::new(), vals: Vec::new()} }
@@ -138,7 +132,8 @@ macro_rules! avltree {
                     for (k, d) in chunk.drain(0..) {
                         if let Some(v) = f(&k, d, None) { elts.push((k, v)) }
                     }
-                    UpdateChunk::Created { elts, len: len + elts.len() }
+                    let len = len + elts.len();
+                    UpdateChunk::Created { elts, len }
                 } else {
                     let full = !leaf || self.len() >= SIZE;
                     if full && self.get(&chunk[chunk.len() - 1].0) == Loc::InLeft {
@@ -161,7 +156,7 @@ macro_rules! avltree {
                                 }
                                 match k.cmp(&self.keys[pos]) {
                                     Ordering::Greater => {
-                                        elts.push(self[pos].clone());
+                                        elts.push(self.cix(pos));
                                         pos += 1;
                                     },
                                     Ordering::Less => {
@@ -172,7 +167,7 @@ macro_rules! avltree {
                                         break
                                     },
                                     Ordering::Equal => {
-                                        if let Some(v) = f(&k, d, Some(&self[pos].1)) {
+                                        if let Some(v) = f(&k, d, Some(&self.vals[pos])) {
                                             elts.push((k, v))
                                         }
                                         pos += 1;
@@ -182,7 +177,7 @@ macro_rules! avltree {
                             }
                         }
                         while pos < self.len() {
-                            elts.push(self[pos].clone());
+                            elts.push(self.cix(pos));
                             pos += 1;
                         }
                         let overflow_right = {
@@ -195,9 +190,9 @@ macro_rules! avltree {
                         };
                         elts.keys.shrink_to_fit();
                         elts.vals.shrink_to_fit();
+                        let len = len + (elts.len() - self.len());
                         UpdateChunk::Updated {
-                            elts, len: len + (elts.len() - self.len()),
-                            update_left, update_right, overflow_right
+                            elts, len, update_left, update_right, overflow_right
                         }
                     }
                 }
@@ -210,30 +205,24 @@ macro_rules! avltree {
                 match self.get(&k) {
                     Loc::Here(i) => {
                         let mut elts = Elts::with_capacity(self.len());
-                        for j in 0..self.len() {
-                            if j != i { elts.push(self[j].clone()) }
-                            else if let Some(v) = f(&k, d, Some(&self.vals[j])) {
-                                elts.push((k, v));
-                            }
+                        for j in 0..i { elts.push(self.cix(j)) }
+                        if let Some(v) = f(&k, d, Some(&self.vals[i])) {
+                            elts.push((k, v));
                         }
+                        for j in (i + 1)..self.len() { elts.push(self.cix(j)) }
+                        let len = len + (elts.len() - self.len());
                         Update::Updated {
-                            elts, len: len + (elts.len() - self.len()),
-                            overflow: None, previous: Some(self[i].clone())
+                            elts, len, overflow: None, previous: Some(self.cix(i))
                         }
                     },
                     Loc::NotPresent(i) => {
                         let mut elts = Elts::with_capacity(self.len() + 1);
-                        for j in 0..self.len() {
-                            if j == i {
-                                if let Some(v) = f(&k, d, None) { elts.push((k, v)) }
-                            }
-                            elts.push(self[j].clone())
-                        }
+                        for j in 0..i { elts.push(self.cix(j)) }
+                        if let Some(v) = f(&k, d, None) { elts.push((k, v)) }
+                        for j in i..self.len() { elts.push(self.cix(j)) }
                         let overflow = if elts.len() <= SIZE { None } else { elts.pop() };
-                        Update::Updated {
-                            elts, len: len + (elts.len() - self.len()),
-                            overflow, previous: None
-                        }
+                        let len = len + (elts.len() - self.len());
+                        Update::Updated { elts, len, overflow, previous: None }
                     },
                     loc @ Loc::InLeft | loc @ Loc::InRight => {
                         if !leaf || self.len() == SIZE {
@@ -247,18 +236,16 @@ macro_rules! avltree {
                             match loc {
                                 Loc::InLeft => {
                                     if let Some(v) = f(&k, d, None) { elts.push((k, v)) }
-                                    for i in 0..self.len() { elts.push(self[i].clone()) }
+                                    for i in 0..self.len() { elts.push(self.cix(i)) }
                                 },
                                 Loc::InRight => {
-                                    for i in 0..self.len() { elts.push(self[i].clone()) }
+                                    for i in 0..self.len() { elts.push(self.cix(i)) }
                                     if let Some(v) = f(&k, d, None) { elts.push((k, v)) }
                                 },
                                 _ => unreachable!("bug")
                             };
-                            Update::Updated {
-                                elts, len: len + (elts.len() - self.len()),
-                                overflow: None, previous: None
-                            }
+                            let len = len + (elts.len() - self.len());
+                            Update::Updated { elts, len, overflow: None, previous: None }
                         }
                     }
                 }
@@ -269,10 +256,11 @@ macro_rules! avltree {
             }
 
             fn remove_elt_at(&self, i: usize) -> Self {
-                let mut t = self.clone();
-                t.keys.remove(i);
-                t.vals.remove(i);
-                t
+                let mut elts = Elts::with_capacity(self.len() - 1);
+                for j in 0..self.len() {
+                    if j != i { elts.push(self.cix(j)) }
+                }
+                elts
             }
 
             fn min_max_key(&self) -> Option<(K, K)> {
@@ -672,23 +660,29 @@ macro_rules! avltree {
                             UpdateChunk::Updated {
                                 elts, len, update_left, update_right, overflow_right
                             } => {
-                                // CR deal with removal
-                                if update_left.len() == 0
-                                    && update_right.len() == 0
-                                    && overflow_right.len() == 0 {
-                                        let t = Tree::create(
-                                            &tn.left, &$pinit(elts), &tn.right
-                                        );
-                                        (t, len)
+                                if update_left.len() == 0 &&
+                                    update_right.len() == 0 &&
+                                    overflow_right.len() == 0
+                                {
+                                    if elts.len() == 0 {
+                                        (Tree::concat(&tn.left, &tn.right), len)
                                     } else {
-                                        let (l, len) =
-                                            tn.left.update_chunk(len, update_left, f);
-                                        let (r, len) =
-                                            tn.right.insert_chunk(len, overflow_right);
-                                        let (r, len) =
-                                            r.update_chunk(len, update_right, f);
+                                        (Tree::create(&tn.left, &$pinit(elts), &tn.right),
+                                         len)
+                                    }
+                                } else {
+                                    let (l, len) =
+                                        tn.left.update_chunk(len, update_left, f);
+                                    let (r, len) =
+                                        tn.right.insert_chunk(len, overflow_right);
+                                    let (r, len) =
+                                        r.update_chunk(len, update_right, f);
+                                    if elts.len() == 0 {
+                                        (Tree::concat(&l, &r), len)
+                                    } else {
                                         (Tree::bal(&l, &$pinit(elts), &r), len)
                                     }
+                                }
                             },
                             UpdateChunk::UpdateLeft(chunk) => {
                                 let (l, len) = tn.left.update_chunk(len, chunk, f);
@@ -714,11 +708,12 @@ macro_rules! avltree {
                   F: FnMut(&K, D, Option<&V>) -> Option<V> {
                 let mut t = (self.clone(), len);
                 let mut chunk = Vec::<(K, D)>::with_capacity(SIZE);
-                let add = |t: (Self, usize), mut chunk: Vec<(K, D)>| -> (Self, usize) {
-                    chunk.sort_unstable_by(|&(ref k0, _), &(ref k1, _)| k0.cmp(k1));
-                    chunk.dedup_by(|&mut (ref k0, _), &mut (ref k1, _)| k0 == k1);
-                    t.0.update_chunk(t.1, chunk, f)
-                };
+                let mut add =
+                    |t: (Self, usize), mut chunk: Vec<(K, D)>| -> (Self, usize) {
+                        chunk.sort_unstable_by(|&(ref k0, _), &(ref k1, _)| k0.cmp(k1));
+                        chunk.dedup_by(|&mut (ref k0, _), &mut (ref k1, _)| k0 == k1);
+                        t.0.update_chunk(t.1, chunk, f)
+                    };
                 for d in elts {
                     chunk.push(d);
                     if chunk.len() >= SIZE {
@@ -767,13 +762,24 @@ macro_rules! avltree {
                             },
                             Update::Updated {elts, len, overflow, previous} => {
                                 match overflow {
-                                    None =>
-                                        (Tree::create(&tn.left, &$pinit(elts), &tn.right),
-                                         len, previous),
+                                    None => {
+                                        if elts.len() == 0 {
+                                            (Tree::concat(&tn.left, &tn.right), len,
+                                             previous)
+                                        } else {
+                                            (Tree::create(
+                                                &tn.left, &$pinit(elts), &tn.right),
+                                             len, previous)
+                                        }
+                                    },
                                     Some((ovk, ovv)) => {
                                         let (r, len, _) = tn.right.insert(len, ovk, ovv);
-                                        (Tree::bal(&tn.left, &$pinit(elts), &r),
-                                         len, previous)
+                                        if elts.len() == 0 {
+                                            (Tree::concat(&tn.left, &r), len, previous)
+                                        } else {
+                                            (Tree::bal(&tn.left, &$pinit(elts), &r),
+                                             len, previous)
+                                        }
                                     }
                                 }
                             },
@@ -782,7 +788,9 @@ macro_rules! avltree {
                 }
             }
 
-            fn insert(&self, len: usize, k: K, v: V) -> (Self, usize, Option<(K, V)>) {
+            pub(crate) fn insert(
+                &self, len: usize, k: K, v: V
+            ) -> (Self, usize, Option<(K, V)>) {
                 self.update(len, k, v, &mut |_, v, _| Some(v))
             }
 
@@ -827,8 +835,7 @@ macro_rules! avltree {
                     &Tree::Empty => (Tree::Empty, len),
                     &Tree::Node(ref tn) =>
                         match tn.elts.get(k) {
-                            Loc::NotPresent(_) =>
-                                (Tree::create(&tn.left, &tn.elts, &tn.right), len),
+                            Loc::NotPresent(_) => (self.clone(), len),
                             Loc::Here(i) => {
                                 let elts = tn.elts.remove_elt_at(i);
                                 let len = len - 1;

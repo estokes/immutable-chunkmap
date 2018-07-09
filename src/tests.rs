@@ -112,8 +112,11 @@ macro_rules! tests {
 
             #[test]
             fn test_insert_sorted_small() {
-                let v: Vec<i32> = vec![1, 9, 16, 11, 7, 12, 8, 12, 12, 11, 9, 12, 9, 7, 16, 9, 1, 9, 1, 1, 22, 112];
-                let mut t = avl::Tree::new().insert_sorted(0, v.iter().map(|k| (*k, *k)));
+                let v: Vec<i32> = vec![
+                    1, 9, 16, 11, 7, 12, 8, 12, 12, 11, 9, 12,
+                    9, 7, 16, 9, 1, 9, 1, 1, 22, 112
+                ];
+                let mut t = avl::Tree::new().insert_many(0, v.iter().map(|k| (*k, *k)));
                 t.0.invariant(t.1);
                 for k in &v {
                     assert_eq!(t.0.get(&k).unwrap(), k)
@@ -129,7 +132,7 @@ macro_rules! tests {
                     }
                 }
                 let v2 : Vec<i32> = vec![12i32, 987i32, 19i32, 98i32];
-                t = t.0.insert_sorted(t.1, v2.iter().map(|k| (k.clone(), k.clone())));
+                t = t.0.insert_many(t.1, v2.iter().map(|k| (k.clone(), k.clone())));
                 for k in &v2 {
                     assert_eq!(t.0.get(&k).unwrap(), k);
                 }
@@ -140,7 +143,7 @@ macro_rules! tests {
                 v.sort_unstable();
                 v.dedup();
                 let mut t =
-                    avl::Tree::new().insert_sorted(
+                    avl::Tree::new().insert_many(
                         0usize, v.iter().map(|k| (k.clone(), k.clone())));
                 t.0.invariant(t.1);
                 for k in &v { assert_eq!(t.0.get(&k).unwrap(), k) }
@@ -166,7 +169,7 @@ macro_rules! tests {
                 let mut v2 = randvec::<T>(SIZE);
                 v2.sort_unstable();
                 v2.dedup();
-                t = t.0.insert_sorted(t.1, v2.iter().map(|k| (k.clone(), k.clone())));
+                t = t.0.insert_many(t.1, v2.iter().map(|k| (k.clone(), k.clone())));
                 t.0.invariant(t.1);
                 {
                     let mut i = 0;
@@ -245,7 +248,7 @@ macro_rules! tests {
             fn test_map_range_small() {
                 let mut v = Vec::new();
                 v.extend((-5000..5000).into_iter());
-                let t = map::Map::new().insert_sorted(v.iter().map(|x| (*x, *x)));
+                let t = map::Map::new().insert_many(v.iter().map(|x| (*x, *x)));
                 t.invariant();
                 assert_eq!(t.len(), 10000);
                 {
@@ -329,7 +332,7 @@ macro_rules! tests {
                 v.sort_unstable();
                 v.dedup();
                 let mut t : map::Map<T, T> = map::Map::new();
-                t = t.insert_sorted(v.iter().map(|x| (x.clone(), x.clone())));
+                t = t.insert_many(v.iter().map(|x| (x.clone(), x.clone())));
                 t.invariant();
                 let (start, end) = loop {
                     let mut r = rand::thread_rng();

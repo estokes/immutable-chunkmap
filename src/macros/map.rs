@@ -112,11 +112,35 @@ macro_rules! map {
             /// return a new map with (k, v) inserted into it. If k
             /// already exists in the old map, the old binding will be
             /// returned, and the new map will contain the new
-            /// binding. This method runs in log(N) time and log(N)
-            /// space, where N is the size of the map.
+            /// binding. In fact this method is just a wrapper around
+            /// update.
             pub fn insert(&self, k: K, v: V) -> (Self, Option<(K, V)>) {
-                let (t, len, prev) = self.root.insert(self.len, k, v);
-                (Map { len: len, root: t }, prev)
+                let (root, len, prev) = self.root.insert(self.len, k, v);
+                (Map {len, root}, prev)
+            }
+
+            /// return a new map with the binding for k updated to the
+            /// result of f. If f returns None, the binding will be
+            /// removed from the new map, otherwise it will be
+            /// inserted. This function is more efficient than calling
+            /// `get` and then `insert`, since it makes only one tree
+            /// traversal instead of two. This method runs in log(N)
+            /// time and space where N is the size of the map.
+            ///
+            /// # Examples
+            /// ```
+            /// use self::immutable_chunkmap::rc::map::Map;
+            ///
+            /// let m = Map::new().update(0, 0, &mut |k, d, _| Some(d))
+            /// assert_eq!(m.get(0), Some(0));
+            ///
+            /// let m = m.update(0, (), &mut |_, (), v| v.map(|v| v + 1));
+            /// assert_eq!(m.get(0), Some(1));
+            /// ```
+            pub fn update<D, F>(&self, k: K, d: D, f: &mut F) -> (Self, Option<(K, V)>)
+            where F: FnMut(&K, D, Option<&V>) -> Option<V> {
+                let (root, len, prev) = self.root.update(self.len, k, d, f);
+                (Map {len, root}, prev)
             }
 
             /// lookup the mapping for k. If it doesn't exist return
