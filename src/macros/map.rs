@@ -91,14 +91,13 @@ macro_rules! map {
             /// ```
             /// use self::immutable_chunkmap::rc::map::Map;
             ///
-            /// let m = Map::new().insert_many(0..4.map(|k| (k, k)));
+            /// let m = Map::new().insert_many((0..4).map(|k| (k, k)));
             /// let m = m.update_many(
-            ///     0..4,
-            ///     &mut |k| k,
-            ///     &mut |k, cur| Some((*k, cur.unwrap() + 1))
+            ///     (0..4).map(|x| (x, ())),
+            ///     &mut |_, (), cur| cur.map(|c| c + 1)
             /// );
             /// assert_eq!(
-            ///     m.into_iter().map(|(k, v)| (*k, *v)).collect<Vec<_>>(),
+            ///     m.into_iter().map(|(k, v)| (*k, *v)).collect::<Vec<_>>(),
             ///     vec![(0, 1), (1, 2), (2, 3), (3, 4)]
             /// );
             /// ```
@@ -131,11 +130,11 @@ macro_rules! map {
             /// ```
             /// use self::immutable_chunkmap::rc::map::Map;
             ///
-            /// let m = Map::new().update(0, 0, &mut |k, d, _| Some(d))
-            /// assert_eq!(m.get(0), Some(0));
+            /// let (m, _) = Map::new().update(0, 0, &mut |k, d, _| Some(d));
+            /// assert_eq!(m.get(&0), Some(&0));
             ///
-            /// let m = m.update(0, (), &mut |_, (), v| v.map(|v| v + 1));
-            /// assert_eq!(m.get(0), Some(1));
+            /// let (m, _) = m.update(0, (), &mut |_, (), v| v.map(|v| v + 1));
+            /// assert_eq!(m.get(&0), Some(&1));
             /// ```
             pub fn update<D, F>(&self, k: K, d: D, f: &mut F) -> (Self, Option<(K, V)>)
             where F: FnMut(&K, D, Option<&V>) -> Option<V> {
