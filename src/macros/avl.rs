@@ -251,10 +251,6 @@ macro_rules! avltree {
                 }
             }
 
-            fn insert(&self, k: K, v: V, len: usize, leaf: bool) -> Update<K, V, V> {
-                self.update(k, v, len, leaf, &mut |_, v, _| Some(v))
-            }
-
             fn remove_elt_at(&self, i: usize) -> Self {
                 let mut elts = Elts::with_capacity(self.len() - 1);
                 for j in 0..self.len() {
