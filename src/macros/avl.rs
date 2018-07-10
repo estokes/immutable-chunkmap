@@ -940,11 +940,16 @@ macro_rules! avltree {
                     (match lower {
                         None => true,
                         Some(lower) =>
-                            (&elts.keys).into_iter().all(|k| lower.cmp(k) == Ordering::Less) })
-                        && (match upper {
-                            None => true,
-                            Some(upper) =>
-                                (&elts.keys).into_iter().all(|k| upper.cmp(k) == Ordering::Greater) })
+                            (&elts.keys).into_iter().all(|k| {
+                                lower.cmp(k) == Ordering::Less
+                            })
+                    }) && (match upper {
+                        None => true,
+                        Some(upper) =>
+                            (&elts.keys).into_iter().all(|k| {
+                                upper.cmp(k) == Ordering::Greater
+                            })
+                    })
                 }
 
                 fn sorted<K,V>(elts: &Elts<K,V>) -> bool
@@ -963,10 +968,10 @@ macro_rules! avltree {
                     }
                 }
 
-                fn check<K,V>(t: &Tree<K,V>, lower: Option<&K>, upper: Option<&K>, len: usize)
-                              -> (u16, usize)
-                where K: Ord + Clone + Debug, V: Clone + Debug
-                {
+                fn check<K,V>(
+                    t: &Tree<K,V>, lower: Option<&K>, upper: Option<&K>, len: usize
+                ) -> (u16, usize)
+                where K: Ord + Clone + Debug, V: Clone + Debug {
                     match *t {
                         Tree::Empty => (0, len),
                         Tree::Node(ref tn) => {
@@ -976,9 +981,11 @@ macro_rules! avltree {
                             };
                             if !sorted(&tn.elts) { panic!("elements isn't sorted") };
                             let (thl, len) =
-                                check(&tn.left, lower, tn.elts.min_elt().map(|(k, _)| k), len);
+                                check(&tn.left, lower,
+                                      tn.elts.min_elt().map(|(k, _)| k), len);
                             let (thr, len) =
-                                check(&tn.right, tn.elts.max_elt().map(|(k, _)| k), upper, len);
+                                check(&tn.right,
+                                      tn.elts.max_elt().map(|(k, _)| k), upper, len);
                             let th = 1 + max(thl, thr);
                             let (hl, hr) = (tn.left.height(), tn.right.height());
                             let ub = max(hl, hr) - min(hl, hr);
@@ -986,7 +993,9 @@ macro_rules! avltree {
                             if thr != hr { panic!("right node height is wrong") };
                             let h = t.height();
                             if th != h { panic!("node height is wrong {} vs {}", th, h) };
-                            if ub > 2 { panic!("tree is unbalanced {:?} tree: {:?}", ub, t) };
+                            if ub > 2 {
+                                panic!("tree is unbalanced {:?} tree: {:?}", ub, t)
+                            };
                             (th, len + tn.elts.len())
                         }
                     }
