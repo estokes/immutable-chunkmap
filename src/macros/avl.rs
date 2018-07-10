@@ -66,12 +66,9 @@ macro_rules! avltree {
         impl<K,V> Elts<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
             fn singleton(k: K, v: V) -> Self {
                 let mut t = Elts::with_capacity(1);
-                t.push((k, v));
+                t.keys.push(k);
+                t.vals.push(v);
                 t
-            }
-
-            fn cix(&self, i: usize) -> (K, V) {
-                (self.keys[i].clone(), self.vals[i].clone())
             }
 
             fn empty() -> Self { Elts {keys: Vec::new(), vals: Vec::new()} }
@@ -107,15 +104,6 @@ macro_rules! avltree {
                 }
             }
 
-            fn push(&mut self, (k, v): (K, V)) {
-                self.keys.push(k);
-                self.vals.push(v);
-            }
-
-            fn pop(&mut self) -> Option<(K, V)> {
-                self.keys.pop().and_then(|k| self.vals.pop().map(move |v| (k, v)))
-            }
-
             // chunk must be sorted
             fn update_chunk<D, F>(
                 &self,
@@ -128,68 +116,75 @@ macro_rules! avltree {
             {
                 assert!(chunk.len() <= SIZE && chunk.len() > 0);
                 if self.len() == 0 {
-                    let mut elts = Elts::with_capacity(chunk.len());
-                    for (k, d) in chunk.drain(0..) {
-                        if let Some(v) = f(&k, d, None) { elts.push((k, v)) }
-                    }
+                    let mut elts = Elts::empty();
+                    let (keys, vals) : (Vec<_>, Vec<_>) =
+                        chunk.drain(0..)
+                        .filter_map(|(k, d)| f(&k, d, None).map(move |v| (k, v)))
+                        .unzip();
+                    elts.keys = keys;
+                    elts.vals = vals;
                     let len = len + elts.len();
                     UpdateChunk::Created { elts, len }
                 } else {
                     let full = !leaf || self.len() >= SIZE;
-                    if full && self.get(&chunk[chunk.len() - 1].0) == Loc::InLeft {
+                    let in_left = self.get(&chunk[chunk.len() - 1].0) == Loc::InLeft;
+                    let in_right = self.get(&chunk[0].0) == Loc::InRight;
+                    if full && in_left {
                         UpdateChunk::UpdateLeft(chunk)
-                    } else if full && self.get(&chunk[0].0) == Loc::InRight {
+                    } else if full && in_right {
                         UpdateChunk::UpdateRight(chunk)
                     } else {
-                        let mut elts = Elts::with_capacity(chunk.len() + self.len());
-                        let mut pos = 0;
+                        let mut elts =
+                            Elts::with_capacity(min(SIZE, self.len() + chunk.len()));
+                        elts.clone_from(&self);
                         let mut update_left = Vec::new();
                         let mut update_right = Vec::new();
+                        let mut overflow_right = Vec::new();
                         for (k, d) in chunk.drain(0..) {
-                            loop {
-                                if pos >= self.len() {
-                                    if !leaf { update_right.push((k, d)) }
-                                    else if let Some(v) = f(&k, d, None) {
-                                        elts.push((k, v))
+                            match elts.get(&k) {
+                                Loc::Here(i) => {
+                                    if let Some(v) = f(&k, d, Some(&elts.vals[i])) {
+                                        elts.keys[i] = k;
+                                        elts.vals[i] = v;
                                     }
-                                    break
-                                }
-                                match k.cmp(&self.keys[pos]) {
-                                    Ordering::Greater => {
-                                        elts.push(self.cix(pos));
-                                        pos += 1;
-                                    },
-                                    Ordering::Less => {
-                                        if pos == 0 && !leaf { update_left.push((k, d)) }
-                                        else if let Some(v) = f(&k, d, None) {
-                                            elts.push((k, v))
+                                },
+                                Loc::NotPresent(i) =>
+                                    if elts.len() < SIZE {
+                                        if let Some(v) = f(&k, d, None) {
+                                            elts.keys.insert(i, k);
+                                            elts.vals.insert(i, v);
                                         }
-                                        break
-                                    },
-                                    Ordering::Equal => {
-                                        if let Some(v) = f(&k, d, Some(&self.vals[pos])) {
-                                            elts.push((k, v))
+                                    } else {
+                                        if let Some(v) = f(&k, d, None) {
+                                            overflow_right.push(
+                                                (elts.keys.pop().unwrap(),
+                                                 elts.vals.pop().unwrap())
+                                            );
+                                            elts.keys.insert(i, k);
+                                            elts.vals.insert(i, v);
                                         }
-                                        pos += 1;
-                                        break
                                     },
-                                }
+                                Loc::InLeft =>
+                                    if leaf && elts.keys.len() < SIZE {
+                                        if let Some(v) = f(&k, d, None) {
+                                            elts.keys.insert(0, k);
+                                            elts.vals.insert(0, v);
+                                        }
+                                    } else {
+                                        update_left.push((k, d))
+                                    },
+                                Loc::InRight =>
+                                    if leaf && elts.len() < SIZE {
+                                        if let Some(v) = f(&k, d, None) {
+                                            elts.keys.push(k);
+                                            elts.vals.push(v);
+                                        }
+                                    } else {
+                                        update_right.push((k, d))
+                                    }
                             }
                         }
-                        while pos < self.len() {
-                            elts.push(self.cix(pos));
-                            pos += 1;
-                        }
-                        let overflow_right = {
-                            if elts.len() <= SIZE { Vec::new() }
-                            else {
-                                let k = elts.keys.split_off(SIZE);
-                                let v = elts.vals.split_off(SIZE);
-                                k.into_iter().zip(v.into_iter()).collect::<Vec<_>>()
-                            }
-                        };
-                        elts.keys.shrink_to_fit();
-                        elts.vals.shrink_to_fit();
+                        overflow_right.reverse();
                         let len = len + (elts.len() - self.len());
                         UpdateChunk::Updated {
                             elts, len, update_left, update_right, overflow_right
@@ -217,7 +212,8 @@ macro_rules! avltree {
                         }
                         let len = len + (elts.len() - self.len());
                         Update::Updated {
-                            elts, len, overflow: None, previous: Some(self.cix(i))
+                            elts, len, overflow: None,
+                            previous: Some((self.keys[i].clone(), self.vals[i].clone()))
                         }
                     },
                     Loc::NotPresent(i) => {
@@ -230,7 +226,13 @@ macro_rules! avltree {
                         }
                         elts.keys.extend_from_slice(&self.keys[i..self.len()]);
                         elts.vals.extend_from_slice(&self.vals[i..self.len()]);
-                        let overflow = if elts.len() <= SIZE { None } else { elts.pop() };
+                        let overflow = {
+                            if elts.len() <= SIZE { None }
+                            else {
+                                elts.keys.pop()
+                                    .and_then(|k| elts.vals.pop().map(move |v| (k, v)))
+                            }
+                        };
                         let len = len + (elts.len() - self.len());
                         Update::Updated { elts, len, overflow, previous: None }
                     },
@@ -271,10 +273,23 @@ macro_rules! avltree {
 
             fn remove_elt_at(&self, i: usize) -> Self {
                 let mut elts = Elts::with_capacity(self.len() - 1);
-                for j in 0..self.len() {
-                    if j != i { elts.push(self.cix(j)) }
+                if self.len() == 0 { panic!("can't remove from an empty chunk") }
+                else if self.len() == 1 { assert_eq!(i, 0); elts }
+                else if i == 0 {
+                    elts.keys.extend_from_slice(&self.keys[1..self.len()]);
+                    elts.vals.extend_from_slice(&self.vals[1..self.len()]);
+                    elts
+                } else if i == self.len() - 1 {
+                    elts.keys.extend_from_slice(&self.keys[0..self.len() - 1]);
+                    elts.vals.extend_from_slice(&self.vals[0..self.len() - 1]);
+                    elts
+                } else {
+                    elts.keys.extend_from_slice(&self.keys[0..i]);
+                    elts.keys.extend_from_slice(&self.keys[i+1..self.len()]);
+                    elts.vals.extend_from_slice(&self.vals[0..i]);
+                    elts.vals.extend_from_slice(&self.vals[i+1..self.len()]);
+                    elts
                 }
-                elts
             }
 
             fn min_max_key(&self) -> Option<(K, K)> {
