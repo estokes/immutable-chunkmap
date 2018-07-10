@@ -129,10 +129,35 @@ macro_rules! avltree {
                     let full = !leaf || self.len() >= SIZE;
                     let in_left = self.get(&chunk[chunk.len() - 1].0) == Loc::InLeft;
                     let in_right = self.get(&chunk[0].0) == Loc::InRight;
-                    if full && in_left {
-                        UpdateChunk::UpdateLeft(chunk)
-                    } else if full && in_right {
-                        UpdateChunk::UpdateRight(chunk)
+                    if full && in_left { UpdateChunk::UpdateLeft(chunk) }
+                    else if full && in_right { UpdateChunk::UpdateRight(chunk) }
+                    else if leaf && in_left {
+                        let mut elts = Elts::empty();
+                        let (keys, vals) : (Vec<_>, Vec<_>) =
+                            chunk.drain(0..)
+                            .filter_map(|(k, d)| f(&k, d, None).map(move |v| (k, v)))
+                            .unzip();
+                        elts.keys = keys;
+                        elts.vals = vals;
+                        elts.keys.extend_from_slice(&self.keys);
+                        elts.vals.extend_from_slice(&self.vals);
+                        let overflow_right = {
+                            if elts.len() <= SIZE { Vec::new() }
+                            else {
+                                elts.keys.split_off(SIZE).into_iter()
+                                    .zip(elts.vals.split_off(SIZE).into_iter())
+                                    .collect::<Vec<_>>()
+                            }
+                        };
+                        elts.keys.shrink_to_fit();
+                        elts.vals.shrink_to_fit();
+                        let len = len + (elts.len() - self.len());
+                        UpdateChunk::Updated {
+                            elts, len,
+                            update_left: Vec::new(),
+                            update_right: Vec::new(),
+                            overflow_right
+                        }
                     } else {
                         let mut elts =
                             Elts::with_capacity(min(SIZE, self.len() + chunk.len()));
