@@ -18,8 +18,8 @@ fn bench_insert_sorted(len: usize) -> (Map<i64, i64>, Vec<i64>, Duration) {
                 if i < len { chunk.push(data[i]); }
                 i += 1
             }
-            chunk.sort_unstable();
-            m = m.insert_sorted(chunk.iter().map(|k| (*k, *k)));
+            //chunk.sort_unstable();
+            m = m.insert_many(chunk.iter().map(|k| (*k, *k)));
         }
         begin.elapsed()
     };

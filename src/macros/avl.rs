@@ -205,11 +205,16 @@ macro_rules! avltree {
                 match self.get(&k) {
                     Loc::Here(i) => {
                         let mut elts = Elts::with_capacity(self.len());
-                        for j in 0..i { elts.push(self.cix(j)) }
+                        elts.keys.extend_from_slice(&self.keys[0..i]);
+                        elts.vals.extend_from_slice(&self.vals[0..i]);
                         if let Some(v) = f(&k, d, Some(&self.vals[i])) {
-                            elts.push((k, v));
+                            elts.keys.push(k);
+                            elts.vals.push(v);
                         }
-                        for j in (i + 1)..self.len() { elts.push(self.cix(j)) }
+                        if i + 1 < self.len() {
+                            elts.keys.extend_from_slice(&self.keys[i+1..self.len()]);
+                            elts.vals.extend_from_slice(&self.vals[i+1..self.len()]);
+                        }
                         let len = len + (elts.len() - self.len());
                         Update::Updated {
                             elts, len, overflow: None, previous: Some(self.cix(i))
@@ -217,9 +222,14 @@ macro_rules! avltree {
                     },
                     Loc::NotPresent(i) => {
                         let mut elts = Elts::with_capacity(self.len() + 1);
-                        for j in 0..i { elts.push(self.cix(j)) }
-                        if let Some(v) = f(&k, d, None) { elts.push((k, v)) }
-                        for j in i..self.len() { elts.push(self.cix(j)) }
+                        elts.keys.extend_from_slice(&self.keys[0..i]);
+                        elts.vals.extend_from_slice(&self.vals[0..i]);
+                        if let Some(v) = f(&k, d, None) {
+                            elts.keys.push(k);
+                            elts.vals.push(v);
+                        }
+                        elts.keys.extend_from_slice(&self.keys[i..self.len()]);
+                        elts.vals.extend_from_slice(&self.vals[i..self.len()]);
                         let overflow = if elts.len() <= SIZE { None } else { elts.pop() };
                         let len = len + (elts.len() - self.len());
                         Update::Updated { elts, len, overflow, previous: None }
@@ -235,12 +245,20 @@ macro_rules! avltree {
                             let mut elts = Elts::with_capacity(self.len() + 1);
                             match loc {
                                 Loc::InLeft => {
-                                    if let Some(v) = f(&k, d, None) { elts.push((k, v)) }
-                                    for i in 0..self.len() { elts.push(self.cix(i)) }
+                                    if let Some(v) = f(&k, d, None) {
+                                        elts.keys.push(k);
+                                        elts.vals.push(v);
+                                    }
+                                    elts.keys.extend_from_slice(&self.keys[0..self.len()]);
+                                    elts.vals.extend_from_slice(&self.vals[0..self.len()]);
                                 },
                                 Loc::InRight => {
-                                    for i in 0..self.len() { elts.push(self.cix(i)) }
-                                    if let Some(v) = f(&k, d, None) { elts.push((k, v)) }
+                                    elts.keys.extend_from_slice(&self.keys[0..self.len()]);
+                                    elts.vals.extend_from_slice(&self.vals[0..self.len()]);
+                                    if let Some(v) = f(&k, d, None) {
+                                        elts.keys.push(k);
+                                        elts.vals.push(v);
+                                    }
                                 },
                                 _ => unreachable!("bug")
                             };

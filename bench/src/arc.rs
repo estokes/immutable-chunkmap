@@ -14,7 +14,7 @@ fn bench_insert_sorted(len: usize) -> (Arc<Map<i64, i64>>, Arc<Vec<i64>>, Durati
     let elapsed = {
         let begin = Instant::now();
         data.sort_unstable();
-        m = m.insert_sorted(data.iter().map(|k| (*k, *k)));
+        m = m.insert_many(data.iter().map(|k| (*k, *k)));
         begin.elapsed()
     };
     (Arc::new(m), Arc::new(data), elapsed)
