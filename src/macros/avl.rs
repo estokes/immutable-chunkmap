@@ -763,10 +763,24 @@ macro_rules! avltree {
                 let mut t = (self.clone(), len);
                 let mut chunk = Vec::<(K, D)>::with_capacity(SIZE);
                 let mut add =
-                    |t: (Self, usize), mut chunk: Vec<(K, D)>| -> (Self, usize) {
-                        chunk.sort_unstable_by(|&(ref k0, _), &(ref k1, _)| k0.cmp(k1));
-                        chunk.dedup_by(|&mut (ref k0, _), &mut (ref k1, _)| k0 == k1);
-                        t.0.update_chunk(t.1, chunk, f)
+                    |mut t: (Self, usize), mut chunk: Vec<(K, D)>| -> (Self, usize) {
+                        let mut is_sorted = true;
+                        for i in 0..chunk.len() - 1 {
+                            if &chunk[i].0 > &chunk[i+1].0 {
+                                is_sorted = false;
+                                break
+                            }
+                        }
+                        if is_sorted {
+                            chunk.dedup_by(|&mut (ref k0, _), &mut (ref k1, _)| k0 == k1);
+                            t.0.update_chunk(t.1, chunk, f)
+                        } else {
+                            for (k, d) in chunk.drain(0..) {
+                                let (z, len, _) = t.0.update(t.1, k, d, f);
+                                t = (z, len);
+                            }
+                            t
+                        }
                     };
                 for d in elts {
                     chunk.push(d);
