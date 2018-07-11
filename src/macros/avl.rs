@@ -762,35 +762,40 @@ macro_rules! avltree {
                   F: FnMut(&K, D, Option<&V>) -> Option<V> {
                 let mut t = (self.clone(), len);
                 let mut chunk = Vec::<(K, D)>::with_capacity(SIZE);
-                let mut add =
-                    |mut t: (Self, usize), mut chunk: Vec<(K, D)>| -> (Self, usize) {
-                        let mut is_sorted = true;
-                        for i in 0..chunk.len() - 1 {
-                            if &chunk[i].0 > &chunk[i+1].0 {
-                                is_sorted = false;
-                                break
+                let mut elts = elts.into_iter();
+                match elts.next() {
+                    None => t,
+                    Some((k, d)) => {
+                        let mut prev = (k, d);
+                        for (k, d) in elts {
+                            if k == prev.0 {
+                                prev = (k, d);
+                            } else if k < prev.0 {
+                                chunk.push(prev);
+                                prev = (k, d);
+                                if chunk.len() >= SIZE {
+                                    t = t.0.update_chunk(t.1, chunk, f);
+                                    chunk = Vec::new();
+                                }
+                            } else {
+                                if chunk.len() > 0 {
+                                    t = t.0.update_chunk(t.1, chunk, f);
+                                    chunk = Vec::new();
+                                }
+                                let (z, len, _) = t.0.update(len, prev.0, prev.1, f);
+                                t = (z, len);
+                                prev = (k, d)
                             }
                         }
-                        if is_sorted {
-                            chunk.dedup_by(|&mut (ref k0, _), &mut (ref k1, _)| k0 == k1);
+                        if chunk.len() > 0 {
+                            chunk.push(prev);
                             t.0.update_chunk(t.1, chunk, f)
                         } else {
-                            for (k, d) in chunk.drain(0..) {
-                                let (z, len, _) = t.0.update(t.1, k, d, f);
-                                t = (z, len);
-                            }
-                            t
+                            let (z, len, _) = t.0.update(len, prev.0, prev.1, f);
+                            (z, len)
                         }
-                    };
-                for d in elts {
-                    chunk.push(d);
-                    if chunk.len() >= SIZE {
-                        t = add(t, chunk);
-                        chunk = Vec::with_capacity(SIZE);
                     }
                 }
-                if chunk.len() > 0 { t = add(t, chunk) }
-                t
             }
 
             pub(crate) fn insert_many<E: IntoIterator<Item=(K, V)>>(
