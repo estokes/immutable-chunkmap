@@ -179,6 +179,11 @@ macro_rules! tests {
                     }
                 }
                 for k in &v2 { assert_eq!(t.0.get(&k).unwrap(), k); }
+                t = t.0.update_many(
+                    t.1, v2.iter().map(|k| (k.clone(), ())),
+                    &mut |_, _, _| None);
+                t.0.invariant(t.1);
+                for k in &v2 { assert_eq!(t.0.get(&k), None) }
             }
 
             #[test]

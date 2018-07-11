@@ -151,7 +151,7 @@ macro_rules! avltree {
                         };
                         elts.keys.shrink_to_fit();
                         elts.vals.shrink_to_fit();
-                        let len = len + (elts.len() - self.len());
+                        let len = len - self.len() + elts.len();
                         UpdateChunk::Updated {
                             elts, len,
                             update_left: Vec::new(),
@@ -168,9 +168,15 @@ macro_rules! avltree {
                         for (k, d) in chunk.drain(0..) {
                             match elts.get(&k) {
                                 Loc::Here(i) => {
-                                    if let Some(v) = f(&k, d, Some(&elts.vals[i])) {
-                                        elts.keys[i] = k;
-                                        elts.vals[i] = v;
+                                    match f(&k, d, Some(&elts.vals[i])) {
+                                        None => {
+                                            elts.keys.remove(i);
+                                            elts.vals.remove(i);
+                                        },
+                                        Some(v) => {
+                                            elts.keys[i] = k;
+                                            elts.vals[i] = v;
+                                        }
                                     }
                                 },
                                 Loc::NotPresent(i) =>
@@ -210,7 +216,7 @@ macro_rules! avltree {
                             }
                         }
                         overflow_right.reverse();
-                        let len = len + (elts.len() - self.len());
+                        let len = len - self.len() + elts.len();
                         UpdateChunk::Updated {
                             elts, len, update_left, update_right, overflow_right
                         }
@@ -235,7 +241,7 @@ macro_rules! avltree {
                             elts.keys.extend_from_slice(&self.keys[i+1..self.len()]);
                             elts.vals.extend_from_slice(&self.vals[i+1..self.len()]);
                         }
-                        let len = len + (elts.len() - self.len());
+                        let len = len - self.len() + elts.len();
                         Update::Updated {
                             elts, len, overflow: None,
                             previous: Some((self.keys[i].clone(), self.vals[i].clone()))
@@ -258,7 +264,7 @@ macro_rules! avltree {
                                     .and_then(|k| elts.vals.pop().map(move |v| (k, v)))
                             }
                         };
-                        let len = len + (elts.len() - self.len());
+                        let len = len - self.len() + elts.len();
                         Update::Updated { elts, len, overflow, previous: None }
                     },
                     loc @ Loc::InLeft | loc @ Loc::InRight => {
@@ -289,7 +295,7 @@ macro_rules! avltree {
                                 },
                                 _ => unreachable!("bug")
                             };
-                            let len = len + (elts.len() - self.len());
+                            let len = len - self.len() + elts.len();
                             Update::Updated { elts, len, overflow: None, previous: None }
                         }
                     }
