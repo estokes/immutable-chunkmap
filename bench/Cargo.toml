@@ -3,6 +3,9 @@ name = "bench"
 version = "0.1.0"
 authors = ["Eric Stokes <letaris@gmail.com>"]
 
+[profile.release]
+lto = true
+
 [dependencies]
 immutable-chunkmap = {path = "../"}
 rand = ">= 0.3"
