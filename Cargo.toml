@@ -1,9 +1,9 @@
 [package]
 name = "immutable-chunkmap"
-version = "0.2.1"
+version = "0.3"
 authors = ["Eric Stokes <letaris@gmail.com>"]
 publish = true
-description = "A cache efficient immutable map with lookup performance equivalent to BTreeMap, and reasonably good insertion performance (for a persistent structure)."
+description = "A cache efficient immutable map with lookup performance equivalent to BTreeMap, and fast batch insert and update methods."
 categories = ["data-structures"]
 keywords = ["map", "immutable", "persistent", "functional"]
 license = "MIT/Apache-2.0"

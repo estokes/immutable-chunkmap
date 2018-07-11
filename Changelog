@@ -1,3 +1,9 @@
+0.3
+* BREAKING: change the name of insert_sorted to insert_many
+* add update, and update_many
+* insert 14% performance improvement
+* insert_many 42% performance improvement on unsorted data, now faster than insert on random data
+
 0.2.1
 * BREAKING: change signature of insert to match BTreeMap as closely as possible. Sorry I was new to rust when I first wrote this module :-(
 

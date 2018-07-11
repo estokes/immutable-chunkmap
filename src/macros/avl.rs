@@ -761,37 +761,46 @@ macro_rules! avltree {
             where E: IntoIterator<Item=(K, D)>,
                   F: FnMut(&K, D, Option<&V>) -> Option<V> {
                 let mut t = (self.clone(), len);
-                let mut chunk = Vec::<(K, D)>::with_capacity(SIZE);
+                let mut chunk = Vec::new();
                 let mut elts = elts.into_iter();
                 match elts.next() {
                     None => t,
                     Some((k, d)) => {
                         let mut prev = (k, d);
                         for (k, d) in elts {
-                            if k == prev.0 {
-                                prev = (k, d);
-                            } else if k < prev.0 {
-                                chunk.push(prev);
-                                prev = (k, d);
-                                if chunk.len() >= SIZE {
-                                    t = t.0.update_chunk(t.1, chunk, f);
-                                    chunk = Vec::new();
+                            match k.cmp(&prev.0) {
+                                Ordering::Equal => prev = (k, d),
+                                Ordering::Greater => {
+                                    chunk.push(prev);
+                                    prev = (k, d);
+                                    if chunk.len() >= SIZE {
+                                        t = t.0.update_chunk(t.1, chunk, f);
+                                        chunk = Vec::new();
+                                    }
+                                },
+                                Ordering::Less => {
+                                    if chunk.len() > 0 {
+                                        if chunk.len() < SIZE / 8 {
+                                            for (k, d) in chunk.drain(0..) {
+                                                let (z, l, _) = t.0.update(t.1, k, d, f);
+                                                t = (z, l);
+                                            }
+                                        } else {
+                                            t = t.0.update_chunk(t.1, chunk, f);
+                                            chunk = Vec::new();
+                                        }
+                                    }
+                                    let (z, len, _) = t.0.update(t.1, prev.0, prev.1, f);
+                                    t = (z, len);
+                                    prev = (k, d)
                                 }
-                            } else {
-                                if chunk.len() > 0 {
-                                    t = t.0.update_chunk(t.1, chunk, f);
-                                    chunk = Vec::new();
-                                }
-                                let (z, len, _) = t.0.update(len, prev.0, prev.1, f);
-                                t = (z, len);
-                                prev = (k, d)
                             }
                         }
                         if chunk.len() > 0 {
                             chunk.push(prev);
                             t.0.update_chunk(t.1, chunk, f)
                         } else {
-                            let (z, len, _) = t.0.update(len, prev.0, prev.1, f);
+                            let (z, len, _) = t.0.update(t.1, prev.0, prev.1, f);
                             (z, len)
                         }
                     }

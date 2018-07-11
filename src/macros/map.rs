@@ -81,8 +81,9 @@ macro_rules! map {
             /// possible. If the data in elts is sorted, it will be
             /// able to skip many more intermediate allocations, and
             /// can produce a speedup of about 10x compared to
-            /// inserting/updating one by one. In some cases it can be
-            /// as fast as using a hashmap.
+            /// inserting/updating one by one. It should always be
+            /// faster than inserting elements one by one, even with
+            /// random unsorted keys.
             ///
             /// This method will panic if kf, and uf return
             /// inconsistent keys.
