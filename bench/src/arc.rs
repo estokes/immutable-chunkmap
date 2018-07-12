@@ -10,8 +10,9 @@ use utils;
 
 fn bench_insert_sorted(len: usize) -> (Arc<Map<i64, i64>>, Arc<Vec<i64>>, Duration) {
     let mut m = Map::new();
-    let mut data = utils::randvec::<i64>(len);
+    let data = utils::randvec::<i64>(len);
     let elapsed = {
+        let mut data = data.clone();
         let begin = Instant::now();
         data.sort_unstable();
         m = m.insert_many(data.iter().map(|k| (*k, *k)));
