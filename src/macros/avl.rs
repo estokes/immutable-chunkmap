@@ -51,6 +51,12 @@ macro_rules! avltree {
                 update_right: Vec<(K, D)>,
                 overflow_right: Vec<(K, V)>
             },
+            Removed {
+                len: usize,
+                not_done: Vec<(K, D)>,
+                update_left: Vec<(K, D)>,
+                update_right: Vec<(K, D)>
+            }
         }
 
         enum Update<K: Ord + Clone + Debug, V: Clone + Debug, D> {
@@ -160,13 +166,16 @@ macro_rules! avltree {
                             overflow_right
                         }
                     } else {
-                        let mut elts =
-                            Elts::with_capacity(min(SIZE, self.len() + chunk.len()));
-                        elts.clone_from(&self);
+                        let mut elts = self.clone();
+                        let mut not_done = Vec::new();
                         let mut update_left = Vec::new();
                         let mut update_right = Vec::new();
                         let mut overflow_right = Vec::new();
                         for (k, d) in chunk.drain(0..) {
+                            if elts.len() == 0 {
+                                not_done.push((k, d));
+                                continue
+                            }
                             match elts.get(&k) {
                                 Loc::Here(i) => {
                                     match f(&k, d, Some(&elts.vals[i])) {
@@ -180,7 +189,7 @@ macro_rules! avltree {
                                         }
                                     }
                                 },
-                                Loc::NotPresent(i) =>
+                                Loc::NotPresent(i) => {
                                     if elts.len() < SIZE {
                                         if let Some(v) = f(&k, d, None) {
                                             elts.keys.insert(i, k);
@@ -195,8 +204,9 @@ macro_rules! avltree {
                                             elts.keys.insert(i, k);
                                             elts.vals.insert(i, v);
                                         }
-                                    },
-                                Loc::InLeft =>
+                                    }
+                                },
+                                Loc::InLeft => {
                                     if leaf && elts.keys.len() < SIZE {
                                         if let Some(v) = f(&k, d, None) {
                                             elts.keys.insert(0, k);
@@ -204,8 +214,9 @@ macro_rules! avltree {
                                         }
                                     } else {
                                         update_left.push((k, d))
-                                    },
-                                Loc::InRight =>
+                                    }
+                                },
+                                Loc::InRight => {
                                     if leaf && elts.len() < SIZE {
                                         if let Some(v) = f(&k, d, None) {
                                             elts.keys.push(k);
@@ -214,12 +225,22 @@ macro_rules! avltree {
                                     } else {
                                         update_right.push((k, d))
                                     }
+                                }
                             }
                         }
                         overflow_right.reverse();
                         let len = len - self.len() + elts.len();
-                        UpdateChunk::Updated {
-                            elts, len, update_left, update_right, overflow_right
+                        if elts.len() > 0  {
+                            assert_eq!(not_done.len(), 0);
+                            UpdateChunk::Updated {
+                                elts, len, update_left,
+                                update_right, overflow_right
+                            }
+                        } else {
+                            assert_eq!(overflow_right.len(), 0);
+                            UpdateChunk::Removed {
+                                len, not_done, update_left, update_right
+                            }
                         }
                     }
                 }
@@ -702,6 +723,7 @@ macro_rules! avltree {
                             let t = Elts::empty();
                             match t.update_chunk(chunk, len, true, f) {
                                 UpdateChunk::Created {elts, len} => (elts, len),
+                                UpdateChunk::Removed {..} => unreachable!(),
                                 UpdateChunk::Updated {..} => unreachable!(),
                                 UpdateChunk::UpdateLeft(_) => unreachable!(),
                                 UpdateChunk::UpdateRight(_) => unreachable!()
@@ -721,29 +743,18 @@ macro_rules! avltree {
                             UpdateChunk::Updated {
                                 elts, len, update_left, update_right, overflow_right
                             } => {
-                                if update_left.len() == 0 &&
-                                    update_right.len() == 0 &&
-                                    overflow_right.len() == 0
-                                {
-                                    if elts.len() == 0 {
-                                        (Tree::concat(&tn.left, &tn.right), len)
-                                    } else {
-                                        (Tree::create(&tn.left, &$pinit(elts), &tn.right),
-                                         len)
-                                    }
-                                } else {
-                                    let (l, len) =
-                                        tn.left.update_chunk(len, update_left, f);
-                                    let (r, len) =
-                                        tn.right.insert_chunk(len, overflow_right);
-                                    let (r, len) =
-                                        r.update_chunk(len, update_right, f);
-                                    if elts.len() == 0 {
-                                        (Tree::concat(&l, &r), len)
-                                    } else {
-                                        (Tree::bal(&l, &$pinit(elts), &r), len)
-                                    }
-                                }
+                                let (l, len) = tn.left.update_chunk(len, update_left, f);
+                                let (r, len) = tn.right.insert_chunk(len, overflow_right);
+                                let (r, len) = r.update_chunk(len, update_right, f);
+                                (Tree::bal(&l, &$pinit(elts), &r), len)
+                            },
+                            UpdateChunk::Removed {
+                                len, not_done, update_left, update_right
+                            } => {
+                                let (l, len) = tn.left.update_chunk(len, update_left, f);
+                                let (r, len) = tn.right.update_chunk(len, update_right, f);
+                                let t = Tree::concat(&l, &r);
+                                t.update_chunk(len, not_done, f)
                             },
                             UpdateChunk::UpdateLeft(chunk) => {
                                 let (l, len) = tn.left.update_chunk(len, chunk, f);

@@ -132,10 +132,21 @@ macro_rules! map {
             /// use self::immutable_chunkmap::rc::map::Map;
             ///
             /// let (m, _) = Map::new().update(0, 0, &mut |k, d, _| Some(d));
+            /// let (m, _) = m.update(1, 1, &mut |k, d, _| Some(d));
+            /// let (m, _) = m.update(2, 2, &mut |k, d, _| Some(d));
             /// assert_eq!(m.get(&0), Some(&0));
+            /// assert_eq!(m.get(&1), Some(&1));
+            /// assert_eq!(m.get(&2), Some(&2));
             ///
             /// let (m, _) = m.update(0, (), &mut |_, (), v| v.map(|v| v + 1));
             /// assert_eq!(m.get(&0), Some(&1));
+            /// assert_eq!(m.get(&1), Some(&1));
+            /// assert_eq!(m.get(&2), Some(&2));
+            ///
+            /// let (m, _) = m.update(1, (), &mut |_, (), _| None);
+            /// assert_eq!(m.get(&0), Some(&1));
+            /// assert_eq!(m.get(&1), None);
+            /// assert_eq!(m.get(&2), Some(&2));
             /// ```
             pub fn update<D, F>(&self, k: K, d: D, f: &mut F) -> (Self, Option<(K, V)>)
             where F: FnMut(&K, D, Option<&V>) -> Option<V> {
