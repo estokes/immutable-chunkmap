@@ -4,7 +4,8 @@ use rc::map;
 use tests::rand::Rng;
 use std::{
     iter::{IntoIterator}, vec::{Vec}, fmt::Debug, borrow::Borrow,
-    ops::Bound::{Included, Excluded, Unbounded}
+    ops::Bound::{Included, Excluded, Unbounded}, collections::HashSet,
+    hash::Hash
 };
 
 const STRSIZE: usize = 10;
@@ -108,7 +109,7 @@ fn test_int_insert_remove_rand() { test_insert_remove_rand::<i32>() }
 fn test_str_insert_remove_rand() { test_insert_remove_rand::<String>() }
 
 #[test]
-fn test_insert_sorted_small() {
+fn test_insert_many_small() {
     let v: Vec<i32> = vec![
         1, 9, 16, 11, 7, 12, 8, 12, 12, 11, 9, 12,
         9, 7, 16, 9, 1, 9, 1, 1, 22, 112
@@ -135,10 +136,22 @@ fn test_insert_sorted_small() {
     }
 }
 
-fn test_insert_sorted<T: Ord + Clone + Debug + Rand>() {
-    let mut v = randvec::<T>(SIZE-1);
-    v.sort_unstable();
-    v.dedup();
+fn dedup<T: Ord + Clone + Hash>(v: &mut Vec<T>) {
+    let mut seen = HashSet::new();
+    let mut i = 0;
+    while i < v.len() {
+        if seen.contains(&v[i]) {
+            v.remove(i);
+        } else {
+            seen.insert(v[i].clone());
+            i += 1
+        }
+    }
+}
+
+fn test_insert_many<T: Ord + Clone + Debug + Rand + Hash>() {
+    let mut v = randvec::<T>(SIZE);
+    dedup(&mut v);
     let mut t =
         avl::Tree::new().insert_many(
             0usize, v.iter().map(|k| (k.clone(), k.clone())));
@@ -163,9 +176,8 @@ fn test_insert_sorted<T: Ord + Clone + Debug + Rand>() {
             i = i + 1;
         }
     };
-    let mut v2 = randvec::<T>(SIZE-1);
-    v2.sort_unstable();
-    v2.dedup();
+    let mut v2 = randvec::<T>(SIZE);
+    dedup(&mut v2);
     t = t.0.insert_many(t.1, v2.iter().map(|k| (k.clone(), k.clone())));
     t.0.invariant(t.1);
     {
@@ -186,10 +198,10 @@ fn test_insert_sorted<T: Ord + Clone + Debug + Rand>() {
 }
 
 #[test]
-fn test_int_insert_sorted() { test_insert_sorted::<i32>() }
+fn test_int_insert_many() { test_insert_many::<i32>() }
 
 #[test]
-fn test_str_insert_sorted() { test_insert_sorted::<String>() }
+fn test_str_insert_many() { test_insert_many::<String>() }
 
 fn test_map_rand<T: Ord + Clone + Debug + Rand>() {
     let v = randvec::<T>(SIZE);
@@ -227,17 +239,16 @@ fn test_int_map_rand() { test_map_rand::<i32>() }
 fn test_str_map_rand() { test_map_rand::<String>() }
 
 fn test_map_iter<T: Borrow<T> + Ord + Clone + Debug + Rand>() {
-    let v = randvec::<T>(SIZE);
+    let mut v = randvec::<T>(SIZE);
     let mut t : map::Map<T, T> = map::Map::new();
     for k in &v { t = t.insert(k.clone(), k.clone()).0 };
     t.invariant();
-    let mut vs = v.clone(); 
-    vs.sort_unstable();
-    vs.dedup();
+    v.sort_unstable();
+    v.dedup();
     let mut i = 0;
     for (k0, k1) in &t {
         assert_eq!(*k0, *k1);
-        assert_eq!(*k0, vs[i]);
+        assert_eq!(*k0, v[i]);
         i = i + 1;
     }
 }
@@ -331,13 +342,13 @@ fn test_map_range_small() {
     }
 }
 
-fn test_map_range<T: Borrow<T> + Ord + Clone + Debug + Rand>() {
+fn test_map_range<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
     let mut v = randvec::<T>(SIZE);
-    v.sort_unstable();
-    v.dedup();
     let mut t : map::Map<T, T> = map::Map::new();
     t = t.insert_many(v.iter().map(|x| (x.clone(), x.clone())));
     t.invariant();
+    v.sort_unstable();
+    v.dedup();
     let (start, end) = loop {
         let mut r = rand::thread_rng();
         let i = r.gen_range(0, SIZE - 1);
