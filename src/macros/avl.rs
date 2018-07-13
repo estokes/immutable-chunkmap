@@ -729,7 +729,11 @@ macro_rules! avltree {
                                 UpdateChunk::UpdateRight(_) => unreachable!()
                             }
                         };
-                        (Tree::create(&Tree::Empty, &$pinit(elts), &Tree::Empty), len)
+                        if elts.len() == 0 {
+                            (Tree::Empty, len)
+                        } else {
+                            (Tree::create(&Tree::Empty, &$pinit(elts), &Tree::Empty), len)
+                        }
                     },
                     &Tree::Node(ref tn) => {
                         let leaf =
