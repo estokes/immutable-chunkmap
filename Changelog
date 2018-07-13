@@ -1,4 +1,8 @@
-0.3
+0.3.1
+
+* fix a bug in update_many that could rarely cause a removed item not to be removed
+
+0.3.0
 * BREAKING: change the name of insert_sorted to insert_many
 * add update, and update_many
 * insert 14% performance improvement

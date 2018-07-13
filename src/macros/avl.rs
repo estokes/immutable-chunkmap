@@ -782,7 +782,7 @@ macro_rules! avltree {
                 let mut chunk : Vec<(K, D)> = Vec::new();
                 let do_chunk =
                     |t: &mut (Tree<K, V>, usize), chunk: &mut Vec<(K, D)>, f: &mut F| {
-                        if chunk.len() < 5 {
+                        if chunk.len() < 4 {
                             for (k, d) in chunk.drain(0..) {
                                 let (z, l, _) = t.0.update(t.1, k, d, f);
                                 *t = (z, l);
