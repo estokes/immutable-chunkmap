@@ -240,8 +240,7 @@ fn test_str_map_rand() { test_map_rand::<String>() }
 
 fn test_map_iter<T: Borrow<T> + Ord + Clone + Debug + Rand>() {
     let mut v = randvec::<T>(SIZE);
-    let mut t : map::Map<T, T> = map::Map::new();
-    for k in &v { t = t.insert(k.clone(), k.clone()).0 };
+    let t = map::Map::new().insert_many(v.iter().map(|k| (k.clone(), k.clone())));
     t.invariant();
     v.sort_unstable();
     v.dedup();
