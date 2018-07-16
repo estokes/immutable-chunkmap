@@ -3,13 +3,13 @@
 * remove the rc and arc modules. There is no observable
 performance difference between rc and arc, so just use arc
 everywhere. This is especially relevant because all the practical
-applications of this library require using Arc anyway.
-* fix return type of insert and remove to match BTreeMap
+applications of this library than I know about require using Arc.
+* BREAKING: fix return type of insert and remove to match BTreeMap
 
 0.3.2
 * fix a small performance regression in update_many caused by my last change
 
-0.3.1
+0.3.1(yanked)
 * fix a bug in update_many that could rarely cause a removed item not to be removed
 
 0.3.0
