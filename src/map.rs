@@ -19,7 +19,7 @@ use std::{fmt::Debug, borrow::Borrow, ops::Bound};
 /// Which begs the question, why would anyone ever want to use
 /// a data structure where very careful structuring of key and
 /// data type, and careful batching, MIGHT APPROACH the
-/// performance of a plain old HashMap, it seems a silly think
+/// performance of a plain old HashMap, it seems a silly thing
 /// to work on. I know of two cases.
 ///
 /// 1. Multiple threads can read this structure even while one
