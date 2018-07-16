@@ -6,7 +6,7 @@ use std::{fmt::Debug, borrow::Borrow, ops::Bound};
 /// # Examples
 /// ```
 /// use std::string::String;
-/// use self::immutable_chunkmap::rc::set::Set;
+/// use self::immutable_chunkmap::set::Set;
 ///
 /// let m =
 ///    Set::new()
@@ -19,9 +19,7 @@ use std::{fmt::Debug, borrow::Borrow, ops::Bound};
 /// assert_eq!(m.contains("3"), true);
 /// assert_eq!(m.contains("4"), false);
 ///
-/// for (k, v) in &m {
-///   println!("key {}, val: {}", k, v)
-/// }
+/// for k in &m { println!("{}", k) }
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Set<K: Ord + Clone + Debug> {
@@ -63,7 +61,7 @@ impl<K> Set<K> where K: Ord + Clone + Debug {
     ///
     /// #Examples
     ///```
-    /// use self::immutable_chunkmap::rc::set::Set;
+    /// use self::immutable_chunkmap::set::Set;
     ///
     /// let mut v = vec![1, 10, -12, 44, 50];
     /// v.sort_unstable();

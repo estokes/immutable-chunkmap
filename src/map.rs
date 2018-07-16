@@ -62,7 +62,7 @@ use std::{fmt::Debug, borrow::Borrow, ops::Bound};
 /// # Examples
 /// ```
 /// use std::string::String;
-/// use self::immutable_chunkmap::rc::map::Map;
+/// use self::immutable_chunkmap::map::Map;
 ///
 /// let m =
 ///    Map::new()
@@ -106,7 +106,7 @@ impl<K, V> Map<K, V> where K: Ord + Clone + Debug, V: Clone + Debug {
     ///
     /// #Examples
     ///```
-    /// use self::immutable_chunkmap::rc::map::Map;
+    /// use self::immutable_chunkmap::map::Map;
     ///
     /// let mut v = vec![(1, 3), (10, 1), (-12, 2), (44, 0), (50, -1)];
     /// v.sort_unstable_by_key(|&(k, _)| k);
@@ -143,7 +143,7 @@ impl<K, V> Map<K, V> where K: Ord + Clone + Debug, V: Clone + Debug {
     ///
     /// #Examples
     /// ```
-    /// use self::immutable_chunkmap::rc::map::Map;
+    /// use self::immutable_chunkmap::map::Map;
     ///
     /// let m = Map::new().insert_many((0..4).map(|k| (k, k)));
     /// let m = m.update_many(
@@ -182,7 +182,7 @@ impl<K, V> Map<K, V> where K: Ord + Clone + Debug, V: Clone + Debug {
     ///
     /// # Examples
     /// ```
-    /// use self::immutable_chunkmap::rc::map::Map;
+    /// use self::immutable_chunkmap::map::Map;
     ///
     /// let (m, _) = Map::new().update(0, 0, &mut |k, d, _| Some(d));
     /// let (m, _) = m.update(1, 1, &mut |k, d, _| Some(d));
