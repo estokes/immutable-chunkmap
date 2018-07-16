@@ -9,10 +9,10 @@ applications of this library than I know about require using Arc.
 0.3.2
 * fix a small performance regression in update_many caused by my last change
 
-0.3.1(yanked)
+0.3.1
 * fix a bug in update_many that could rarely cause a removed item not to be removed
 
-0.3.0
+0.3.0(yanked)
 * BREAKING: change the name of insert_sorted to insert_many
 * add update, and update_many
 * insert 14% performance improvement
