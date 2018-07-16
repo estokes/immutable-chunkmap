@@ -1,1 +1,1 @@
-initSidebarItems({"mod":[["arc","chunkmap using `Arc` pointers"],["rc","chunkmap using `Rc` pointers"]]});
+initSidebarItems({"mod":[["map",""],["set",""]]});
