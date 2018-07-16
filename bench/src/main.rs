@@ -1,8 +1,7 @@
 use std::vec::Vec;
 use std::iter::FromIterator;
 use std::env;
-mod rc;
-mod arc;
+mod cm;
 mod btm;
 mod hm;
 mod bs;
@@ -19,8 +18,7 @@ fn main() {
     else {
         let size = args[2].parse::<usize>().unwrap();
         match args[1].as_ref() {
-            "rc" => rc::run(size),
-            "arc" => arc::run(size),
+            "cm" => cm::run(size),
             "bs" => bs::run(size),
             "avl" => avl::run(size),
             "ls" => ls::run(size),

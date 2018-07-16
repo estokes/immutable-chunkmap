@@ -1,6 +1,6 @@
 extern crate immutable_chunkmap;
 extern crate num_cpus;
-use self::immutable_chunkmap::arc::map::Map;
+use self::immutable_chunkmap::map::Map;
 use std::cmp::min;
 use std::thread;
 use std::sync::Arc;
@@ -8,14 +8,23 @@ use std::time::{Duration, Instant};
 use std::vec::{Vec};
 use utils;
 
-fn bench_insert_sorted(len: usize) -> (Arc<Map<i64, i64>>, Arc<Vec<i64>>, Duration) {
+fn bench_insert_many(len: usize) -> (Arc<Map<i64, i64>>, Arc<Vec<i64>>, Duration) {
     let mut m = Map::new();
     let data = utils::randvec::<i64>(len);
+    let chunks = 100;
     let elapsed = {
-        let mut data = data.clone();
+        let mut i = 0;
+        let mut chunk = Vec::with_capacity(len / chunks);
         let begin = Instant::now();
-        data.sort_unstable();
-        m = m.insert_many(data.iter().map(|k| (*k, *k)));
+        while i < len {
+            chunk.clear();
+            for _ in 0..(len / chunks) {
+                if i < len { chunk.push(data[i]); }
+                i += 1
+            }
+            //chunk.sort_unstable();
+            m = m.insert_many(chunk.iter().map(|k| (*k, *k)));
+        }
         begin.elapsed()
     };
     (Arc::new(m), Arc::new(data), elapsed)
@@ -57,12 +66,12 @@ fn bench_get_seq(m: Arc<Map<i64, i64>>, d: Arc<Vec<i64>>) -> Duration {
 fn bench_remove(m: Arc<Map<i64, i64>>, d: Arc<Vec<i64>>) -> Duration {
     let mut m = (*m).clone();
     let begin = Instant::now();
-    for kv in d.iter() { m = m.remove(&kv) }
+    for kv in d.iter() { m = m.remove(&kv).0 }
     begin.elapsed()
 }
 
 pub(crate) fn run(size: usize) -> () {
-    let (m, d, inserts) = bench_insert_sorted(size);
+    let (m, d, inserts) = bench_insert_many(size);
     let insert = bench_insert(&d);
     let get_par = bench_get(m.clone(), d.clone());
     let get = bench_get_seq(m.clone(), d.clone());
