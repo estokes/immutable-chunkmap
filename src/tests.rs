@@ -1,6 +1,7 @@
 extern crate rand;
-use rc::avl;
-use rc::map;
+use avl;
+use map;
+use set;
 use tests::rand::Rng;
 use std::{
     iter::{IntoIterator}, vec::{Vec}, fmt::Debug, borrow::Borrow,
@@ -32,6 +33,8 @@ impl Rand for usize {
     fn rand<R: Rng>(r: &mut R) -> Self { r.gen() }
 }
 
+fn ft<A, B, C>(t: (A, B, C)) -> (A, B) { (t.0, t.1) }
+
 fn random<T: Rand>() -> T {
     let mut rng = rand::thread_rng();
     T::rand(&mut rng)
@@ -46,9 +49,9 @@ fn randvec<T: Rand>(len: usize) -> Vec<T> {
 fn insert<I, T>(r: I) -> (avl::Tree<T, T>, usize)
 where I: IntoIterator<Item=T>, T: Ord + Clone + Debug
 {
-    let mut t = (avl::Tree::new(), 0, None);
+    let mut t = (avl::Tree::new(), 0);
     for i in r {
-        t = t.0.insert(t.1, i.clone(), i.clone());
+        t = ft(t.0.insert(t.1, i.clone(), i.clone()));
         if t.1 % CHECK == 0 { t.0.invariant(t.1); }
     }
     t.0.invariant(t.1);
@@ -86,16 +89,19 @@ fn test_get_int_rand() { test_get_rand::<i32>() }
 #[test]
 fn test_get_str_rand() { test_get_rand::<String>() }
 
-fn test_insert_remove_rand<T: Ord + Clone + Debug + Rand>() {
-    let v = randvec::<T>(SIZE);
-    let mut t = (avl::Tree::new(), 0, None);
+fn test_insert_remove_rand<T: Hash + Ord + Clone + Debug + Rand>() {
+    let mut v = randvec::<T>(SIZE);
+    dedup(&mut v);
+    let mut t = (avl::Tree::new(), 0);
     for k in &v {
-        t = t.0.insert(t.1, k, k);
+        let (tn, l, p) = t.0.insert(t.1, k, k);
+        assert_eq!(p, None);
+        t = (tn, l);
         assert_eq!(*t.0.get(&k).unwrap(), k);
         if t.1 % CHECK == 0 {
-            let (tree, len) = t.0.remove(t.1, &k);
-            t.0 = tree;
-            t.1 = len;
+            let (tn, l, p) = t.0.remove(t.1, &k);
+            assert_eq!(p, Some(k));
+            t = (tn, l);
             assert_eq!(t.0.get(&k), Option::None);
             t.0.invariant(t.1);
         }
@@ -119,8 +125,8 @@ fn test_insert_many_small() {
     for k in &v {
         assert_eq!(t.0.get(&k).unwrap(), k)
     }
-    t = t.0.remove(t.1, &22i32);
-    t = t.0.remove(t.1, &112i32);
+    t = ft(t.0.remove(t.1, &22i32));
+    t = ft(t.0.remove(t.1, &112i32));
     t.0.invariant(t.1);
     for k in &v {
         if *k == 22i32 || *k == 112i32 {
@@ -161,7 +167,7 @@ fn test_insert_many<T: Ord + Clone + Debug + Rand + Hash>() {
         let mut i = 0;
         for k in &v {
             if i % CHECK == 0 {
-                t = t.0.remove(t.1, &k);
+                t = ft(t.0.remove(t.1, &k));
                 t.0.invariant(t.1);
             }
             i = i + 1;
@@ -221,7 +227,7 @@ fn test_map_rand<T: Ord + Clone + Debug + Rand>() {
     
     i = 0;
     for k in &v {
-        t = t.remove(&k);
+        t = t.remove(&k).0;
         if i % CHECK == 0 { 
             t.invariant(); 
             for k in &v[0..i] {
@@ -414,3 +420,45 @@ fn test_int_map_range() { test_map_range::<i32>() }
 
 #[test]
 fn test_string_map_range() { test_map_range::<String>() }
+
+fn test_set<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
+    let mut v = randvec::<T>(SIZE);
+    dedup(&mut v);
+    let mut t = set::Set::new();
+    let mut i = 0;
+    for k in &v {
+        let (tn, p) = t.insert(k.clone());
+        t = tn;
+        assert_eq!(p, false);
+        assert_eq!(t.contains(k), true);
+        if i % CHECK == 0 {
+            for j in 0..i {
+                assert_eq!(t.contains(&v[j]), true)
+            }
+            t.invariant()
+        }
+        i += 1
+    }
+    i = 0;
+    for k in &v {
+        let (tn, p) = t.remove(k);
+        t = tn;
+        assert_eq!(p, true);
+        if i % CHECK == 0 {
+            for j in 0..i {
+                assert_eq!(t.contains(&v[j]), false);
+            }
+            for j in i..v.len() {
+                assert_eq!(t.contains(&v[j]), true);
+            }
+            t.invariant()
+        }
+        i += 1
+    }
+}
+
+#[test]
+fn test_int_set() { test_set::<i32>() }
+
+#[test]
+fn test_string_set() { test_set::<String>() }
