@@ -482,7 +482,10 @@ fn test_ord() {
     let s1 = v1.iter().map(|v| v.clone()).collect::<Set<_>>();
     let s2 = v2.iter().map(|v| v.clone()).collect::<Set<_>>();
     let s3 = v3.iter().map(|v| v.clone()).collect::<Set<_>>();
+    assert!(s0 == s1);
     assert_eq!(s0.cmp(&s1), Ordering::Equal);
+    assert!(s0 != s2);
     assert_eq!(s0.cmp(&s2), Ordering::Less);
+    assert!(s0 != s3);
     assert_eq!(s0.cmp(&s3), Ordering::Greater);
 }
