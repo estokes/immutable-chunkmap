@@ -1068,7 +1068,7 @@ impl<K, V> Tree<K, V> where K: Ord + Clone + Debug, V: Clone + Debug {
                     match elts.keys[i].cmp(&elts.keys[i + 1]) {
                         Ordering::Greater => return false,
                         Ordering::Less => (),
-                        Ordering::Equal => panic!("duplicates found: {:?}", elts)
+                        Ordering::Equal => panic!("duplicates found: {:#?}", elts)
                     }
                 }
                 true
@@ -1083,7 +1083,7 @@ impl<K, V> Tree<K, V> where K: Ord + Clone + Debug, V: Clone + Debug {
                 Tree::Empty => (0, len),
                 Tree::Node(ref tn) => {
                     if !in_range(lower, upper, &tn.elts) {
-                        panic!("tree invariant violated lower {:?} upper {:?} elts {:?}, tree {:?}",
+                        panic!("tree invariant violated lower\n{:#?}\n\nupper\n{:#?}\n\nelts\n{:#?}\n\ntree\n{:#?}",
                                lower, upper, &tn.elts, t)
                     };
                     if !sorted(&tn.elts) { panic!("elements isn't sorted") };
@@ -1101,14 +1101,14 @@ impl<K, V> Tree<K, V> where K: Ord + Clone + Debug, V: Clone + Debug {
                     let h = t.height();
                     if th != h { panic!("node height is wrong {} vs {}", th, h) };
                     if ub > 2 {
-                        panic!("tree is unbalanced {:?} tree: {:?}", ub, t)
+                        panic!("tree is unbalanced {:#?} tree: {:#?}", ub, t)
                     };
                     (th, len + tn.elts.len())
                 }
             }
         }
 
-        //println!("{:?}", self);
+        //println!("{:#?}", self);
         let (_height, tlen) = check(self, None, None, 0);
         if len != tlen { panic!("len is wrong {} vs {}", len, tlen) }
     }

@@ -1,5 +1,10 @@
 use avl::{Tree, Iter};
-use std::{fmt::Debug, borrow::Borrow, ops::Bound};
+use std::{
+    cmp::{PartialEq, Eq, PartialOrd, Ord, Ordering},
+    fmt::{self, Debug, Formatter}, borrow::Borrow,
+    ops::{Bound, Index}, default::Default,
+    hash::{Hash, Hasher}
+};
 
 /// This Map uses a similar strategy to BTreeMap to ensure cache
 /// efficient performance on modern hardware while still providing
@@ -79,23 +84,72 @@ use std::{fmt::Debug, borrow::Borrow, ops::Bound};
 ///   println!("key {}, val: {}", k, v)
 /// }
 /// ```
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Map<K: Ord + Clone + Debug, V: Clone + Debug> {
+#[derive(Clone)]
+pub struct Map<K: Ord + Clone, V: Clone> {
     len: usize,
     root: Tree<K, V>
 }
 
+impl<K, V> Hash for Map<K, V>
+where K: Hash + Ord + Clone, V: Hash + Clone {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.root.hash(state)
+    }
+}
+
+impl<K, V> Default for Map<K, V>
+where K: Ord + Clone, V: Clone {
+    fn default() -> Map<K, V> { Map::new() }
+}
+
+impl<K, V> PartialEq for Map<K, V>
+where K: PartialEq + Ord + Clone, V: PartialEq + Clone {
+    fn eq(&self, other: &Map<K,V>) -> bool {
+        self.len == other.len && self.root == other.root
+    }
+}
+
+impl<K, V> Eq for Map<K, V>
+where K: Eq + Ord + Clone, V: Eq + Clone {}
+
+impl<K, V> PartialOrd for Map<K, V>
+where K: Ord + Clone, V: PartialOrd + Clone {
+    fn partial_cmp(&self, other: &Map<K, V>) -> Option<Ordering> {
+        self.root.partial_cmp(&other.root)
+    }
+}
+
+impl<K, V> Ord for Map<K, V>
+where K: Ord + Clone, V: Ord + Clone {
+    fn cmp(&self, other: &Map<K, V>) -> Ordering {
+        self.root.cmp(&other.root)
+    }
+}
+
+impl<K, V> Debug for Map<K, V>
+where K: Debug + Ord + Clone, V: Debug + Clone {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result { self.root.fmt(f) }
+}
+
+impl<'a, Q, K, V> Index<&'a Q> for Map<K, V>
+where Q: Ord, K: Ord + Clone + Borrow<Q>, V: Clone {
+    type Output = V;
+    fn index(&self, k: &Q) -> &V {
+        self.get(k).expect("element not found for key")
+    }
+}
+
 impl<'a, K, V> IntoIterator for &'a Map<K, V>
 where
-    K: 'a + Borrow<K> + Ord + Clone + Debug,
-    V: 'a + Clone + Debug
+    K: 'a + Borrow<K> + Ord + Clone,
+    V: 'a + Clone
 {
     type Item = (&'a K, &'a V);
     type IntoIter = Iter<'a, K, K, V>;
     fn into_iter(self) -> Self::IntoIter { self.root.into_iter() }
 }
 
-impl<K, V> Map<K, V> where K: Ord + Clone + Debug, V: Clone + Debug {
+impl<K, V> Map<K, V> where K: Ord + Clone, V: Clone {
     /// Create a new empty map
     pub fn new() -> Self { Map { len: 0, root: Tree::new() } }
 
@@ -210,7 +264,7 @@ impl<K, V> Map<K, V> where K: Ord + Clone + Debug, V: Clone + Debug {
     /// lookup the mapping for k. If it doesn't exist return
     /// None. Runs in log(N) time and constant space. where N
     /// is the size of the map.
-    pub fn get<'a, Q: ?Sized + Ord + Debug>(&'a self, k: &Q) -> Option<&'a V>
+    pub fn get<'a, Q: ?Sized + Ord>(&'a self, k: &Q) -> Option<&'a V>
     where K: Borrow<Q>
     { self.root.get(k) }
 
@@ -241,7 +295,9 @@ impl<K, V> Map<K, V> where K: Ord + Clone + Debug, V: Clone + Debug {
     ) -> Iter<'a, Q, K, V> where Q: Ord, K: Borrow<Q> {
         self.root.range(lbound, ubound)
     }
+}
 
+impl<K, V> Map<K, V> where K: Ord + Clone + Debug, V: Clone + Debug {
     #[allow(dead_code)]
     pub(crate) fn invariant(&self) -> () { self.root.invariant(self.len) }
 }
