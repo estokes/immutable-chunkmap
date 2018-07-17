@@ -449,7 +449,7 @@ fn test_set<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
                 assert_eq!(t.contains(&v[j]), false);
             }
             for j in (i+1)..v.len() {
-                assert_eq!(t.contains(&v[j]), true);
+                assert_eq!(t.get(&v[j]), Some(&v[j]));
             }
             t.invariant()
         }
