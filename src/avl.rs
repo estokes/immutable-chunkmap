@@ -1,9 +1,9 @@
 use arrayvec::ArrayVec;
 use std::{
     cmp::{PartialEq, Eq, PartialOrd, Ord, Ordering, max, min},
-    fmt::{self, Debug, Formatter}, borrow::Borrow, slice, iter, vec,
+    fmt::{self, Debug, Formatter}, borrow::Borrow, slice, vec,
     ops::{Bound, Index}, mem::swap, sync::Arc, default::Default,
-    hash::{Hash, Hasher}
+    hash::{Hash, Hasher}, iter
 };
 
 // until we get 128 bit machines with exabytes of memory

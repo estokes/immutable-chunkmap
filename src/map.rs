@@ -3,7 +3,7 @@ use std::{
     cmp::{PartialEq, Eq, PartialOrd, Ord, Ordering},
     fmt::{self, Debug, Formatter}, borrow::Borrow,
     ops::{Bound, Index}, default::Default,
-    hash::{Hash, Hasher}
+    hash::{Hash, Hasher}, iter::FromIterator
 };
 
 /// This Map uses a similar strategy to BTreeMap to ensure cache
@@ -136,6 +136,13 @@ where Q: Ord, K: Ord + Clone + Borrow<Q>, V: Clone {
     type Output = V;
     fn index(&self, k: &Q) -> &V {
         self.get(k).expect("element not found for key")
+    }
+}
+
+impl<K, V> FromIterator<(K, V)> for Map<K, V>
+where K: Ord + Clone, V: Clone {
+    fn from_iter<T: IntoIterator<Item=(K, V)>>(iter: T) -> Self {
+        Map::new().insert_many(iter)
     }
 }
 

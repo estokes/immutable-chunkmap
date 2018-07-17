@@ -46,6 +46,13 @@ fn randvec<T: Rand>(len: usize) -> Vec<T> {
     v
 }
 
+fn permutation<T: Clone>(v: &Vec<T>) -> Vec<T> {
+    let p = randvec::<usize>(v.len());
+    let mut p = p.iter().zip(v).collect::<Vec<_>>();
+    p.sort_by(|(k0, _), (k1, _)| k0.cmp(k1));
+    p.into_iter().map(|(_, v)| v.clone()).collect::<Vec<T>>()
+}
+
 fn insert<I, T>(r: I) -> (avl::Tree<T, T>, usize)
 where I: IntoIterator<Item=T>, T: Ord + Clone + Debug
 {
@@ -462,3 +469,7 @@ fn test_int_set() { test_set::<i32>() }
 
 #[test]
 fn test_string_set() { test_set::<String>() }
+
+fn test_ord<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
+    
+}

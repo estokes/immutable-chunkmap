@@ -2,7 +2,7 @@ use avl::{Tree, Iter};
 use std::{
     cmp::{PartialEq, Eq, PartialOrd, Ord, Ordering},
     fmt::{self, Debug, Formatter}, borrow::Borrow,
-    ops::Bound, default::Default,
+    ops::Bound, default::Default, iter::FromIterator,
     hash::{Hash, Hasher}
 };
 /// This set uses a similar strategy to BTreeSet to ensure cache
@@ -60,6 +60,13 @@ impl<K> Ord for Set<K> where K: Ord + Clone {
 impl<K> Debug for Set<K> where K: Debug + Ord + Clone {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         f.debug_set().entries(self.into_iter()).finish()
+    }
+}
+
+impl<K> FromIterator<K> for Set<K>
+where K: Ord + Clone {
+    fn from_iter<T: IntoIterator<Item=K>>(iter: T) -> Self {
+        Set::new().insert_many(iter)
     }
 }
 
