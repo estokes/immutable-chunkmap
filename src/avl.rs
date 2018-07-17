@@ -1,8 +1,9 @@
 use arrayvec::ArrayVec;
 use std::{
-    cmp::{Ord, Ordering, max, min}, fmt::Debug,
-    borrow::Borrow, slice, iter, vec, ops::Bound,
-    mem::swap, sync::Arc
+    cmp::{PartialEq, Eq, PartialOrd, Ord, Ordering, max, min},
+    fmt::{self, Debug, Formatter}, borrow::Borrow, slice, iter, vec,
+    ops::{Bound, Index}, mem::swap, sync::Arc, default::Default,
+    hash::{Hash, Hasher}
 };
 
 // until we get 128 bit machines with exabytes of memory
@@ -28,13 +29,20 @@ time a key is added or removed
  */
 const SIZE: usize = 512;
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-struct Elts<K: Ord + Clone + Debug, V: Clone + Debug> {
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct Elts<K: Ord + Clone, V: Clone> {
     keys: Vec<K>,
     vals: Vec<V>
 }
 
-enum UpdateChunk<K: Ord + Clone + Debug, V: Clone + Debug, D> {
+impl<K, V> Debug for Elts<K, V>
+where K: Debug + Ord + Clone, V: Debug + Clone {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        f.debug_map().entries(self.into_iter()).finish()
+    }
+}
+
+enum UpdateChunk<K: Ord + Clone, V: Clone, D> {
     UpdateLeft(Vec<(K, D)>),
     UpdateRight(Vec<(K, D)>),
     Created {
@@ -56,7 +64,7 @@ enum UpdateChunk<K: Ord + Clone + Debug, V: Clone + Debug, D> {
     }
 }
 
-enum Update<K: Ord + Clone + Debug, V: Clone + Debug, D> {
+enum Update<K: Ord + Clone, V: Clone, D> {
     UpdateLeft(K, D),
     UpdateRight(K, D),
     Updated {
@@ -67,7 +75,7 @@ enum Update<K: Ord + Clone + Debug, V: Clone + Debug, D> {
     }
 }
 
-impl<K,V> Elts<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
+impl<K,V> Elts<K,V> where K: Ord + Clone, V: Clone {
     fn singleton(k: K, v: V) -> Self {
         let mut t = Elts::with_capacity(1);
         t.keys.push(k);
@@ -366,7 +374,7 @@ impl<K,V> Elts<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
 }
 
 impl<K, V> IntoIterator for Elts<K, V>
-where K: Ord + Clone + Debug, V: Clone + Debug
+where K: Ord + Clone, V: Clone
 {
     type Item = (K, V);
     type IntoIter = iter::Zip<vec::IntoIter<K>, vec::IntoIter<V>>;
@@ -376,7 +384,7 @@ where K: Ord + Clone + Debug, V: Clone + Debug
 }
 
 impl<'a, K, V> IntoIterator for &'a Elts<K, V>
-where K: 'a + Ord + Clone + Debug, V: 'a + Clone + Debug
+where K: 'a + Ord + Clone, V: 'a + Clone
 {
     type Item = (&'a K, &'a V);
     type IntoIter = iter::Zip<slice::Iter<'a, K>, slice::Iter<'a, V>>;
@@ -385,8 +393,8 @@ where K: 'a + Ord + Clone + Debug, V: 'a + Clone + Debug
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct Node<K: Ord + Clone + Debug, V: Clone + Debug> {
+#[derive(Clone)]
+pub(crate) struct Node<K: Ord + Clone, V: Clone> {
     elts: Arc<Elts<K, V>>,
     min_key: K,
     max_key: K,
@@ -395,18 +403,70 @@ pub(crate) struct Node<K: Ord + Clone + Debug, V: Clone + Debug> {
     height: u16,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum Tree<K: Ord + Clone + Debug, V: Clone + Debug> {
+#[derive(Clone)]
+pub(crate) enum Tree<K: Ord + Clone, V: Clone> {
     Empty,
     Node(Arc<Node<K,V>>)
 }
 
-#[derive(Debug)]
+impl<K, V> Hash for Tree<K, V>
+where K: Hash + Ord + Clone, V: Hash + Clone {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        for elt in self {
+            elt.hash(state)
+        }
+    }
+}
+
+impl<K, V> Default for Tree<K, V>
+where K: Ord + Clone, V: Clone {
+    fn default() -> Tree<K, V> { Tree::Empty }
+}
+
+impl<K, V> PartialEq for Tree<K, V>
+where K: PartialEq + Ord + Clone, V: PartialEq + Clone {
+    fn eq(&self, other: &Tree<K,V>) -> bool {
+        self.into_iter().zip(other).all(|(e0, e1)| e0 == e1)
+    }
+}
+
+impl<K, V> Eq for Tree<K, V>
+where K: Eq + Ord + Clone, V: Eq + Clone {}
+
+impl<K, V> PartialOrd for Tree<K, V>
+where K: Ord + Clone, V: PartialOrd + Clone {
+    fn partial_cmp(&self, other: &Tree<K, V>) -> Option<Ordering> {
+        self.into_iter().partial_cmp(other.into_iter())
+    }
+}
+
+impl<K, V> Ord for Tree<K, V>
+where K: Ord + Clone, V: Ord + Clone {
+    fn cmp(&self, other: &Tree<K, V>) -> Ordering {
+        self.into_iter().cmp(other.into_iter())
+    }
+}
+
+impl<K, V> Debug for Tree<K, V>
+where K: Debug + Ord + Clone, V: Debug + Clone {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        f.debug_map().entries(self.into_iter()).finish()
+    }
+}
+
+impl<'a, Q, K, V> Index<&'a Q> for Tree<K, V>
+where Q: Ord, K: Ord + Clone + Borrow<Q>, V: Clone {
+    type Output = V;
+    fn index(&self, k: &Q) -> &V {
+        self.get(k).expect("element not found for key")
+    }
+}
+
 pub struct Iter<'a, Q, K, V>
 where
     Q: Ord,
-    K: 'a + Borrow<Q> + Ord + Clone + Debug,
-    V: 'a + Clone + Debug
+    K: 'a + Borrow<Q> + Ord + Clone,
+    V: 'a + Clone
 {
     ubound: Bound<Q>,
     lbound: Bound<Q>,
@@ -421,8 +481,8 @@ where
 impl<'a, Q, K, V> Iter<'a, Q, K, V>
 where
     Q: Ord,
-    K: 'a + Borrow<Q> + Ord + Clone + Debug,
-    V: 'a + Clone + Debug
+    K: 'a + Borrow<Q> + Ord + Clone,
+    V: 'a + Clone
 {
     // is at least one element of the chunk in bounds
     fn any_elts_above_lbound(&self, n: &'a Node<K, V>) -> bool {
@@ -471,8 +531,8 @@ where
 impl<'a, Q, K, V> Iterator for Iter<'a, Q, K, V>
 where
     Q: Ord,
-    K: 'a + Borrow<Q> + Ord + Clone + Debug,
-    V: 'a + Clone + Debug
+    K: 'a + Borrow<Q> + Ord + Clone,
+    V: 'a + Clone
 {
     type Item = (&'a K, &'a V);
     fn next(&mut self) -> Option<Self::Item> {
@@ -531,8 +591,8 @@ where
 impl<'a, Q, K, V> DoubleEndedIterator for Iter<'a, Q, K, V>
 where
     Q: Ord,
-    K: 'a + Borrow<Q> + Ord + Clone + Debug,
-    V: 'a + Clone + Debug
+    K: 'a + Borrow<Q> + Ord + Clone,
+    V: 'a + Clone
 {
     fn next_back(&mut self) -> Option<Self::Item> {
         loop {
@@ -590,8 +650,8 @@ where
 
 impl<'a, K, V> IntoIterator for &'a Tree<K, V>
 where
-    K: 'a + Borrow<K> + Ord + Clone + Debug,
-    V: 'a + Clone + Debug
+    K: 'a + Borrow<K> + Ord + Clone,
+    V: 'a + Clone
 {
     type Item = (&'a K, &'a V);
     type IntoIter = Iter<'a, K, K, V>;
@@ -603,7 +663,7 @@ where
 macro_rules! mk_get {
     ($name:ident, $kv:ident, $rt:ty) => (
         pub(crate) fn $name<'a, Q>(&'a self, k: &Q) -> Option<&'a $rt>
-        where Q: ?Sized + Ord + Debug, K: Borrow<Q> {
+        where Q: ?Sized + Ord, K: Borrow<Q> {
         match self {
             &Tree::Empty => None,
             &Tree::Node(ref tn) =>
@@ -623,7 +683,7 @@ macro_rules! mk_get {
 }
 
 
-impl<K,V> Tree<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
+impl<K,V> Tree<K,V> where K: Ord + Clone, V: Clone {
     pub(crate) fn new() -> Self { Tree::Empty }
 
     pub(crate) fn range<'a, Q>(
@@ -975,9 +1035,11 @@ impl<K,V> Tree<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
 
     mk_get!(get, vals, V);
     mk_get!(get_key, keys, K);
+}
 
+impl<K, V> Tree<K, V> where K: Ord + Clone + Debug, V: Clone + Debug {
     #[allow(dead_code)]
-        pub(crate) fn invariant(&self, len: usize) -> () {
+    pub(crate) fn invariant(&self, len: usize) -> () {
         fn in_range<K,V>(
             lower: Option<&K>, upper: Option<&K>, elts: &Elts<K,V>
         ) -> bool

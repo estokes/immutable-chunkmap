@@ -1,5 +1,10 @@
 use avl::{Tree, Iter};
-use std::{fmt::Debug, borrow::Borrow, ops::Bound};
+use std::{
+    cmp::{PartialEq, Eq, PartialOrd, Ord, Ordering},
+    fmt::{self, Debug, Formatter}, borrow::Borrow,
+    ops::Bound, default::Default,
+    hash::{Hash, Hasher}
+};
 /// This set uses a similar strategy to BTreeSet to ensure cache
 /// efficient performance on modern hardware while still providing
 /// log(N) get, insert, and remove operations.
@@ -21,37 +26,68 @@ use std::{fmt::Debug, borrow::Borrow, ops::Bound};
 ///
 /// for k in &m { println!("{}", k) }
 /// ```
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Set<K: Ord + Clone + Debug> {
+#[derive(Clone)]
+pub struct Set<K: Ord + Clone> {
     len: usize,
     root: Tree<K, ()>
 }
 
-pub struct SetIter<'a, Q: Ord, K: 'a + Clone + Ord + Debug + Borrow<Q>>(
+impl<K> Hash for Set<K> where K: Hash + Ord + Clone {
+    fn hash<H: Hasher>(&self, state: &mut H) { self.root.hash(state) }
+}
+
+impl<K> Default for Set<K>
+where K: Ord + Clone { fn default() -> Set<K> { Set::new() } }
+
+impl<K> PartialEq for Set<K> where K: Ord + Clone {
+    fn eq(&self, other: &Set<K>) -> bool {
+        self.len == other.len && self.root == other.root
+    }
+}
+
+impl<K> Eq for Set<K> where K: Eq + Ord + Clone {}
+
+impl<K> PartialOrd for Set<K> where K: Ord + Clone {
+    fn partial_cmp(&self, other: &Set<K>) -> Option<Ordering> {
+        self.root.partial_cmp(&other.root)
+    }
+}
+
+impl<K> Ord for Set<K> where K: Ord + Clone {
+    fn cmp(&self, other: &Set<K>) -> Ordering { self.root.cmp(&other.root) }
+}
+
+impl<K> Debug for Set<K> where K: Debug + Ord + Clone {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        f.debug_set().entries(self.into_iter()).finish()
+    }
+}
+
+pub struct SetIter<'a, Q: Ord, K: 'a + Clone + Ord + Borrow<Q>>(
     Iter<'a, Q, K, ()>
 );
 
 impl<'a, Q, K> Iterator for SetIter<'a, Q, K>
-where Q: Ord, K: 'a + Clone + Ord + Debug + Borrow<Q> {
+where Q: Ord, K: 'a + Clone + Ord + Borrow<Q> {
     type Item = &'a K;
     fn next(&mut self) -> Option<Self::Item> { self.0.next().map(|(k, ())| k) }
 }
 
 impl<'a, Q, K> DoubleEndedIterator for SetIter<'a, Q, K>
-where Q: Ord, K: 'a + Clone + Ord + Debug + Borrow<Q> {
+where Q: Ord, K: 'a + Clone + Ord + Borrow<Q> {
     fn next_back(&mut self) -> Option<Self::Item> { self.0.next_back().map(|(k, ())| k) }
 }
 
 impl<'a, K> IntoIterator for &'a Set<K>
 where
-    K: 'a + Borrow<K> + Ord + Clone + Debug,
+    K: 'a + Borrow<K> + Ord + Clone,
 {
     type Item = &'a K;
     type IntoIter = SetIter<'a, K, K>;
     fn into_iter(self) -> Self::IntoIter { SetIter(self.root.into_iter()) }
 }
 
-impl<K> Set<K> where K: Ord + Clone + Debug {
+impl<K> Set<K> where K: Ord + Clone {
     /// Create a new empty set
     pub fn new() -> Self { Set { len: 0, root: Tree::new() } }
 
@@ -96,12 +132,12 @@ impl<K> Set<K> where K: Ord + Clone + Debug {
     /// log(N) time and constant space. where N is the size of
     /// the set.
     pub fn contains<'a, Q>(&'a self, k: &Q) -> bool
-    where Q: ?Sized + Ord + Debug, K: Borrow<Q>
+    where Q: ?Sized + Ord, K: Borrow<Q>
     { self.root.get(k).is_some() }
 
     /// return a reference to an item in the set if any that is equal to the given value.
     pub fn get<'a, Q>(&'a self, k: &Q) -> Option<&K>
-    where Q: ?Sized + Ord + Debug, K: Borrow<Q> {
+    where Q: ?Sized + Ord, K: Borrow<Q> {
         self.root.get_key(k)
     }
 
@@ -128,10 +164,12 @@ impl<K> Set<K> where K: Ord + Clone + Debug {
     pub fn range<'a, Q>(
         &'a self, lbound: Bound<Q>, ubound: Bound<Q>
     ) -> SetIter<'a, Q, K>
-    where Q: Ord, K: 'a + Clone + Ord + Debug + Borrow<Q> {
+    where Q: Ord, K: 'a + Clone + Ord + Borrow<Q> {
         SetIter(self.root.range(lbound, ubound))
     }
+}
 
+impl<K> Set<K> where K: Ord + Clone + Debug {
     #[allow(dead_code)]
     pub(crate) fn invariant(&self) -> () { self.root.invariant(self.len) }
 }
