@@ -1,12 +1,12 @@
 extern crate rand;
 use avl;
-use map;
-use set;
+use map::Map;
+use set::Set;
 use tests::rand::Rng;
 use std::{
     iter::{IntoIterator}, vec::{Vec}, fmt::Debug, borrow::Borrow,
     ops::Bound::{Included, Excluded, Unbounded}, collections::HashSet,
-    hash::Hash
+    hash::Hash, cmp::Ordering, i32
 };
 
 const STRSIZE: usize = 10;
@@ -218,7 +218,7 @@ fn test_str_insert_many() { test_insert_many::<String>() }
 
 fn test_map_rand<T: Ord + Clone + Debug + Rand>() {
     let v = randvec::<T>(SIZE);
-    let mut t = map::Map::new();
+    let mut t = Map::new();
     let mut i = 0;
     for k in &v {
         t = t.insert(k, k).0;
@@ -253,7 +253,7 @@ fn test_str_map_rand() { test_map_rand::<String>() }
 
 fn test_map_iter<T: Borrow<T> + Ord + Clone + Debug + Rand>() {
     let mut v = randvec::<T>(SIZE);
-    let t = map::Map::new().insert_many(v.iter().map(|k| (k.clone(), k.clone())));
+    let t = Map::new().insert_many(v.iter().map(|k| (k.clone(), k.clone())));
     t.invariant();
     v.sort_unstable();
     v.dedup();
@@ -275,7 +275,7 @@ fn test_string_map_iter() { test_map_iter::<String>() }
 fn test_map_range_small() {
     let mut v = Vec::new();
     v.extend((-5000..5000).into_iter());
-    let t = map::Map::new().insert_many(v.iter().map(|x| (*x, *x)));
+    let t = Map::new().insert_many(v.iter().map(|x| (*x, *x)));
     t.invariant();
     assert_eq!(t.len(), 10000);
     {
@@ -356,7 +356,7 @@ fn test_map_range_small() {
 
 fn test_map_range<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
     let mut v = randvec::<T>(SIZE);
-    let mut t : map::Map<T, T> = map::Map::new();
+    let mut t : Map<T, T> = Map::new();
     t = t.insert_many(v.iter().map(|x| (x.clone(), x.clone())));
     t.invariant();
     v.sort_unstable();
@@ -431,7 +431,7 @@ fn test_string_map_range() { test_map_range::<String>() }
 fn test_set<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
     let mut v = randvec::<T>(SIZE);
     dedup(&mut v);
-    let mut t = set::Set::new();
+    let mut t = Set::new();
     let mut i = 0;
     for k in &v {
         let (tn, p) = t.insert(k.clone());
@@ -470,6 +470,19 @@ fn test_int_set() { test_set::<i32>() }
 #[test]
 fn test_string_set() { test_set::<String>() }
 
-fn test_ord<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
-    
+#[test]
+fn test_ord() {
+    let v0 = randvec::<i32>(SIZE);
+    let v1 = permutation(&v0);
+    let mut v2 = permutation(&v0);
+    let mut v3 = permutation(&v0);
+    for i in (0..SIZE).rev() { if v2[i] < i32::MAX { v2[i] += 1; break } }
+    for i in (0..SIZE).rev() { if v3[i] > i32::MIN { v3[i] -= 1; break } }
+    let s0 = v0.iter().map(|v| v.clone()).collect::<Set<_>>();
+    let s1 = v1.iter().map(|v| v.clone()).collect::<Set<_>>();
+    let s2 = v2.iter().map(|v| v.clone()).collect::<Set<_>>();
+    let s3 = v3.iter().map(|v| v.clone()).collect::<Set<_>>();
+    assert_eq!(s0.cmp(&s1), Ordering::Equal);
+    assert_eq!(s0.cmp(&s2), Ordering::Less);
+    assert_eq!(s0.cmp(&s3), Ordering::Greater);
 }
