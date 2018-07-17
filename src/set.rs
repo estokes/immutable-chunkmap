@@ -95,9 +95,15 @@ impl<K> Set<K> where K: Ord + Clone + Debug {
     /// return true if the set contains k, else false. Runs in
     /// log(N) time and constant space. where N is the size of
     /// the set.
-    pub fn contains<'a, Q: ?Sized + Ord + Debug>(&'a self, k: &Q) -> bool
-    where K: Borrow<Q>
+    pub fn contains<'a, Q>(&'a self, k: &Q) -> bool
+    where Q: ?Sized + Ord + Debug, K: Borrow<Q>
     { self.root.get(k).is_some() }
+
+    /// return a reference to an item in the set if any that is equal to the given value.
+    pub fn get<'a, Q>(&'a self, k: &Q) -> Option<&K>
+    where Q: ?Sized + Ord + Debug, K: Borrow<Q> {
+        self.root.get_key(k)
+    }
 
     /// return a new set with k removed. Runs in log(N) time
     /// and log(N) space, where N is the size of the set

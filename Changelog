@@ -1,4 +1,7 @@
-0.4
+0.4.1
+* implement get in the set module
+
+0.4.0
 * add a set module
 * remove the rc and arc modules. There is no observable
 performance difference between rc and arc, so just use arc

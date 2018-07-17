@@ -600,6 +600,29 @@ where
     }
 }
 
+macro_rules! mk_get {
+    ($name:ident, $kv:ident, $rt:ty) => (
+        pub(crate) fn $name<'a, Q>(&'a self, k: &Q) -> Option<&'a $rt>
+        where Q: ?Sized + Ord + Debug, K: Borrow<Q> {
+        match self {
+            &Tree::Empty => None,
+            &Tree::Node(ref tn) =>
+                match (k.cmp(tn.min_key.borrow()), k.cmp(tn.max_key.borrow())) {
+                    (Ordering::Less, _) => tn.left.$name(k),
+                    (_, Ordering::Greater) => tn.right.$name(k),
+                    (_, _) =>
+                        match tn.elts.get_noedge(k) {
+                            Loc::Here(i) => Some(&tn.elts.$kv[i]),
+                            Loc::NotPresent(_) => None,
+                            Loc::InLeft => unreachable!("bug"),
+                            Loc::InRight => unreachable!("bug")
+                        }
+                }
+        }
+    })
+}
+
+
 impl<K,V> Tree<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
     pub(crate) fn new() -> Self { Tree::Empty }
 
@@ -950,25 +973,8 @@ impl<K,V> Tree<K,V> where K: Ord + Clone + Debug, V: Clone + Debug {
         }
     }
 
-    pub(crate) fn get<'a, Q: ?Sized + Ord + Debug>(
-        &'a self, k: &Q
-    ) -> Option<&'a V> where K: Borrow<Q> {
-        match self {
-            &Tree::Empty => None,
-            &Tree::Node(ref tn) =>
-                match (k.cmp(tn.min_key.borrow()), k.cmp(tn.max_key.borrow())) {
-                    (Ordering::Less, _) => tn.left.get(k),
-                    (_, Ordering::Greater) => tn.right.get(k),
-                    (_, _) =>
-                        match tn.elts.get_noedge(k) {
-                            Loc::Here(i) => Some(&tn.elts.vals[i]),
-                            Loc::NotPresent(_) => None,
-                            Loc::InLeft => unreachable!("bug"),
-                            Loc::InRight => unreachable!("bug")
-                        }
-                }
-        }
-    }
+    mk_get!(get, vals, V);
+    mk_get!(get_key, keys, K);
 
     #[allow(dead_code)]
         pub(crate) fn invariant(&self, len: usize) -> () {
