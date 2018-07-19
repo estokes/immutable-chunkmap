@@ -204,7 +204,7 @@ fn test_insert_many<T: Ord + Clone + Debug + Rand + Hash>() {
     let mut i = 0;
     t = t.0.update_many(
         t.1, v2.iter().map(|k| (k.clone(), ())),
-        &mut |k, (), cur| { i += 1; assert_eq!(cur, Some(k)); None });
+        &mut |k, (), cur| { i += 1; assert_eq!(cur, Some((&k, &k))); None });
     t.0.invariant(t.1);
     assert_eq!(i, v2.len());
     for k in &v2 { assert_eq!(t.0.get(&k), None) }

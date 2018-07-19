@@ -1,6 +1,7 @@
-0.4.2
+0.5.0
 * implement map get_key, get_full
 * fix some incorrect documentation
+* change map update functions so they are able to work with borrowed forms of the key
 
 0.4.1
 * implement get in the set module

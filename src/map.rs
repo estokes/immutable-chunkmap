@@ -185,17 +185,18 @@ impl<K, V> Map<K, V> where K: Ord + Clone, V: Clone {
         Map { len, root }
     }
 
-    /// This method updates multiple bindings in one call.  Given an
-    /// iterator of an arbitrary type D, an update function taking D,
-    /// the current binding in the map, if any, and producing the new
-    /// binding, if any, this method will produce a new map with
-    /// updated bindings of many elements at once. It will skip
-    /// intermediate node allocations where possible. If the data in
-    /// elts is sorted, it will be able to skip many more intermediate
-    /// allocations, and can produce a speedup of about 10x compared
-    /// to inserting/updating one by one. It should always be faster
-    /// than inserting elements one by one, even with random unsorted
-    /// keys.
+    /// This method updates multiple bindings in one call. Given an
+    /// iterator of an arbitrary type (Q, D), where Q is any borrowed
+    /// form of K, an update function taking Q, D, the current binding
+    /// in the map, if any, and producing the new binding, if any,
+    /// this method will produce a new map with updated bindings of
+    /// many elements at once. It will skip intermediate node
+    /// allocations where possible. If the data in elts is sorted, it
+    /// will be able to skip many more intermediate allocations, and
+    /// can produce a speedup of about 10x compared to
+    /// inserting/updating one by one. In any case it should always be
+    /// faster than inserting elements one by one, even with random
+    /// unsorted keys.
     ///
     /// #Examples
     /// ```
@@ -211,9 +212,9 @@ impl<K, V> Map<K, V> where K: Ord + Clone, V: Clone {
     ///     vec![(0, 1), (1, 2), (2, 3), (3, 4)]
     /// );
     /// ```
-    pub fn update_many<D, E, F>(&self, elts: E, f: &mut F) -> Self
-    where E: IntoIterator<Item=(K, D)>,
-          F: FnMut(&K, D, Option<&V>) -> Option<V> {
+    pub fn update_many<Q, D, E, F>(&self, elts: E, f: &mut F) -> Self
+    where E: IntoIterator<Item=(Q, D)>, Q: Ord, K: Borrow<Q>,
+          F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)> {
         let (root, len) = self.root.update_many(self.len, elts, f);
         Map { len, root }
     }
@@ -228,13 +229,13 @@ impl<K, V> Map<K, V> where K: Ord + Clone, V: Clone {
         (Map {len, root}, prev)
     }
 
-    /// return a new map with the binding for k updated to the
-    /// result of f. If f returns None, the binding will be
-    /// removed from the new map, otherwise it will be
-    /// inserted. This function is more efficient than calling
-    /// `get` and then `insert`, since it makes only one tree
-    /// traversal instead of two. This method runs in log(N)
-    /// time and space where N is the size of the map.
+    /// return a new map with the binding for q, which can be any
+    /// borrowed form of k, updated to the result of f. If f returns
+    /// None, the binding will be removed from the new map, otherwise
+    /// it will be inserted. This function is more efficient than
+    /// calling `get` and then `insert`, since it makes only one tree
+    /// traversal instead of two. This method runs in log(N) time and
+    /// space where N is the size of the map.
     ///
     /// # Examples
     /// ```
@@ -257,9 +258,9 @@ impl<K, V> Map<K, V> where K: Ord + Clone, V: Clone {
     /// assert_eq!(m.get(&1), None);
     /// assert_eq!(m.get(&2), Some(&2));
     /// ```
-    pub fn update<D, F>(&self, k: K, d: D, f: &mut F) -> (Self, Option<V>)
-    where F: FnMut(&K, D, Option<&V>) -> Option<V> {
-        let (root, len, prev) = self.root.update(self.len, k, d, f);
+    pub fn update<Q, D, F>(&self, q: Q, d: D, f: &mut F) -> (Self, Option<V>)
+    where Q: Ord, K: Borrow<Q>, F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)> {
+        let (root, len, prev) = self.root.update(self.len, q, d, f);
         (Map {len, root}, prev)
     }
 
