@@ -205,7 +205,7 @@ impl<K, V> Map<K, V> where K: Ord + Clone, V: Clone {
     /// let m = Map::new().insert_many((0..4).map(|k| (k, k)));
     /// let m = m.update_many(
     ///     (0..4).map(|x| (x, ())),
-    ///     &mut |_, (), cur| cur.map(|c| c + 1)
+    ///     &mut |k, (), cur| cur.map(|(_, c)| (k, c + 1))
     /// );
     /// assert_eq!(
     ///     m.into_iter().map(|(k, v)| (*k, *v)).collect::<Vec<_>>(),
@@ -241,14 +241,14 @@ impl<K, V> Map<K, V> where K: Ord + Clone, V: Clone {
     /// ```
     /// use self::immutable_chunkmap::map::Map;
     ///
-    /// let (m, _) = Map::new().update(0, 0, &mut |k, d, _| Some(d));
-    /// let (m, _) = m.update(1, 1, &mut |k, d, _| Some(d));
-    /// let (m, _) = m.update(2, 2, &mut |k, d, _| Some(d));
+    /// let (m, _) = Map::new().update(0, 0, &mut |k, d, _| Some((k, d)));
+    /// let (m, _) = m.update(1, 1, &mut |k, d, _| Some((k, d)));
+    /// let (m, _) = m.update(2, 2, &mut |k, d, _| Some((k, d)));
     /// assert_eq!(m.get(&0), Some(&0));
     /// assert_eq!(m.get(&1), Some(&1));
     /// assert_eq!(m.get(&2), Some(&2));
     ///
-    /// let (m, _) = m.update(0, (), &mut |_, (), v| v.map(|v| v + 1));
+    /// let (m, _) = m.update(0, (), &mut |k, (), v| v.map(move |(_, v)| (k, v + 1)));
     /// assert_eq!(m.get(&0), Some(&1));
     /// assert_eq!(m.get(&1), Some(&1));
     /// assert_eq!(m.get(&2), Some(&2));
