@@ -660,29 +660,6 @@ where
     }
 }
 
-macro_rules! mk_get {
-    ($name:ident, $kv:ident, $rt:ty) => (
-        pub(crate) fn $name<'a, Q>(&'a self, k: &Q) -> Option<&'a $rt>
-        where Q: ?Sized + Ord, K: Borrow<Q> {
-        match self {
-            &Tree::Empty => None,
-            &Tree::Node(ref tn) =>
-                match (k.cmp(tn.min_key.borrow()), k.cmp(tn.max_key.borrow())) {
-                    (Ordering::Less, _) => tn.left.$name(k),
-                    (_, Ordering::Greater) => tn.right.$name(k),
-                    (_, _) =>
-                        match tn.elts.get_noedge(k) {
-                            Loc::Here(i) => Some(&tn.elts.$kv[i]),
-                            Loc::NotPresent(_) => None,
-                            Loc::InLeft => unreachable!("bug"),
-                            Loc::InRight => unreachable!("bug")
-                        }
-                }
-        }
-    })
-}
-
-
 impl<K,V> Tree<K,V> where K: Ord + Clone, V: Clone {
     pub(crate) fn new() -> Self { Tree::Empty }
 
@@ -1033,8 +1010,39 @@ impl<K,V> Tree<K,V> where K: Ord + Clone, V: Clone {
         }
     }
 
-    mk_get!(get, vals, V);
-    mk_get!(get_key, keys, K);
+    fn get_gen<'a, Q, F, R>(&'a self, k: &Q, f: F) -> Option<R>
+    where Q: ?Sized + Ord, K: Borrow<Q>, F: FnOnce(&'a Elts<K, V>, usize) -> R {
+        match self {
+            &Tree::Empty => None,
+            &Tree::Node(ref tn) =>
+                match (k.cmp(tn.min_key.borrow()), k.cmp(tn.max_key.borrow())) {
+                    (Ordering::Less, _) => tn.left.get_gen(k, f),
+                    (_, Ordering::Greater) => tn.right.get_gen(k, f),
+                    (_, _) =>
+                        match tn.elts.get_noedge(k) {
+                            Loc::Here(i) => Some(f(&tn.elts, i)),
+                            Loc::NotPresent(_) => None,
+                            Loc::InLeft => unreachable!("bug"),
+                            Loc::InRight => unreachable!("bug")
+                        }
+                }
+        }
+    }
+
+    pub(crate) fn get<'a, Q>(&'a self, k: &Q) -> Option<&'a V>
+    where Q: ?Sized + Ord, K: Borrow<Q> {
+        self.get_gen(k, |e, i| &e.vals[i])
+    }
+
+    pub(crate) fn get_key<'a, Q>(&'a self, k: &Q) -> Option<&'a K>
+    where Q: ?Sized + Ord, K: Borrow<Q> {
+        self.get_gen(k, |e, i| &e.keys[i])
+    }
+
+    pub(crate) fn get_full<'a, Q>(&'a self, k: &Q) -> Option<(&'a K, &'a V)>
+    where Q: ?Sized + Ord, K: Borrow<Q> {
+        self.get_gen(k, |e, i| (&e.keys[i], &e.vals[i]))
+    }
 }
 
 impl<K, V> Tree<K, V> where K: Ord + Clone + Debug, V: Clone + Debug {

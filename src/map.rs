@@ -270,6 +270,20 @@ impl<K, V> Map<K, V> where K: Ord + Clone, V: Clone {
     where K: Borrow<Q>
     { self.root.get(k) }
 
+    /// lookup the mapping for k. Return the key. If it doesn't exist
+    /// return None. Runs in log(N) time and constant space. where N
+    /// is the size of the map.
+    pub fn get_key<'a, Q: ?Sized + Ord>(&'a self, k: &Q) -> Option<&'a K>
+    where K: Borrow<Q>
+    { self.root.get_key(k) }
+
+    /// lookup the mapping for k. Return both the key and the
+    /// value. If it doesn't exist return None. Runs in log(N) time
+    /// and constant space. where N is the size of the map.
+    pub fn get_full<'a, Q: ?Sized + Ord>(&'a self, k: &Q) -> Option<(&'a K, &'a V)>
+    where K: Borrow<Q>
+    { self.root.get_full(k) }
+
     /// return a new map with the mapping under k removed. If
     /// the binding existed in the old map return it. Runs in
     /// log(N) time and log(N) space, where N is the size of
