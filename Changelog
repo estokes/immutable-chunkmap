@@ -1,3 +1,7 @@
+0.4.2
+* implement map get_key, get_full
+* fix some incorrect documentation
+
 0.4.1
 * implement get in the set module
 * properly implement Ord, PartialOrd, Eq, PartialEq, Hash, and Debug
