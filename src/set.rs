@@ -123,6 +123,17 @@ impl<K> Set<K> where K: Ord + Clone {
         Set { len, root }
     }
 
+    /// Remove multiple elements in a single pass. Similar performance
+    /// to insert_many.
+    pub fn remove_many<E, F>(&self, elts: E) -> Self
+    where E: IntoIterator<Item=K> {
+        let (root, len) =
+            self.root.update_many(
+                self.len, elts.into_iter().map(|k| (k, ())),
+                &mut |_, _, _| None);
+        Set { len, root }
+    }
+    
     /// return a new set with k inserted into it. If k already
     /// exists in the old set return true, else false. If the
     /// element already exists in the set memory will not be

@@ -185,22 +185,17 @@ impl<K, V> Map<K, V> where K: Ord + Clone, V: Clone {
         Map { len, root }
     }
 
-    /// This method updates multiple bindings in one call.
-    /// Given an iterator of an arbitrary type D, a key
-    /// extraction function on D, an update function taking D,
-    /// the current binding in the map, if any, and producing
-    /// the new binding, if any, this method will produce a
-    /// new map with updated bindings of many elements at
-    /// once. It will skip intermediate node allocations where
-    /// possible. If the data in elts is sorted, it will be
-    /// able to skip many more intermediate allocations, and
-    /// can produce a speedup of about 10x compared to
-    /// inserting/updating one by one. It should always be
-    /// faster than inserting elements one by one, even with
-    /// random unsorted keys.
-    ///
-    /// This method will panic if kf, and uf return
-    /// inconsistent keys.
+    /// This method updates multiple bindings in one call.  Given an
+    /// iterator of an arbitrary type D, an update function taking D,
+    /// the current binding in the map, if any, and producing the new
+    /// binding, if any, this method will produce a new map with
+    /// updated bindings of many elements at once. It will skip
+    /// intermediate node allocations where possible. If the data in
+    /// elts is sorted, it will be able to skip many more intermediate
+    /// allocations, and can produce a speedup of about 10x compared
+    /// to inserting/updating one by one. It should always be faster
+    /// than inserting elements one by one, even with random unsorted
+    /// keys.
     ///
     /// #Examples
     /// ```
