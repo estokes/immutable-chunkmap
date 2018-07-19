@@ -109,13 +109,6 @@ impl<K,V> Elts<K,V> where K: Ord + Clone, V: Clone {
         }
     }
 
-    fn get_noedge<Q: ?Sized + Ord>(&self, k: &Q) -> Loc where K: Borrow<Q> {
-        match self.keys.binary_search_by_key(&k, |k| k.borrow()) {
-            Result::Ok(i) => Loc::Here(i),
-            Result::Err(i) => Loc::NotPresent(i)
-        }
-    }
-
     // chunk must be sorted
     fn update_chunk<D, F>(
         &self,
@@ -1011,21 +1004,33 @@ impl<K,V> Tree<K,V> where K: Ord + Clone, V: Clone {
     }
 
     fn get_gen<'a, Q, F, R>(&'a self, k: &Q, f: F) -> Option<R>
-    where Q: ?Sized + Ord, K: Borrow<Q>, F: FnOnce(&'a Elts<K, V>, usize) -> R {
+    where Q: ?Sized + Ord, K: Borrow<Q>, F: FnOnce(&'a Elts<K,V>, usize) -> R, R: 'a {
         match self {
             &Tree::Empty => None,
-            &Tree::Node(ref tn) =>
-                match (k.cmp(tn.min_key.borrow()), k.cmp(tn.max_key.borrow())) {
-                    (Ordering::Less, _) => tn.left.get_gen(k, f),
-                    (_, Ordering::Greater) => tn.right.get_gen(k, f),
-                    (_, _) =>
-                        match tn.elts.get_noedge(k) {
-                            Loc::Here(i) => Some(f(&tn.elts, i)),
-                            Loc::NotPresent(_) => None,
-                            Loc::InLeft => unreachable!("bug"),
-                            Loc::InRight => unreachable!("bug")
+            &Tree::Node(ref n) => {
+                let mut tn = n;
+                loop {
+                    match (k.cmp(tn.min_key.borrow()), k.cmp(tn.max_key.borrow())) {
+                        (Ordering::Less, _) =>
+                            match tn.left {
+                                Tree::Empty => break None,
+                                Tree::Node(ref n) => tn = n
+                            },
+                        (_, Ordering::Greater) =>
+                            match tn.right {
+                                Tree::Empty => break None,
+                                Tree::Node(ref n) => tn = n
+                            },
+                        (_, _) => {
+                            let e = &tn.elts;
+                            match e.keys.binary_search_by_key(&k, |k| k.borrow()) {
+                                Ok(i) => break Some(f(e, i)),
+                                Err(_) => break None
+                            }
                         }
+                    }
                 }
+            }
         }
     }
 
