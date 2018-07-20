@@ -125,15 +125,33 @@ impl<K> Set<K> where K: Ord + Clone {
 
     /// Remove multiple elements in a single pass. Similar performance
     /// to insert_many.
-    pub fn remove_many<E, F>(&self, elts: E) -> Self
-    where E: IntoIterator<Item=K> {
+    pub fn remove_many<Q, E>(&self, elts: E) -> Self
+    where Q: Ord, K: Borrow<Q>, E: IntoIterator<Item=Q> {
         let (root, len) =
             self.root.update_many(
                 self.len, elts.into_iter().map(|k| (k, ())),
                 &mut |_, _, _| None);
         Set { len, root }
     }
-    
+
+    /// This is just slightly wierd, however if you have a bunch of
+    /// borrowed forms of members of the set, and you want to look at
+    /// the real entries and possibly add/update/remove them, then
+    /// this method is for you.
+    pub fn update_many<Q, E, F>(&self, elts: E, f: &mut F) -> Self
+    where Q: Ord, K: Borrow<Q>, E: IntoIterator<Item=Q>,
+          F: FnMut(Q, Option<&K>) -> Option<K> {
+        let (root, len) =
+            self.root.update_many(
+                self.len,
+                elts.into_iter().map(|k| (k, ())),
+                &mut |q, (), cur| {
+                    let cur = cur.map(|(k, ())| k);
+                    f(q, cur).map(|k| (k, ()))
+                });
+        Set { len, root }
+    }
+
     /// return a new set with k inserted into it. If k already
     /// exists in the old set return true, else false. If the
     /// element already exists in the set memory will not be
