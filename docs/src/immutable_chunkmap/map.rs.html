@@ -308,6 +308,16 @@
 <span id="308">308</span>
 <span id="309">309</span>
 <span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
+<span id="314">314</span>
+<span id="315">315</span>
+<span id="316">316</span>
+<span id="317">317</span>
+<span id="318">318</span>
+<span id="319">319</span>
+<span id="320">320</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">avl</span>::{<span class="ident">Tree</span>, <span class="ident">Iter</span>};
 <span class="kw">use</span> <span class="ident">std</span>::{
@@ -496,22 +506,18 @@
         <span class="ident">Map</span> { <span class="ident">len</span>, <span class="ident">root</span> }
     }
 
-    <span class="doccomment">/// This method updates multiple bindings in one call.</span>
-    <span class="doccomment">/// Given an iterator of an arbitrary type D, a key</span>
-    <span class="doccomment">/// extraction function on D, an update function taking D,</span>
-    <span class="doccomment">/// the current binding in the map, if any, and producing</span>
-    <span class="doccomment">/// the new binding, if any, this method will produce a</span>
-    <span class="doccomment">/// new map with updated bindings of many elements at</span>
-    <span class="doccomment">/// once. It will skip intermediate node allocations where</span>
-    <span class="doccomment">/// possible. If the data in elts is sorted, it will be</span>
-    <span class="doccomment">/// able to skip many more intermediate allocations, and</span>
+    <span class="doccomment">/// This method updates multiple bindings in one call. Given an</span>
+    <span class="doccomment">/// iterator of an arbitrary type (Q, D), where Q is any borrowed</span>
+    <span class="doccomment">/// form of K, an update function taking Q, D, the current binding</span>
+    <span class="doccomment">/// in the map, if any, and producing the new binding, if any,</span>
+    <span class="doccomment">/// this method will produce a new map with updated bindings of</span>
+    <span class="doccomment">/// many elements at once. It will skip intermediate node</span>
+    <span class="doccomment">/// allocations where possible. If the data in elts is sorted, it</span>
+    <span class="doccomment">/// will be able to skip many more intermediate allocations, and</span>
     <span class="doccomment">/// can produce a speedup of about 10x compared to</span>
-    <span class="doccomment">/// inserting/updating one by one. It should always be</span>
-    <span class="doccomment">/// faster than inserting elements one by one, even with</span>
-    <span class="doccomment">/// random unsorted keys.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This method will panic if kf, and uf return</span>
-    <span class="doccomment">/// inconsistent keys.</span>
+    <span class="doccomment">/// inserting/updating one by one. In any case it should always be</span>
+    <span class="doccomment">/// faster than inserting elements one by one, even with random</span>
+    <span class="doccomment">/// unsorted keys.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// #Examples</span>
     <span class="doccomment">/// ```</span>
@@ -520,16 +526,16 @@
     <span class="doccomment">/// let m = Map::new().insert_many((0..4).map(|k| (k, k)));</span>
     <span class="doccomment">/// let m = m.update_many(</span>
     <span class="doccomment">///     (0..4).map(|x| (x, ())),</span>
-    <span class="doccomment">///     &amp;mut |_, (), cur| cur.map(|c| c + 1)</span>
+    <span class="doccomment">///     &amp;mut |k, (), cur| cur.map(|(_, c)| (k, c + 1))</span>
     <span class="doccomment">/// );</span>
     <span class="doccomment">/// assert_eq!(</span>
     <span class="doccomment">///     m.into_iter().map(|(k, v)| (*k, *v)).collect::&lt;Vec&lt;_&gt;&gt;(),</span>
     <span class="doccomment">///     vec![(0, 1), (1, 2), (2, 3), (3, 4)]</span>
     <span class="doccomment">/// );</span>
     <span class="doccomment">/// ```</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">update_many</span><span class="op">&lt;</span><span class="ident">D</span>, <span class="ident">E</span>, <span class="ident">F</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">elts</span>: <span class="ident">E</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">F</span>) <span class="op">-&gt;</span> <span class="self">Self</span>
-    <span class="kw">where</span> <span class="ident">E</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">=</span>(<span class="ident">K</span>, <span class="ident">D</span>)<span class="op">&gt;</span>,
-          <span class="ident">F</span>: <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="ident">K</span>, <span class="ident">D</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">V</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">update_many</span><span class="op">&lt;</span><span class="ident">Q</span>, <span class="ident">D</span>, <span class="ident">E</span>, <span class="ident">F</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">elts</span>: <span class="ident">E</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">F</span>) <span class="op">-&gt;</span> <span class="self">Self</span>
+    <span class="kw">where</span> <span class="ident">E</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">=</span>(<span class="ident">Q</span>, <span class="ident">D</span>)<span class="op">&gt;</span>, <span class="ident">Q</span>: <span class="ident">Ord</span>, <span class="ident">K</span>: <span class="ident">Borrow</span><span class="op">&lt;</span><span class="ident">Q</span><span class="op">&gt;</span>,
+          <span class="ident">F</span>: <span class="ident">FnMut</span>(<span class="ident">Q</span>, <span class="ident">D</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="kw-2">&amp;</span><span class="ident">K</span>, <span class="kw-2">&amp;</span><span class="ident">V</span>)<span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">K</span>, <span class="ident">V</span>)<span class="op">&gt;</span> {
         <span class="kw">let</span> (<span class="ident">root</span>, <span class="ident">len</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">root</span>.<span class="ident">update_many</span>(<span class="self">self</span>.<span class="ident">len</span>, <span class="ident">elts</span>, <span class="ident">f</span>);
         <span class="ident">Map</span> { <span class="ident">len</span>, <span class="ident">root</span> }
     }
@@ -544,26 +550,26 @@
         (<span class="ident">Map</span> {<span class="ident">len</span>, <span class="ident">root</span>}, <span class="ident">prev</span>)
     }
 
-    <span class="doccomment">/// return a new map with the binding for k updated to the</span>
-    <span class="doccomment">/// result of f. If f returns None, the binding will be</span>
-    <span class="doccomment">/// removed from the new map, otherwise it will be</span>
-    <span class="doccomment">/// inserted. This function is more efficient than calling</span>
-    <span class="doccomment">/// `get` and then `insert`, since it makes only one tree</span>
-    <span class="doccomment">/// traversal instead of two. This method runs in log(N)</span>
-    <span class="doccomment">/// time and space where N is the size of the map.</span>
+    <span class="doccomment">/// return a new map with the binding for q, which can be any</span>
+    <span class="doccomment">/// borrowed form of k, updated to the result of f. If f returns</span>
+    <span class="doccomment">/// None, the binding will be removed from the new map, otherwise</span>
+    <span class="doccomment">/// it will be inserted. This function is more efficient than</span>
+    <span class="doccomment">/// calling `get` and then `insert`, since it makes only one tree</span>
+    <span class="doccomment">/// traversal instead of two. This method runs in log(N) time and</span>
+    <span class="doccomment">/// space where N is the size of the map.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// # Examples</span>
     <span class="doccomment">/// ```</span>
     <span class="doccomment">/// use self::immutable_chunkmap::map::Map;</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// let (m, _) = Map::new().update(0, 0, &amp;mut |k, d, _| Some(d));</span>
-    <span class="doccomment">/// let (m, _) = m.update(1, 1, &amp;mut |k, d, _| Some(d));</span>
-    <span class="doccomment">/// let (m, _) = m.update(2, 2, &amp;mut |k, d, _| Some(d));</span>
+    <span class="doccomment">/// let (m, _) = Map::new().update(0, 0, &amp;mut |k, d, _| Some((k, d)));</span>
+    <span class="doccomment">/// let (m, _) = m.update(1, 1, &amp;mut |k, d, _| Some((k, d)));</span>
+    <span class="doccomment">/// let (m, _) = m.update(2, 2, &amp;mut |k, d, _| Some((k, d)));</span>
     <span class="doccomment">/// assert_eq!(m.get(&amp;0), Some(&amp;0));</span>
     <span class="doccomment">/// assert_eq!(m.get(&amp;1), Some(&amp;1));</span>
     <span class="doccomment">/// assert_eq!(m.get(&amp;2), Some(&amp;2));</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// let (m, _) = m.update(0, (), &amp;mut |_, (), v| v.map(|v| v + 1));</span>
+    <span class="doccomment">/// let (m, _) = m.update(0, (), &amp;mut |k, (), v| v.map(move |(_, v)| (k, v + 1)));</span>
     <span class="doccomment">/// assert_eq!(m.get(&amp;0), Some(&amp;1));</span>
     <span class="doccomment">/// assert_eq!(m.get(&amp;1), Some(&amp;1));</span>
     <span class="doccomment">/// assert_eq!(m.get(&amp;2), Some(&amp;2));</span>
@@ -573,9 +579,9 @@
     <span class="doccomment">/// assert_eq!(m.get(&amp;1), None);</span>
     <span class="doccomment">/// assert_eq!(m.get(&amp;2), Some(&amp;2));</span>
     <span class="doccomment">/// ```</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">update</span><span class="op">&lt;</span><span class="ident">D</span>, <span class="ident">F</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">k</span>: <span class="ident">K</span>, <span class="ident">d</span>: <span class="ident">D</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">F</span>) <span class="op">-&gt;</span> (<span class="self">Self</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>)
-    <span class="kw">where</span> <span class="ident">F</span>: <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="ident">K</span>, <span class="ident">D</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">V</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> (<span class="ident">root</span>, <span class="ident">len</span>, <span class="ident">prev</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">root</span>.<span class="ident">update</span>(<span class="self">self</span>.<span class="ident">len</span>, <span class="ident">k</span>, <span class="ident">d</span>, <span class="ident">f</span>);
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">update</span><span class="op">&lt;</span><span class="ident">Q</span>, <span class="ident">D</span>, <span class="ident">F</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">q</span>: <span class="ident">Q</span>, <span class="ident">d</span>: <span class="ident">D</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">F</span>) <span class="op">-&gt;</span> (<span class="self">Self</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>)
+    <span class="kw">where</span> <span class="ident">Q</span>: <span class="ident">Ord</span>, <span class="ident">K</span>: <span class="ident">Borrow</span><span class="op">&lt;</span><span class="ident">Q</span><span class="op">&gt;</span>, <span class="ident">F</span>: <span class="ident">FnMut</span>(<span class="ident">Q</span>, <span class="ident">D</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="kw-2">&amp;</span><span class="ident">K</span>, <span class="kw-2">&amp;</span><span class="ident">V</span>)<span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">K</span>, <span class="ident">V</span>)<span class="op">&gt;</span> {
+        <span class="kw">let</span> (<span class="ident">root</span>, <span class="ident">len</span>, <span class="ident">prev</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">root</span>.<span class="ident">update</span>(<span class="self">self</span>.<span class="ident">len</span>, <span class="ident">q</span>, <span class="ident">d</span>, <span class="ident">f</span>);
         (<span class="ident">Map</span> {<span class="ident">len</span>, <span class="ident">root</span>}, <span class="ident">prev</span>)
     }
 
@@ -585,6 +591,20 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">Q</span>: <span class="question-mark">?</span><span class="ident">Sized</span> <span class="op">+</span> <span class="ident">Ord</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>, <span class="ident">k</span>: <span class="kw-2">&amp;</span><span class="ident">Q</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">V</span><span class="op">&gt;</span>
     <span class="kw">where</span> <span class="ident">K</span>: <span class="ident">Borrow</span><span class="op">&lt;</span><span class="ident">Q</span><span class="op">&gt;</span>
     { <span class="self">self</span>.<span class="ident">root</span>.<span class="ident">get</span>(<span class="ident">k</span>) }
+
+    <span class="doccomment">/// lookup the mapping for k. Return the key. If it doesn&#39;t exist</span>
+    <span class="doccomment">/// return None. Runs in log(N) time and constant space. where N</span>
+    <span class="doccomment">/// is the size of the map.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_key</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">Q</span>: <span class="question-mark">?</span><span class="ident">Sized</span> <span class="op">+</span> <span class="ident">Ord</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>, <span class="ident">k</span>: <span class="kw-2">&amp;</span><span class="ident">Q</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">K</span><span class="op">&gt;</span>
+    <span class="kw">where</span> <span class="ident">K</span>: <span class="ident">Borrow</span><span class="op">&lt;</span><span class="ident">Q</span><span class="op">&gt;</span>
+    { <span class="self">self</span>.<span class="ident">root</span>.<span class="ident">get_key</span>(<span class="ident">k</span>) }
+
+    <span class="doccomment">/// lookup the mapping for k. Return both the key and the</span>
+    <span class="doccomment">/// value. If it doesn&#39;t exist return None. Runs in log(N) time</span>
+    <span class="doccomment">/// and constant space. where N is the size of the map.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_full</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">Q</span>: <span class="question-mark">?</span><span class="ident">Sized</span> <span class="op">+</span> <span class="ident">Ord</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>, <span class="ident">k</span>: <span class="kw-2">&amp;</span><span class="ident">Q</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">K</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">V</span>)<span class="op">&gt;</span>
+    <span class="kw">where</span> <span class="ident">K</span>: <span class="ident">Borrow</span><span class="op">&lt;</span><span class="ident">Q</span><span class="op">&gt;</span>
+    { <span class="self">self</span>.<span class="ident">root</span>.<span class="ident">get_full</span>(<span class="ident">k</span>) }
 
     <span class="doccomment">/// return a new map with the mapping under k removed. If</span>
     <span class="doccomment">/// the binding existed in the old map return it. Runs in</span>
