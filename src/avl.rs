@@ -480,7 +480,7 @@ where
     V: PartialEq + Clone,
 {
     fn eq(&self, other: &Tree<K, V>) -> bool {
-        self.into_iter().zip(other).all(|(e0, e1)| e0 == e1)
+        self.len() == other.len() && self.into_iter().zip(other).all(|(e0, e1)| e0 == e1)
     }
 }
 
@@ -982,7 +982,7 @@ where
         F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
     {
         match self {
-            &Tree::Empty => match f(q, d, None) {
+            Tree::Empty => match f(q, d, None) {
                 None => (self.clone(), None),
                 Some((k, v)) => (
                     Tree::create(
@@ -993,7 +993,7 @@ where
                     None,
                 ),
             },
-            &Tree::Node(ref tn) => {
+            Tree::Node(ref tn) => {
                 let leaf = match (&tn.left, &tn.right) {
                     (&Tree::Empty, &Tree::Empty) => true,
                     (_, _) => false,
@@ -1073,39 +1073,30 @@ where
         }
     }
 
-    pub(crate) fn remove<Q: ?Sized + Ord>(
-        &self,
-        len: usize,
-        k: &Q,
-    ) -> (Self, usize, Option<V>)
+    pub(crate) fn remove<Q: ?Sized + Ord>(&self, k: &Q) -> (Self, Option<V>)
     where
         K: Borrow<Q>,
     {
         match self {
-            &Tree::Empty => (Tree::Empty, len, None),
+            &Tree::Empty => (Tree::Empty, None),
             &Tree::Node(ref tn) => match tn.elts.get(k) {
-                Loc::NotPresent(_) => (self.clone(), len, None),
+                Loc::NotPresent(_) => (self.clone(), None),
                 Loc::Here(i) => {
                     let p = tn.elts.vals[i].clone();
                     let elts = tn.elts.remove_elt_at(i);
-                    let len = len - 1;
                     if elts.len() == 0 {
-                        (Tree::concat(&tn.left, &tn.right), len, Some(p))
+                        (Tree::concat(&tn.left, &tn.right), Some(p))
                     } else {
-                        (
-                            Tree::create(&tn.left, &Arc::new(elts), &tn.right),
-                            len,
-                            Some(p),
-                        )
+                        (Tree::create(&tn.left, &Arc::new(elts), &tn.right), Some(p))
                     }
                 }
                 Loc::InLeft => {
-                    let (l, len, p) = tn.left.remove(len, k);
-                    (Tree::bal(&l, &tn.elts, &tn.right), len, p)
+                    let (l, p) = tn.left.remove(k);
+                    (Tree::bal(&l, &tn.elts, &tn.right), p)
                 }
                 Loc::InRight => {
-                    let (r, len, p) = tn.right.remove(len, k);
-                    (Tree::bal(&tn.left, &tn.elts, &r), len, p)
+                    let (r, p) = tn.right.remove(k);
+                    (Tree::bal(&tn.left, &tn.elts, &r), p)
                 }
             },
         }
@@ -1180,7 +1171,7 @@ where
     V: Clone + Debug,
 {
     #[allow(dead_code)]
-    pub(crate) fn invariant(&self, len: usize) -> () {
+    pub(crate) fn invariant(&self) -> () {
         fn in_range<K, V>(lower: Option<&K>, upper: Option<&K>, elts: &Elts<K, V>) -> bool
         where
             K: Ord + Clone + Debug,
@@ -1265,6 +1256,7 @@ where
 
         //println!("{:#?}", self);
         let (_height, tlen) = check(self, None, None, 0);
+        let len = self.len();
         if len != tlen {
             panic!("len is wrong {} vs {}", len, tlen)
         }
