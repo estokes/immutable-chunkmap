@@ -1,9 +1,11 @@
 extern crate rand;
 use std::time::Duration;
 use std::vec::{Vec};
-use self::rand::{random, Rand};
+use self::rand::{random, distributions::{Standard, Distribution}};
 
-pub(crate) fn randvec<T: Rand>(len: usize) -> Vec<T> {
+pub(crate) fn randvec<T>(len: usize) -> Vec<T>
+    where Standard: Distribution<T>
+{
     let mut v: Vec<T> = Vec::new();
     for _ in 0..len { v.push(random()) }
     v
