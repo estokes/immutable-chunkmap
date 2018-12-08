@@ -783,6 +783,45 @@ where
         }
     }
 
+    fn add_min_elts(&self, elts: &Arc<Elts<K, V>>) -> Self {
+        match self {
+            Tree::Empty => Tree::create(&Tree::Empty, elts, &Tree::Empty),
+            Tree::Node(ref n) => Tree::bal(&n.left.add_min_elts(elts), &n.elts, &n.right),
+        }
+    }
+
+    fn add_max_elts(&self, elts: &Arc<Elts<K, V>>) -> Self {
+        match self {
+            Tree::Empty => Tree::create(&Tree::Empty, elts, &Tree::Empty),
+            Tree::Node(ref n) => Tree::bal(&n.left, &n.elts, &n.right.add_max_elts(elts)),
+        }
+    }
+
+    fn join(l: &Tree<K, V>, elts: &Arc<Elts<K, V>>, r: &Tree<K, V>) -> Self {
+        match (l, r) {
+            (Tree::Empty, _) => r.add_min_elts(elts),
+            (_, Tree::Empty) => l.add_max_elts(elts),
+            (Tree::Node(ref ln), Tree::Node(ref rn)) => {
+                if ln.height > rn.height + 2 {
+                    Tree::bal(&ln.left, &ln.elts, Tree::join(&ln.right, elts, r))
+                }
+            }
+        }
+    }
+
+    fn split(&self, vmin: &K, vmax: &K) -> (Self, bool, Self) {
+        match self {
+            Tree::Empty => (Tree::Empty, false, Tree::Empty),
+            Tree::Node(ref n) => {
+                if vmax < n.lbound {
+                    n.left.split(vmin, vmax)
+                } else if vmin > n.ubound {
+                    n.right.split(vmin, vmax)
+                }
+            }
+        }
+    }
+
     fn is_empty(&self) -> bool {
         match self {
             Tree::Empty => true,
