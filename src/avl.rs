@@ -797,26 +797,39 @@ where
         }
     }
 
+    // This is the same as create except it makes no assumption about the tree
+    // heights or tree balance, so you can pass it anything, and it will return
+    // a balanced tree.
     fn join(l: &Tree<K, V>, elts: &Arc<Elts<K, V>>, r: &Tree<K, V>) -> Self {
         match (l, r) {
             (Tree::Empty, _) => r.add_min_elts(elts),
             (_, Tree::Empty) => l.add_max_elts(elts),
             (Tree::Node(ref ln), Tree::Node(ref rn)) => {
                 if ln.height > rn.height + 2 {
-                    Tree::bal(&ln.left, &ln.elts, Tree::join(&ln.right, elts, r))
+                    Tree::bal(&ln.left, &ln.elts, &Tree::join(&ln.right, elts, r))
+                } else if rn.height > ln.height + 2 {
+                    Tree::bal(&Tree::join(l, elts, &rn.left), &rn.elts, &rn.right)
+                } else {
+                    Tree::create(l, elts, r)
                 }
             }
         }
     }
 
-    fn split(&self, vmin: &K, vmax: &K) -> (Self, bool, Self) {
+    fn split(&self, elts: &Arc<Elts<K, V>>) -> (Self, bool, Self) {
         match self {
             Tree::Empty => (Tree::Empty, false, Tree::Empty),
             Tree::Node(ref n) => {
-                if vmax < n.lbound {
-                    n.left.split(vmin, vmax)
-                } else if vmin > n.ubound {
-                    n.right.split(vmin, vmax)
+                // invariant, empty nodes are not allowed
+                let (vmin, vmax) = (elts.min_elt().unwrap().0, elts.max_elt().unwrap().0);
+                if vmax < &n.min_key {
+                    let (ll, intersects, rl) = n.left.split(elts);
+                    (ll, intersects, Tree::join(&rl, elts, &n.right))
+                } else if vmin > &n.max_key {
+                    let (lr, intersects, rr) = n.right.split(elts);
+                    (Tree::join(&n.left, elts, &lr), intersects, rr)
+                } else {
+                    (n.left.clone(), true, n.right.clone())
                 }
             }
         }
