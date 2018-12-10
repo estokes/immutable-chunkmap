@@ -1,11 +1,19 @@
 extern crate rand;
+use self::rand::{
+    distributions::{Distribution, Standard},
+    random,
+};
 use std::time::Duration;
-use std::vec::{Vec};
-use self::rand::{random, Rand};
+use std::vec::Vec;
 
-pub(crate) fn randvec<T: Rand>(len: usize) -> Vec<T> {
+pub(crate) fn randvec<T>(len: usize) -> Vec<T>
+where
+    Standard: Distribution<T>,
+{
     let mut v: Vec<T> = Vec::new();
-    for _ in 0..len { v.push(random()) }
+    for _ in 0..len {
+        v.push(random())
+    }
     v
 }
 
@@ -30,7 +38,9 @@ pub(crate) fn to_ns_per(t: Duration, n: usize) -> f64 {
 pub(crate) fn permute<T: Clone>(v: &Vec<T>) -> Vec<T> {
     let pos = randvec::<usize>(v.len());
     let mut res = Vec::new();
-    for i in 0..v.len() { res.push((pos[i], v[i].clone())); }
+    for i in 0..v.len() {
+        res.push((pos[i], v[i].clone()));
+    }
     res.sort_unstable_by_key(|&(k, _)| k);
     res.iter().map(|&(_, ref v)| v.clone()).collect()
 }
