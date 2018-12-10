@@ -397,37 +397,91 @@ where
         }
     }
 
-    fn split(&self, elts: &Arc<Elts<K, V>>) -> (Self, bool, Self) {
+    /// split the tree according to elts, return two balanced trees
+    /// representing all the elements less than and greater than elts,
+    /// if there is an intersection return None.
+    fn split(&self, elts: &Arc<Elts<K, V>>) -> Option<(Self, Self)> {
         match self {
-            Tree::Empty => (Tree::Empty, false, Tree::Empty),
+            Tree::Empty => Some((Tree::Empty, Tree::Empty)),
             Tree::Node(ref n) => {
                 // invariant, empty nodes are not allowed
-                let (vmin, vmax) = (elts.min_elt().unwrap().0, elts.max_elt().unwrap().0);
-                if vmax < &n.min_key {
-                    let (ll, intersects, rl) = n.left.split(elts);
-                    (ll, intersects, Tree::join(&rl, elts, &n.right))
-                } else if vmin > &n.max_key {
-                    let (lr, intersects, rr) = n.right.split(elts);
-                    (Tree::join(&n.left, elts, &lr), intersects, rr)
+                let (vmin, vmax) = elts.min_max_key().unwrap();
+                if vmax < n.min_key {
+                    n.left
+                        .split(elts)
+                        .map(|(ll, rl)| (ll, Tree::join(&rl, elts, &n.right)))
+                } else if vmin > n.max_key {
+                    n.right
+                        .split(elts)
+                        .map(|(lr, rr)| (Tree::join(&n.left, elts, &lr), rr))
                 } else {
-                    (n.left.clone(), true, n.right.clone())
+                    None
                 }
             }
         }
     }
 
-    fn merge<F>(t0: &Tree<K, V>, t1: &Tree<K, V>, f: F) -> Self
+    /// merge all the values in the root node of from into to, and
+    /// return from with it's current root remove, and to with the
+    /// elements merged.
+    fn merge_root_to<F>(from: &Tree<K, V>, to: &Tree<K, V>, f: &mut F) -> (Self, Self)
     where
-        F: FnMut(&K, Option<&V>, Option<&V>) -> Option<V>,
+        F: FnMut(&K, &V, &V) -> Option<V>,
+    {
+        match (from, to) {
+            (Tree::Empty, to) => (Tree::Empty, to.clone()),
+            (Tree::Node(ref n), to) => {
+                let to = to.update_chunk(n.elts.to_vec(), &mut |k0, v0, cur| match cur {
+                    None => Some((k0, v0)),
+                    Some((_, v1)) => f(&k0, &v0, v1).map(|v| (k0, v)),
+                });
+                if n.height == 1 {
+                    (Tree::Empty, to)
+                } else {
+                    let elts = n.right.min_elts().unwrap();
+                    let right = n.right.remove_min_elts();
+                    (Tree::join(&n.left, elts, &right), to)
+                }
+            }
+        }
+    }
+
+    /// merge two trees, where f is run on the intersection. O(log(n)
+    /// + m) where n is the size of the tree, and m is the number of
+    /// intersecting chunks.
+    pub(crate) fn merge<F>(t0: &Tree<K, V>, t1: &Tree<K, V>, f: &mut F) -> Self
+    where
+        F: FnMut(&K, &V, &V) -> Option<V>,
     {
         match (t0, t1) {
             (Tree::Empty, t1) => t1.clone(),
             (t0, Tree::Empty) => t0.clone(),
             (Tree::Node(ref n0), Tree::Node(ref n1)) => {
                 if n0.height > n1.height {
-                    unimplemented!()
+                    match t1.split(&n0.elts) {
+                        Some((l1, r1)) => Tree::join(
+                            &Tree::merge(&n0.left, &l1, f),
+                            &n0.elts,
+                            &Tree::merge(&n0.right, &r1, f),
+                        ),
+                        None => {
+                            let (t0, t1) = Tree::merge_root_to(&t0, &t1, f);
+                            Tree::merge(&t0, &t1, f)
+                        }
+                    }
+                } else {
+                    match t0.split(&n1.elts) {
+                        Some((l1, r1)) => Tree::join(
+                            &Tree::merge(&l1, &n1.left, f),
+                            &n1.elts,
+                            &Tree::merge(&r1, &n1.right, f),
+                        ),
+                        None => {
+                            let (t1, t0) = Tree::merge_root_to(&t1, &t0, f);
+                            Tree::merge(&t0, &t1, f)
+                        }
+                    }
                 }
-                unimplemented!()
             }
         }
     }

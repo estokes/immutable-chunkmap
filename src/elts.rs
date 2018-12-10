@@ -2,7 +2,6 @@ use std::{
     borrow::Borrow,
     cmp::{Ord, Ordering},
     fmt::{self, Debug, Formatter},
-    hash::Hasher,
     iter, slice, vec,
 };
 
@@ -54,7 +53,7 @@ pub(crate) enum Update<Q: Ord, K: Ord + Clone + Borrow<Q>, V: Clone, D> {
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct Elts<K: Ord + Clone, V: Clone> {
+pub(crate) struct Elts<K, V> {
     keys: Vec<K>,
     vals: Vec<V>,
 }
@@ -426,6 +425,10 @@ where
 
     pub(crate) fn kv(&self, i: usize) -> (&K, &V) {
         (&self.keys[i], &self.vals[i])
+    }
+
+    pub(crate) fn to_vec(&self) -> Vec<(K, V)> {
+        self.into_iter().map(|(k, v)| (k.clone(), v.clone())).collect()
     }
 }
 
