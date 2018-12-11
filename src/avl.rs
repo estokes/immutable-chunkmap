@@ -422,23 +422,28 @@ where
     /// merge all the values in the root node of from into to, and
     /// return from with it's current root remove, and to with the
     /// elements merged.
-    fn merge_root_to<F>(from: &Tree<K, V>, to: &Tree<K, V>, mut f: F) -> (Self, Self)
+    fn merge_root_to<F>(from: &Tree<K, V>, to: &Tree<K, V>, f: &mut F) -> (Self, Self)
     where
         F: FnMut(&K, &V, &V) -> Option<V>,
     {
         match (from, to) {
             (Tree::Empty, to) => (Tree::Empty, to.clone()),
             (Tree::Node(ref n), to) => {
-                let to = to.update_chunk(n.elts.to_vec(), |k0, v0, cur| match cur {
+                let to = to.update_chunk(n.elts.to_vec(), &mut |k0, v0, cur| match cur {
                     None => Some((k0, v0)),
                     Some((_, v1)) => f(&k0, &v0, v1).map(|v| (k0, v)),
                 });
                 if n.height == 1 {
                     (Tree::Empty, to)
                 } else {
-                    let elts = n.right.min_elts().unwrap();
-                    let right = n.right.remove_min_elts();
-                    (Tree::join(&n.left, elts, &right), to)
+                    match n.right {
+                        Tree::Empty => (n.left.clone(), to),
+                        Tree::Node(_) => {
+                            let elts = n.right.min_elts().unwrap();
+                            let right = n.right.remove_min_elts();
+                            (Tree::join(&n.left, elts, &right), to)
+                        }
+                    }
                 }
             }
         }
@@ -447,7 +452,7 @@ where
     /// merge two trees, where f is run on the intersection. O(log(n)
     /// + m) where n is the size of the largest tree, and m is the number of
     /// intersecting chunks.
-    pub(crate) fn merge<F>(t0: &Tree<K, V>, t1: &Tree<K, V>, mut f: F) -> Self
+    pub(crate) fn merge<F>(t0: &Tree<K, V>, t1: &Tree<K, V>, f: &mut F) -> Self
     where
         F: FnMut(&K, &V, &V) -> Option<V>,
     {
@@ -459,11 +464,11 @@ where
                 if n0.height > n1.height {
                     match t1.split(&n0.min_key, &n0.max_key) {
                         None => {
-                            let (t0, t1) = Tree::merge_root_to(&t0, &t1, &mut f);
-                            Tree::merge(&t0, &t1, &mut f)
+                            let (t0, t1) = Tree::merge_root_to(&t0, &t1, f);
+                            Tree::merge(&t0, &t1, f)
                         }
                         Some((l1, r1)) => Tree::join(
-                            &Tree::merge(&n0.left, &l1, &mut f),
+                            &Tree::merge(&n0.left, &l1, f),
                             &n0.elts,
                             &Tree::merge(&n0.right, &r1, f),
                         ),
@@ -471,14 +476,12 @@ where
                 } else {
                     match t0.split(&n1.min_key, &n1.max_key) {
                         None => {
-                            println!("merge root too");
-                            let (t1, t0) = Tree::merge_root_to(&t1, &t0, &mut f);
+                            let (t1, t0) = Tree::merge_root_to(&t1, &t0, f);
                             Tree::merge(&t0, &t1, f)
                         }
                         Some((l0, r0)) => {
-                            println!("join {} {}", l0.len(), r0.len());
                             Tree::join(
-                                &Tree::merge(&l0, &n1.left, &mut f),
+                                &Tree::merge(&l0, &n1.left, f),
                                 &n1.elts,
                                 &Tree::merge(&r0, &n1.right, f),
                             )
@@ -563,7 +566,7 @@ where
         }
     }
 
-    fn update_chunk<Q, D, F>(&self, chunk: Vec<(Q, D)>, mut f: F) -> Self
+    fn update_chunk<Q, D, F>(&self, chunk: Vec<(Q, D)>, f: &mut F) -> Self
     where
         Q: Ord,
         K: Borrow<Q>,
@@ -591,7 +594,7 @@ where
                     (&Tree::Empty, &Tree::Empty) => true,
                     (_, _) => false,
                 };
-                match tn.elts.update_chunk(chunk, leaf, &mut f) {
+                match tn.elts.update_chunk(chunk, leaf, f) {
                     UpdateChunk::Created(elts) => {
                         Tree::create(&tn.left, &Arc::new(elts), &tn.right)
                     }
@@ -601,9 +604,9 @@ where
                         update_right,
                         overflow_right,
                     } => {
-                        let l = tn.left.update_chunk(update_left, &mut f);
+                        let l = tn.left.update_chunk(update_left, f);
                         let r = tn.right.insert_chunk(overflow_right);
-                        let r = r.update_chunk(update_right, &mut f);
+                        let r = r.update_chunk(update_right, f);
                         Tree::bal(&l, &Arc::new(elts), &r)
                     }
                     UpdateChunk::Removed {
@@ -611,8 +614,8 @@ where
                         update_left,
                         update_right,
                     } => {
-                        let l = tn.left.update_chunk(update_left, &mut f);
-                        let r = tn.right.update_chunk(update_right, &mut f);
+                        let l = tn.left.update_chunk(update_left, f);
+                        let r = tn.right.update_chunk(update_right, f);
                         let t = Tree::concat(&l, &r);
                         t.update_chunk(not_done, f)
                     }
@@ -630,10 +633,10 @@ where
     }
 
     fn insert_chunk(&self, chunk: Vec<(K, V)>) -> Self {
-        self.update_chunk(chunk, |k, v, _| Some((k, v)))
+        self.update_chunk(chunk, &mut |k, v, _| Some((k, v)))
     }
 
-    fn do_chunk<Q, D, F>(&mut self, chunk: &mut Vec<(Q, D)>, mut f: F)
+    fn do_chunk<Q, D, F>(&mut self, chunk: &mut Vec<(Q, D)>, f: &mut F)
     where
         Q: Ord,
         K: Borrow<Q>,
@@ -641,7 +644,7 @@ where
     {
         if chunk.len() < 6 {
             for (q, d) in chunk.drain(0..) {
-                *self = self.update(q, d, &mut f).0;
+                *self = self.update(q, d, f).0;
             }
         } else {
             let mut new_chunk = Vec::new();
@@ -650,7 +653,7 @@ where
         }
     }
 
-    pub(crate) fn update_many<Q, D, E, F>(&self, elts: E, mut f: F) -> Self
+    pub(crate) fn update_many<Q, D, E, F>(&self, elts: E, f: &mut F) -> Self
     where
         E: IntoIterator<Item = (Q, D)>,
         Q: Ord,
@@ -669,24 +672,24 @@ where
                 Some(Ordering::Less) => {
                     chunk.push((q, d));
                     if chunk.len() >= SIZE {
-                        t.do_chunk(&mut chunk, &mut f);
+                        t.do_chunk(&mut chunk, f);
                     }
                 }
                 Some(Ordering::Greater) => {
-                    t.do_chunk(&mut chunk, &mut f);
+                    t.do_chunk(&mut chunk, f);
                     chunk.push((q, d))
                 }
             }
         }
-        t.do_chunk(&mut chunk, &mut f);
+        t.do_chunk(&mut chunk, f);
         t
     }
 
     pub(crate) fn insert_many<E: IntoIterator<Item = (K, V)>>(&self, elts: E) -> Self {
-        self.update_many(elts, |k, v, _| Some((k, v)))
+        self.update_many(elts, &mut |k, v, _| Some((k, v)))
     }
 
-    pub(crate) fn update<Q, D, F>(&self, q: Q, d: D, mut f: F) -> (Self, Option<V>)
+    pub(crate) fn update<Q, D, F>(&self, q: Q, d: D, f: &mut F) -> (Self, Option<V>)
     where
         Q: Ord,
         K: Borrow<Q>,
@@ -709,7 +712,7 @@ where
                     (&Tree::Empty, &Tree::Empty) => true,
                     (_, _) => false,
                 };
-                match tn.elts.update(q, d, leaf, &mut f) {
+                match tn.elts.update(q, d, leaf, f) {
                     Update::UpdateLeft(k, d) => {
                         let (l, prev) = tn.left.update(k, d, f);
                         (Tree::bal(&l, &tn.elts, &tn.right), prev)
@@ -748,7 +751,7 @@ where
     }
 
     pub(crate) fn insert(&self, k: K, v: V) -> (Self, Option<V>) {
-        self.update(k, v, |k, v, _| Some((k, v)))
+        self.update(k, v, &mut |k, v, _| Some((k, v)))
     }
 
     fn min_elts<'a>(&'a self) -> Option<&'a Arc<Chunk<K, V>>> {

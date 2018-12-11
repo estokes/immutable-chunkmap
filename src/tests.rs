@@ -5,11 +5,11 @@ use set::Set;
 use std::{
     borrow::Borrow,
     cmp::Ordering,
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     fmt::Debug,
     hash::Hash,
     i32,
-    iter::IntoIterator,
+    iter::{IntoIterator, FromIterator},
     ops::Bound::{Excluded, Included, Unbounded},
     vec::Vec,
 };
@@ -568,9 +568,32 @@ fn test_ord() {
     assert_eq!(s0.cmp(&s3), Ordering::Greater);
 }
 
-#[test]
-fn test_merge<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
-    let v0 = randvec::<T>(SIZE);
-    let v1 = randvec::<T>(SIZE);
+fn test_merge_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
+    let mut v0 = randvec::<T>(SIZE);
+    let mut v1 = randvec::<T>(SIZE);
+    dedup(&mut v0);
+    dedup(&mut v1);
     let m0 = Map::from_iter(v0.iter().map(|k| (k.clone(), 1)));
+    let m1 = Map::from_iter(v1.iter().map(|k| (k.clone(), 1)));
+    let m3 = m0.merge(&m1, |_, v0, v1| Some(v0 + v1));
+    let mut hm = HashMap::new();
+    for k in v0.iter().chain(v1.iter()) {
+        *hm.entry(k.clone()).or_insert(0) += 1;
+    }
+    for (k, v) in &hm {
+        assert!(m3.get(k).unwrap() == v)
+    }
+    for (k, v) in &m3 {
+        assert!(hm.get(k).unwrap() == v)
+    }
+}
+
+#[test]
+fn test_merge_string() {
+    test_merge_gen::<String>()
+}
+
+#[test]
+fn test_merge_int() {
+    test_merge_gen::<i32>()
 }

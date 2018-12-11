@@ -172,7 +172,7 @@ where
     {
         let root = self
             .0
-            .update_many(elts.into_iter().map(|k| (k, ())), |_, _, _| None);
+            .update_many(elts.into_iter().map(|k| (k, ())), &mut |_, _, _| None);
         Set(root)
     }
 
@@ -189,7 +189,7 @@ where
     {
         let root = self
             .0
-            .update_many(elts.into_iter().map(|k| (k, ())), |q, (), cur| {
+            .update_many(elts.into_iter().map(|k| (k, ())), &mut |q, (), cur| {
                 let cur = cur.map(|(k, ())| k);
                 f(q, cur).map(|k| (k, ()))
             });
@@ -256,7 +256,7 @@ where
     /// }
     /// ```
     pub fn union(&self, other: &Set<K>) -> Self {
-        Set(Tree::merge(&self.0, &other.0, |_, (), ()| Some(())))
+        Set(Tree::merge(&self.0, &other.0, &mut |_, (), ()| Some(())))
     }
 
     /// get the number of elements in the map O(1) time and space

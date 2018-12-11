@@ -210,14 +210,14 @@ where
     ///     vec![(0, 1), (1, 2), (2, 3), (3, 4)]
     /// );
     /// ```
-    pub fn update_many<Q, D, E, F>(&self, elts: E, f: F) -> Self
+    pub fn update_many<Q, D, E, F>(&self, elts: E, mut f: F) -> Self
     where
         E: IntoIterator<Item = (Q, D)>,
         Q: Ord,
         K: Borrow<Q>,
         F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
     {
-        Map(self.0.update_many(elts, f))
+        Map(self.0.update_many(elts, &mut f))
     }
 
     /// return a new map with (k, v) inserted into it. If k
@@ -259,13 +259,13 @@ where
     /// assert_eq!(m.get(&1), None);
     /// assert_eq!(m.get(&2), Some(&2));
     /// ```
-    pub fn update<Q, D, F>(&self, q: Q, d: D, f: F) -> (Self, Option<V>)
+    pub fn update<Q, D, F>(&self, q: Q, d: D, mut f: F) -> (Self, Option<V>)
     where
         Q: Ord,
         K: Borrow<Q>,
         F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
     {
-        let (root, prev) = self.0.update(q, d, f);
+        let (root, prev) = self.0.update(q, d, &mut f);
         (Map(root), prev)
     }
 
@@ -301,11 +301,11 @@ where
     ///    )
     /// }
     /// ```
-    pub fn merge<F>(&self, other: &Map<K, V>, f: F) -> Self
+    pub fn merge<F>(&self, other: &Map<K, V>, mut f: F) -> Self
     where
         F: FnMut(&K, &V, &V) -> Option<V>,
     {
-        Map(Tree::merge(&self.0, &other.0, f))
+        Map(Tree::merge(&self.0, &other.0, &mut f))
     }
 
     /// lookup the mapping for k. If it doesn't exist return
