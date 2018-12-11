@@ -567,3 +567,10 @@ fn test_ord() {
     assert!(s0 != s3);
     assert_eq!(s0.cmp(&s3), Ordering::Greater);
 }
+
+#[test]
+fn test_merge<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
+    let v0 = randvec::<T>(SIZE);
+    let v1 = randvec::<T>(SIZE);
+    let m0 = Map::from_iter(v0.iter().map(|k| (k.clone(), 1)));
+}

@@ -203,14 +203,14 @@ where
     /// let m = Map::from_iter((0..4).map(|k| (k, k)));
     /// let m = m.update_many(
     ///     (0..4).map(|x| (x, ())),
-    ///     &mut |k, (), cur| cur.map(|(_, c)| (k, c + 1))
+    ///     |k, (), cur| cur.map(|(_, c)| (k, c + 1))
     /// );
     /// assert_eq!(
     ///     m.into_iter().map(|(k, v)| (*k, *v)).collect::<Vec<_>>(),
     ///     vec![(0, 1), (1, 2), (2, 3), (3, 4)]
     /// );
     /// ```
-    pub fn update_many<Q, D, E, F>(&self, elts: E, f: &mut F) -> Self
+    pub fn update_many<Q, D, E, F>(&self, elts: E, f: F) -> Self
     where
         E: IntoIterator<Item = (Q, D)>,
         Q: Ord,
@@ -242,24 +242,24 @@ where
     /// ```
     /// use self::immutable_chunkmap::map::Map;
     ///
-    /// let (m, _) = Map::new().update(0, 0, &mut |k, d, _| Some((k, d)));
-    /// let (m, _) = m.update(1, 1, &mut |k, d, _| Some((k, d)));
-    /// let (m, _) = m.update(2, 2, &mut |k, d, _| Some((k, d)));
+    /// let (m, _) = Map::new().update(0, 0, |k, d, _| Some((k, d)));
+    /// let (m, _) = m.update(1, 1, |k, d, _| Some((k, d)));
+    /// let (m, _) = m.update(2, 2, |k, d, _| Some((k, d)));
     /// assert_eq!(m.get(&0), Some(&0));
     /// assert_eq!(m.get(&1), Some(&1));
     /// assert_eq!(m.get(&2), Some(&2));
     ///
-    /// let (m, _) = m.update(0, (), &mut |k, (), v| v.map(move |(_, v)| (k, v + 1)));
+    /// let (m, _) = m.update(0, (), |k, (), v| v.map(move |(_, v)| (k, v + 1)));
     /// assert_eq!(m.get(&0), Some(&1));
     /// assert_eq!(m.get(&1), Some(&1));
     /// assert_eq!(m.get(&2), Some(&2));
     ///
-    /// let (m, _) = m.update(1, (), &mut |_, (), _| None);
+    /// let (m, _) = m.update(1, (), |_, (), _| None);
     /// assert_eq!(m.get(&0), Some(&1));
     /// assert_eq!(m.get(&1), None);
     /// assert_eq!(m.get(&2), Some(&2));
     /// ```
-    pub fn update<Q, D, F>(&self, q: Q, d: D, f: &mut F) -> (Self, Option<V>)
+    pub fn update<Q, D, F>(&self, q: Q, d: D, f: F) -> (Self, Option<V>)
     where
         Q: Ord,
         K: Borrow<Q>,
@@ -285,14 +285,14 @@ where
     ///
     /// let m0 = Map::from_iter((0..10).map(|k| (k, 1)));
     /// let m1 = Map::from_iter((10..20).map(|k| (k, 1)));
-    /// let m2 = m0.merge(&m1, &mut |_k, _v0, _v1| panic!("no intersection expected"));
+    /// let m2 = m0.merge(&m1, |_k, _v0, _v1| panic!("no intersection expected"));
     ///
     /// for i in 0..20 {
     ///     assert!(m2.get(&i).is_some())
     /// }
     ///
     /// let m3 = Map::from_iter((5..9).map(|k| (k, 1)));
-    /// let m4 = m3.merge(&m2, &mut |_k, v0, v1| Some(v0 + v1));
+    /// let m4 = m3.merge(&m2, |_k, v0, v1| Some(v0 + v1));
     ///
     /// for i in 0..20 {
     ///    assert!(
@@ -301,7 +301,7 @@ where
     ///    )
     /// }
     /// ```
-    pub fn merge<F>(&self, other: &Map<K, V>, f: &mut F) -> Self
+    pub fn merge<F>(&self, other: &Map<K, V>, f: F) -> Self
     where
         F: FnMut(&K, &V, &V) -> Option<V>,
     {

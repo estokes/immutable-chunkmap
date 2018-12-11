@@ -134,7 +134,7 @@ where
         &self,
         mut chunk: Vec<(Q, D)>,
         leaf: bool,
-        f: &mut F,
+        mut f: F,
     ) -> UpdateChunk<Q, K, V, D>
     where
         Q: Ord,
@@ -273,7 +273,7 @@ where
         q: Q,
         d: D,
         leaf: bool,
-        f: &mut F,
+        mut f: F,
     ) -> Update<Q, K, V, D>
     where
         Q: Ord,

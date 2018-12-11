@@ -172,7 +172,7 @@ where
     {
         let root = self
             .0
-            .update_many(elts.into_iter().map(|k| (k, ())), &mut |_, _, _| None);
+            .update_many(elts.into_iter().map(|k| (k, ())), |_, _, _| None);
         Set(root)
     }
 
@@ -180,19 +180,19 @@ where
     /// borrowed forms of members of the set, and you want to look at
     /// the real entries and possibly add/update/remove them, then
     /// this method is for you.
-    pub fn update_many<Q, E, F>(&self, elts: E, f: &mut F) -> Self
+    pub fn update_many<Q, E, F>(&self, elts: E, mut f: F) -> Self
     where
         Q: Ord,
         K: Borrow<Q>,
         E: IntoIterator<Item = Q>,
         F: FnMut(Q, Option<&K>) -> Option<K>,
     {
-        let root =
-            self.0
-                .update_many(elts.into_iter().map(|k| (k, ())), &mut |q, (), cur| {
-                    let cur = cur.map(|(k, ())| k);
-                    f(q, cur).map(|k| (k, ()))
-                });
+        let root = self
+            .0
+            .update_many(elts.into_iter().map(|k| (k, ())), |q, (), cur| {
+                let cur = cur.map(|(k, ())| k);
+                f(q, cur).map(|k| (k, ()))
+            });
         Set(root)
     }
 
@@ -256,7 +256,7 @@ where
     /// }
     /// ```
     pub fn union(&self, other: &Set<K>) -> Self {
-        Set(Tree::merge(&self.0, &other.0, &mut |_, (), ()| Some(())))
+        Set(Tree::merge(&self.0, &other.0, |_, (), ()| Some(())))
     }
 
     /// get the number of elements in the map O(1) time and space
