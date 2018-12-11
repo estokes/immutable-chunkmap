@@ -238,6 +238,14 @@ where
         (Set(t), prev.is_some())
     }
 
+    /// return the union of 2 sets. Runs in O(log(N) + M) time, where
+    /// N is the largest of the two sets, and M is the number of
+    /// chunks that intersect, which is roughly proportional to the
+    /// size of the intersection.
+    pub fn union(&self, other: Set<K>) -> Self {
+        Set(Tree::merge(&self.0, &other.0, &mut |_, (), ()| Some(())))
+    }
+
     /// get the number of elements in the map O(1) time and space
     pub fn len(&self) -> usize {
         self.0.len()

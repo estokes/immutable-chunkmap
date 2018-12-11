@@ -400,19 +400,17 @@ where
     /// split the tree according to elts, return two balanced trees
     /// representing all the elements less than and greater than elts,
     /// if there is an intersection return None.
-    fn split(&self, elts: &Arc<Elts<K, V>>) -> Option<(Self, Self)> {
+    fn split(&self, vmin: &K, vmax: &K) -> Option<(Self, Self)> {
         match self {
             Tree::Empty => Some((Tree::Empty, Tree::Empty)),
             Tree::Node(ref n) => {
-                // invariant, empty nodes are not allowed
-                let (vmin, vmax) = elts.min_max_key().unwrap();
-                if vmax < n.min_key {
+                if *vmax < n.min_key {
                     n.left
-                        .split(elts)
+                        .split(vmin, vmax)
                         .map(|(ll, rl)| (ll, Tree::join(&rl, &n.elts, &n.right)))
-                } else if vmin > n.max_key {
+                } else if *vmin > n.max_key {
                     n.right
-                        .split(elts)
+                        .split(vmin, vmax)
                         .map(|(lr, rr)| (Tree::join(&n.left, &n.elts, &lr), rr))
                 } else {
                     None
@@ -459,7 +457,7 @@ where
             (t0, Tree::Empty) => t0.clone(),
             (Tree::Node(ref n0), Tree::Node(ref n1)) => {
                 if n0.height > n1.height {
-                    match t1.split(&n0.elts) {
+                    match t1.split(&n0.min_key, &n0.max_key) {
                         None => {
                             let (t0, t1) = Tree::merge_root_to(&t0, &t1, f);
                             Tree::merge(&t0, &t1, f)
@@ -471,7 +469,7 @@ where
                         ),
                     }
                 } else {
-                    match t0.split(&n1.elts) {
+                    match t0.split(&n1.min_key, &n1.max_key) {
                         None => {
                             println!("merge root too");
                             let (t1, t0) = Tree::merge_root_to(&t1, &t0, f);
