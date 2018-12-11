@@ -1,5 +1,5 @@
 use arrayvec::ArrayVec;
-use elts::{Elts, Loc, Update, UpdateChunk, SIZE};
+use chunk::{Chunk, Loc, Update, UpdateChunk, SIZE};
 use std::{
     borrow::Borrow,
     cmp::{max, min, Eq, Ord, Ordering, PartialEq, PartialOrd},
@@ -18,7 +18,7 @@ const MAX_DEPTH: usize = 64;
 
 #[derive(Clone)]
 pub(crate) struct Node<K: Ord + Clone, V: Clone> {
-    elts: Arc<Elts<K, V>>,
+    elts: Arc<Chunk<K, V>>,
     min_key: K,
     max_key: K,
     left: Tree<K, V>,
@@ -364,14 +364,14 @@ where
         }
     }
 
-    fn add_min_elts(&self, elts: &Arc<Elts<K, V>>) -> Self {
+    fn add_min_elts(&self, elts: &Arc<Chunk<K, V>>) -> Self {
         match self {
             Tree::Empty => Tree::create(&Tree::Empty, elts, &Tree::Empty),
             Tree::Node(ref n) => Tree::bal(&n.left.add_min_elts(elts), &n.elts, &n.right),
         }
     }
 
-    fn add_max_elts(&self, elts: &Arc<Elts<K, V>>) -> Self {
+    fn add_max_elts(&self, elts: &Arc<Chunk<K, V>>) -> Self {
         match self {
             Tree::Empty => Tree::create(&Tree::Empty, elts, &Tree::Empty),
             Tree::Node(ref n) => Tree::bal(&n.left, &n.elts, &n.right.add_max_elts(elts)),
@@ -381,7 +381,7 @@ where
     // This is the same as create except it makes no assumption about the tree
     // heights or tree balance, so you can pass it anything, and it will return
     // a balanced tree.
-    fn join(l: &Tree<K, V>, elts: &Arc<Elts<K, V>>, r: &Tree<K, V>) -> Self {
+    fn join(l: &Tree<K, V>, elts: &Arc<Chunk<K, V>>, r: &Tree<K, V>) -> Self {
         match (l, r) {
             (Tree::Empty, _) => r.add_min_elts(elts),
             (_, Tree::Empty) => l.add_max_elts(elts),
@@ -510,7 +510,7 @@ where
         }
     }
 
-    fn create(l: &Tree<K, V>, elts: &Arc<Elts<K, V>>, r: &Tree<K, V>) -> Self {
+    fn create(l: &Tree<K, V>, elts: &Arc<Chunk<K, V>>, r: &Tree<K, V>) -> Self {
         let (min_key, max_key) = elts.min_max_key().unwrap();
         let n = Node {
             elts: elts.clone(),
@@ -524,7 +524,7 @@ where
         Tree::Node(Arc::new(n))
     }
 
-    fn bal(l: &Tree<K, V>, elts: &Arc<Elts<K, V>>, r: &Tree<K, V>) -> Self {
+    fn bal(l: &Tree<K, V>, elts: &Arc<Chunk<K, V>>, r: &Tree<K, V>) -> Self {
         let (hl, hr) = (l.height(), r.height());
         if hl > hr + 1 {
             match *l {
@@ -575,7 +575,7 @@ where
         match self {
             &Tree::Empty => {
                 let elts = {
-                    let t = Elts::empty();
+                    let t = Chunk::empty();
                     match t.update_chunk(chunk, true, f) {
                         UpdateChunk::Created(elts) => elts,
                         UpdateChunk::Removed { .. } => unreachable!(),
@@ -693,7 +693,7 @@ where
                 Some((k, v)) => (
                     Tree::create(
                         &Tree::Empty,
-                        &Arc::new(Elts::singleton(k, v)),
+                        &Arc::new(Chunk::singleton(k, v)),
                         &Tree::Empty,
                     ),
                     None,
@@ -746,7 +746,7 @@ where
         self.update(k, v, &mut |k, v, _| Some((k, v)))
     }
 
-    fn min_elts<'a>(&'a self) -> Option<&'a Arc<Elts<K, V>>> {
+    fn min_elts<'a>(&'a self) -> Option<&'a Arc<Chunk<K, V>>> {
         match self {
             &Tree::Empty => None,
             &Tree::Node(ref tn) => match tn.left {
@@ -816,7 +816,7 @@ where
     where
         Q: ?Sized + Ord,
         K: Borrow<Q>,
-        F: FnOnce(&'a Elts<K, V>, usize) -> R,
+        F: FnOnce(&'a Chunk<K, V>, usize) -> R,
         R: 'a,
     {
         match self {
@@ -878,7 +878,7 @@ where
 {
     #[allow(dead_code)]
     pub(crate) fn invariant(&self) -> () {
-        fn in_range<K, V>(lower: Option<&K>, upper: Option<&K>, elts: &Elts<K, V>) -> bool
+        fn in_range<K, V>(lower: Option<&K>, upper: Option<&K>, elts: &Chunk<K, V>) -> bool
         where
             K: Ord + Clone + Debug,
             V: Clone + Debug,
@@ -896,7 +896,7 @@ where
             })
         }
 
-        fn sorted<K, V>(elts: &Elts<K, V>) -> bool
+        fn sorted<K, V>(elts: &Chunk<K, V>) -> bool
         where
             K: Ord + Clone + Debug,
             V: Clone + Debug,

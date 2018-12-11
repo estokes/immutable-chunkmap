@@ -28,9 +28,9 @@ pub(crate) const SIZE: usize = 512;
 pub(crate) enum UpdateChunk<Q: Ord, K: Ord + Clone + Borrow<Q>, V: Clone, D> {
     UpdateLeft(Vec<(Q, D)>),
     UpdateRight(Vec<(Q, D)>),
-    Created(Elts<K, V>),
+    Created(Chunk<K, V>),
     Updated {
-        elts: Elts<K, V>,
+        elts: Chunk<K, V>,
         update_left: Vec<(Q, D)>,
         update_right: Vec<(Q, D)>,
         overflow_right: Vec<(K, V)>,
@@ -46,19 +46,19 @@ pub(crate) enum Update<Q: Ord, K: Ord + Clone + Borrow<Q>, V: Clone, D> {
     UpdateLeft(Q, D),
     UpdateRight(Q, D),
     Updated {
-        elts: Elts<K, V>,
+        elts: Chunk<K, V>,
         overflow: Option<(K, V)>,
         previous: Option<V>,
     },
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct Elts<K, V> {
+pub(crate) struct Chunk<K, V> {
     keys: Vec<K>,
     vals: Vec<V>,
 }
 
-impl<K, V> Debug for Elts<K, V>
+impl<K, V> Debug for Chunk<K, V>
 where
     K: Debug + Ord + Clone,
     V: Debug + Clone,
@@ -68,27 +68,27 @@ where
     }
 }
 
-impl<K, V> Elts<K, V>
+impl<K, V> Chunk<K, V>
 where
     K: Ord + Clone,
     V: Clone,
 {
     pub(crate) fn singleton(k: K, v: V) -> Self {
-        let mut t = Elts::with_capacity(1);
+        let mut t = Chunk::with_capacity(1);
         t.keys.push(k);
         t.vals.push(v);
         t
     }
 
     pub(crate) fn empty() -> Self {
-        Elts {
+        Chunk {
             keys: Vec::new(),
             vals: Vec::new(),
         }
     }
 
     fn with_capacity(n: usize) -> Self {
-        Elts {
+        Chunk {
             keys: Vec::with_capacity(n),
             vals: Vec::with_capacity(n),
         }
@@ -143,7 +143,7 @@ where
     {
         assert!(chunk.len() <= SIZE && chunk.len() > 0);
         if self.len() == 0 {
-            let mut elts = Elts::empty();
+            let mut elts = Chunk::empty();
             let (keys, vals): (Vec<_>, Vec<_>) =
                 chunk.drain(0..).filter_map(|(q, d)| f(q, d, None)).unzip();
             elts.keys = keys;
@@ -158,7 +158,7 @@ where
             } else if full && in_right {
                 UpdateChunk::UpdateRight(chunk)
             } else if leaf && in_left {
-                let mut elts = Elts::empty();
+                let mut elts = Chunk::empty();
                 let (keys, vals): (Vec<_>, Vec<_>) =
                     chunk.drain(0..).filter_map(|(q, d)| f(q, d, None)).unzip();
                 elts.keys = keys;
@@ -282,7 +282,7 @@ where
     {
         match self.get(&q) {
             Loc::Here(i) => {
-                let mut elts = Elts::with_capacity(self.len());
+                let mut elts = Chunk::with_capacity(self.len());
                 elts.keys.extend_from_slice(&self.keys[0..i]);
                 elts.vals.extend_from_slice(&self.vals[0..i]);
                 if let Some((k, v)) = f(q, d, Some((&self.keys[i], &self.vals[i]))) {
@@ -300,7 +300,7 @@ where
                 }
             }
             Loc::NotPresent(i) => {
-                let mut elts = Elts::with_capacity(self.len() + 1);
+                let mut elts = Chunk::with_capacity(self.len() + 1);
                 elts.keys.extend_from_slice(&self.keys[0..i]);
                 elts.vals.extend_from_slice(&self.vals[0..i]);
                 if let Some((k, v)) = f(q, d, None) {
@@ -332,7 +332,7 @@ where
                         Loc::Here(..) | Loc::NotPresent(..) => unreachable!(),
                     }
                 } else {
-                    let mut elts = Elts::with_capacity(self.len() + 1);
+                    let mut elts = Chunk::with_capacity(self.len() + 1);
                     match loc {
                         Loc::InLeft => {
                             if let Some((k, v)) = f(q, d, None) {
@@ -363,7 +363,7 @@ where
     }
 
     pub(crate) fn remove_elt_at(&self, i: usize) -> Self {
-        let mut elts = Elts::with_capacity(self.len() - 1);
+        let mut elts = Chunk::with_capacity(self.len() - 1);
         if self.len() == 0 {
             panic!("can't remove from an empty chunk")
         } else if self.len() == 1 {
@@ -432,7 +432,7 @@ where
     }
 }
 
-impl<K, V> IntoIterator for Elts<K, V>
+impl<K, V> IntoIterator for Chunk<K, V>
 where
     K: Ord + Clone,
     V: Clone,
@@ -444,7 +444,7 @@ where
     }
 }
 
-impl<'a, K, V> IntoIterator for &'a Elts<K, V>
+impl<'a, K, V> IntoIterator for &'a Chunk<K, V>
 where
     K: 'a + Ord + Clone,
     V: 'a + Clone,

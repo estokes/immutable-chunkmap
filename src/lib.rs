@@ -2,7 +2,7 @@
 //! Immutable maps and sets. See map and set modules for details.
 extern crate arrayvec;
 
-pub(crate) mod elts;
+pub(crate) mod chunk;
 pub(crate) mod avl;
 pub mod map;
 pub mod set;
