@@ -576,6 +576,7 @@ fn test_merge_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
     let m0 = Map::from_iter(v0.iter().map(|k| (k.clone(), 1)));
     let m1 = Map::from_iter(v1.iter().map(|k| (k.clone(), 1)));
     let m3 = m0.merge(&m1, |_, v0, v1| Some(v0 + v1));
+    m3.invariant();
     let mut hm = HashMap::new();
     for k in v0.iter().chain(v1.iter()) {
         *hm.entry(k.clone()).or_insert(0) += 1;
