@@ -197,9 +197,10 @@ where
     ///
     /// #Examples
     /// ```
+    /// use std::iter::FromIterator;
     /// use self::immutable_chunkmap::map::Map;
     ///
-    /// let m = Map::new().insert_many((0..4).map(|k| (k, k)));
+    /// let m = Map::from_iter((0..4).map(|k| (k, k)));
     /// let m = m.update_many(
     ///     (0..4).map(|x| (x, ())),
     ///     &mut |k, (), cur| cur.map(|(_, c)| (k, c + 1))
@@ -279,17 +280,18 @@ where
     ///
     /// # Examples
     /// ```
+    /// use std::iter::FromIterator;
     /// use self::immutable_chunkmap::map::Map;
     ///
-    /// let m0 = Map::new().insert_many((0..10).map(|k| (k, 1)));
-    /// let m1 = Map::new().insert_many((10..20).map(|k| (k, 1)));
+    /// let m0 = Map::from_iter((0..10).map(|k| (k, 1)));
+    /// let m1 = Map::from_iter((10..20).map(|k| (k, 1)));
     /// let m2 = m0.merge(&m1, &mut |_k, _v0, _v1| panic!("no intersection expected"));
     ///
     /// for i in 0..20 {
     ///     assert!(m2.get(&i).is_some())
     /// }
     ///
-    /// let m3 = Map::new().insert_many((5..9).map(|k| (k, 1)));
+    /// let m3 = Map::from_iter((5..9).map(|k| (k, 1)));
     /// let m4 = m3.merge(&m2, &mut |_k, v0, v1| Some(v0 + v1));
     ///
     /// for i in 0..20 {
