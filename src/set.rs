@@ -1,9 +1,12 @@
-use avl::{Tree, Iter};
+use avl::{Iter, Tree};
 use std::{
-    cmp::{PartialEq, Eq, PartialOrd, Ord, Ordering},
-    fmt::{self, Debug, Formatter}, borrow::Borrow,
-    ops::Bound, default::Default, iter::FromIterator,
-    hash::{Hash, Hasher}
+    borrow::Borrow,
+    cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd},
+    default::Default,
+    fmt::{self, Debug, Formatter},
+    hash::{Hash, Hasher},
+    iter::FromIterator,
+    ops::Bound,
 };
 /// This set uses a similar strategy to BTreeSet to ensure cache
 /// efficient performance on modern hardware while still providing
@@ -27,62 +30,94 @@ use std::{
 /// for k in &m { println!("{}", k) }
 /// ```
 #[derive(Clone)]
-pub struct Set<K: Ord + Clone> {
-    len: usize,
-    root: Tree<K, ()>
-}
+pub struct Set<K: Ord + Clone>(Tree<K, ()>);
 
-impl<K> Hash for Set<K> where K: Hash + Ord + Clone {
-    fn hash<H: Hasher>(&self, state: &mut H) { self.root.hash(state) }
+impl<K> Hash for Set<K>
+where
+    K: Hash + Ord + Clone,
+{
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.hash(state)
+    }
 }
 
 impl<K> Default for Set<K>
-where K: Ord + Clone { fn default() -> Set<K> { Set::new() } }
+where
+    K: Ord + Clone,
+{
+    fn default() -> Set<K> {
+        Set::new()
+    }
+}
 
-impl<K> PartialEq for Set<K> where K: Ord + Clone {
+impl<K> PartialEq for Set<K>
+where
+    K: Ord + Clone,
+{
     fn eq(&self, other: &Set<K>) -> bool {
-        self.len == other.len && self.root == other.root
+        self.0 == other.0
     }
 }
 
 impl<K> Eq for Set<K> where K: Eq + Ord + Clone {}
 
-impl<K> PartialOrd for Set<K> where K: Ord + Clone {
+impl<K> PartialOrd for Set<K>
+where
+    K: Ord + Clone,
+{
     fn partial_cmp(&self, other: &Set<K>) -> Option<Ordering> {
-        self.root.partial_cmp(&other.root)
+        self.0.partial_cmp(&other.0)
     }
 }
 
-impl<K> Ord for Set<K> where K: Ord + Clone {
-    fn cmp(&self, other: &Set<K>) -> Ordering { self.root.cmp(&other.root) }
+impl<K> Ord for Set<K>
+where
+    K: Ord + Clone,
+{
+    fn cmp(&self, other: &Set<K>) -> Ordering {
+        self.0.cmp(&other.0)
+    }
 }
 
-impl<K> Debug for Set<K> where K: Debug + Ord + Clone {
+impl<K> Debug for Set<K>
+where
+    K: Debug + Ord + Clone,
+{
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         f.debug_set().entries(self.into_iter()).finish()
     }
 }
 
 impl<K> FromIterator<K> for Set<K>
-where K: Ord + Clone {
-    fn from_iter<T: IntoIterator<Item=K>>(iter: T) -> Self {
+where
+    K: Ord + Clone,
+{
+    fn from_iter<T: IntoIterator<Item = K>>(iter: T) -> Self {
         Set::new().insert_many(iter)
     }
 }
 
-pub struct SetIter<'a, Q: Ord, K: 'a + Clone + Ord + Borrow<Q>>(
-    Iter<'a, Q, K, ()>
-);
+pub struct SetIter<'a, Q: Ord, K: 'a + Clone + Ord + Borrow<Q>>(Iter<'a, Q, K, ()>);
 
 impl<'a, Q, K> Iterator for SetIter<'a, Q, K>
-where Q: Ord, K: 'a + Clone + Ord + Borrow<Q> {
+where
+    Q: Ord,
+    K: 'a + Clone + Ord + Borrow<Q>,
+{
     type Item = &'a K;
-    fn next(&mut self) -> Option<Self::Item> { self.0.next().map(|(k, ())| k) }
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next().map(|(k, ())| k)
+    }
 }
 
 impl<'a, Q, K> DoubleEndedIterator for SetIter<'a, Q, K>
-where Q: Ord, K: 'a + Clone + Ord + Borrow<Q> {
-    fn next_back(&mut self) -> Option<Self::Item> { self.0.next_back().map(|(k, ())| k) }
+where
+    Q: Ord,
+    K: 'a + Clone + Ord + Borrow<Q>,
+{
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.0.next_back().map(|(k, ())| k)
+    }
 }
 
 impl<'a, K> IntoIterator for &'a Set<K>
@@ -91,12 +126,19 @@ where
 {
     type Item = &'a K;
     type IntoIter = SetIter<'a, K, K>;
-    fn into_iter(self) -> Self::IntoIter { SetIter(self.root.into_iter()) }
+    fn into_iter(self) -> Self::IntoIter {
+        SetIter(self.0.into_iter())
+    }
 }
 
-impl<K> Set<K> where K: Ord + Clone {
+impl<K> Set<K>
+where
+    K: Ord + Clone,
+{
     /// Create a new empty set
-    pub fn new() -> Self { Set { len: 0, root: Tree::new() } }
+    pub fn new() -> Self {
+        Set(Tree::new())
+    }
 
     /// This will insert many elements at once, and is
     /// potentially a lot faster than inserting one by one,
@@ -115,41 +157,43 @@ impl<K> Set<K> where K: Ord + Clone {
     ///   assert_eq!(m.contains(k), true)
     /// }
     /// ```
-    pub fn insert_many<E: IntoIterator<Item=K>>(
-        &self, elts: E
-    ) -> Self {
-        let (root, len) =
-            self.root.insert_many(self.len, elts.into_iter().map(|k| (k, ())));
-        Set { len, root }
+    pub fn insert_many<E: IntoIterator<Item = K>>(&self, elts: E) -> Self {
+        let root = self.0.insert_many(elts.into_iter().map(|k| (k, ())));
+        Set(root)
     }
 
     /// Remove multiple elements in a single pass. Similar performance
     /// to insert_many.
     pub fn remove_many<Q, E>(&self, elts: E) -> Self
-    where Q: Ord, K: Borrow<Q>, E: IntoIterator<Item=Q> {
-        let (root, len) =
-            self.root.update_many(
-                self.len, elts.into_iter().map(|k| (k, ())),
-                &mut |_, _, _| None);
-        Set { len, root }
+    where
+        Q: Ord,
+        K: Borrow<Q>,
+        E: IntoIterator<Item = Q>,
+    {
+        let root = self
+            .0
+            .update_many(elts.into_iter().map(|k| (k, ())), &mut |_, _, _| None);
+        Set(root)
     }
 
     /// This is just slightly wierd, however if you have a bunch of
     /// borrowed forms of members of the set, and you want to look at
     /// the real entries and possibly add/update/remove them, then
     /// this method is for you.
-    pub fn update_many<Q, E, F>(&self, elts: E, f: &mut F) -> Self
-    where Q: Ord, K: Borrow<Q>, E: IntoIterator<Item=Q>,
-          F: FnMut(Q, Option<&K>) -> Option<K> {
-        let (root, len) =
-            self.root.update_many(
-                self.len,
-                elts.into_iter().map(|k| (k, ())),
-                &mut |q, (), cur| {
-                    let cur = cur.map(|(k, ())| k);
-                    f(q, cur).map(|k| (k, ()))
-                });
-        Set { len, root }
+    pub fn update_many<Q, E, F>(&self, elts: E, mut f: F) -> Self
+    where
+        Q: Ord,
+        K: Borrow<Q>,
+        E: IntoIterator<Item = Q>,
+        F: FnMut(Q, Option<&K>) -> Option<K>,
+    {
+        let root = self
+            .0
+            .update_many(elts.into_iter().map(|k| (k, ())), &mut |q, (), cur| {
+                let cur = cur.map(|(k, ())| k);
+                f(q, cur).map(|k| (k, ()))
+            });
+        Set(root)
     }
 
     /// return a new set with k inserted into it. If k already
@@ -157,10 +201,10 @@ impl<K> Set<K> where K: Ord + Clone {
     /// element already exists in the set memory will not be
     /// allocated.
     pub fn insert(&self, k: K) -> (Self, bool) {
-        if self.contains(&k) { (self.clone(), true) }
-        else {
-            let (root, len, _) = self.root.insert(self.len, k, ());
-            (Set {len, root}, false)
+        if self.contains(&k) {
+            (self.clone(), true)
+        } else {
+            (Set(self.0.insert(k, ()).0), false)
         }
     }
 
@@ -168,26 +212,57 @@ impl<K> Set<K> where K: Ord + Clone {
     /// log(N) time and constant space. where N is the size of
     /// the set.
     pub fn contains<'a, Q>(&'a self, k: &Q) -> bool
-    where Q: ?Sized + Ord, K: Borrow<Q>
-    { self.root.get(k).is_some() }
+    where
+        Q: ?Sized + Ord,
+        K: Borrow<Q>,
+    {
+        self.0.get(k).is_some()
+    }
 
     /// return a reference to an item in the set if any that is equal to the given value.
     pub fn get<'a, Q>(&'a self, k: &Q) -> Option<&K>
-    where Q: ?Sized + Ord, K: Borrow<Q> {
-        self.root.get_key(k)
+    where
+        Q: ?Sized + Ord,
+        K: Borrow<Q>,
+    {
+        self.0.get_key(k)
     }
 
     /// return a new set with k removed. Runs in log(N) time
     /// and log(N) space, where N is the size of the set
     pub fn remove<Q: Sized + Ord>(&self, k: &Q) -> (Self, bool)
-    where K: Borrow<Q>
+    where
+        K: Borrow<Q>,
     {
-        let (t, len, prev) = self.root.remove(self.len, k);
-        (Set {root: t, len: len}, prev.is_some())
+        let (t, prev) = self.0.remove(k);
+        (Set(t), prev.is_some())
+    }
+
+    /// return the union of 2 sets. Runs in O(log(N) + M) time, where
+    /// N is the largest of the two sets, and M is the number of
+    /// chunks that intersect, which is roughly proportional to the
+    /// size of the intersection.
+    ///
+    /// # Examples
+    /// ```
+    /// use std::iter::FromIterator;
+    /// use self::immutable_chunkmap::set::Set;
+    ///
+    /// let s0 = Set::from_iter(0..10);
+    /// let s1 = Set::from_iter(5..15);
+    /// let s2 = s0.union(&s1);
+    /// for i in 0..15 {
+    ///     assert!(s2.contains(&i));
+    /// }
+    /// ```
+    pub fn union(&self, other: &Set<K>) -> Self {
+        Set(Tree::merge(&self.0, &other.0, &mut |_, (), ()| Some(())))
     }
 
     /// get the number of elements in the map O(1) time and space
-    pub fn len(&self) -> usize { self.len }
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
 
     /// return an iterator over the subset of elements in the
     /// set that are within the specified range.
@@ -197,15 +272,21 @@ impl<K> Set<K> where K: Ord + Clone {
     /// tree, and M is the number of elements you examine.
     ///
     /// if lbound >= ubound the returned iterator will be empty
-    pub fn range<'a, Q>(
-        &'a self, lbound: Bound<Q>, ubound: Bound<Q>
-    ) -> SetIter<'a, Q, K>
-    where Q: Ord, K: 'a + Clone + Ord + Borrow<Q> {
-        SetIter(self.root.range(lbound, ubound))
+    pub fn range<'a, Q>(&'a self, lbound: Bound<Q>, ubound: Bound<Q>) -> SetIter<'a, Q, K>
+    where
+        Q: Ord,
+        K: 'a + Clone + Ord + Borrow<Q>,
+    {
+        SetIter(self.0.range(lbound, ubound))
     }
 }
 
-impl<K> Set<K> where K: Ord + Clone + Debug {
+impl<K> Set<K>
+where
+    K: Ord + Clone + Debug,
+{
     #[allow(dead_code)]
-    pub(crate) fn invariant(&self) -> () { self.root.invariant(self.len) }
+    pub(crate) fn invariant(&self) -> () {
+        self.0.invariant()
+    }
 }

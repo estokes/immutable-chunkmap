@@ -4,11 +4,9 @@ use self::rand::{
     random,
 };
 use std::time::Duration;
-use std::vec::Vec;
 
 pub(crate) fn randvec<T>(len: usize) -> Vec<T>
-where
-    Standard: Distribution<T>,
+    where Standard: Distribution<T>
 {
     let mut v: Vec<T> = Vec::new();
     for _ in 0..len {
