@@ -409,11 +409,11 @@ where
                 if vmax < n.min_key {
                     n.left
                         .split(elts)
-                        .map(|(ll, rl)| (ll, Tree::join(&rl, elts, &n.right)))
+                        .map(|(ll, rl)| (ll, Tree::join(&rl, &n.elts, &n.right)))
                 } else if vmin > n.max_key {
                     n.right
                         .split(elts)
-                        .map(|(lr, rr)| (Tree::join(&n.left, elts, &lr), rr))
+                        .map(|(lr, rr)| (Tree::join(&n.left, &n.elts, &lr), rr))
                 } else {
                     None
                 }
@@ -447,38 +447,43 @@ where
     }
 
     /// merge two trees, where f is run on the intersection. O(log(n)
-    /// + m) where n is the size of the tree, and m is the number of
+    /// + m) where n is the size of the largest tree, and m is the number of
     /// intersecting chunks.
     pub(crate) fn merge<F>(t0: &Tree<K, V>, t1: &Tree<K, V>, f: &mut F) -> Self
     where
         F: FnMut(&K, &V, &V) -> Option<V>,
     {
         match (t0, t1) {
+            (Tree::Empty, Tree::Empty) => Tree::Empty,
             (Tree::Empty, t1) => t1.clone(),
             (t0, Tree::Empty) => t0.clone(),
             (Tree::Node(ref n0), Tree::Node(ref n1)) => {
                 if n0.height > n1.height {
                     match t1.split(&n0.elts) {
+                        None => {
+                            let (t0, t1) = Tree::merge_root_to(&t0, &t1, f);
+                            Tree::merge(&t0, &t1, f)
+                        }
                         Some((l1, r1)) => Tree::join(
                             &Tree::merge(&n0.left, &l1, f),
                             &n0.elts,
                             &Tree::merge(&n0.right, &r1, f),
                         ),
-                        None => {
-                            let (t0, t1) = Tree::merge_root_to(&t0, &t1, f);
-                            Tree::merge(&t0, &t1, f)
-                        }
                     }
                 } else {
                     match t0.split(&n1.elts) {
-                        Some((l1, r1)) => Tree::join(
-                            &Tree::merge(&l1, &n1.left, f),
-                            &n1.elts,
-                            &Tree::merge(&r1, &n1.right, f),
-                        ),
                         None => {
+                            println!("merge root too");
                             let (t1, t0) = Tree::merge_root_to(&t1, &t0, f);
                             Tree::merge(&t0, &t1, f)
+                        }
+                        Some((l0, r0)) => {
+                            println!("join {} {}", l0.len(), r0.len());
+                            Tree::join(
+                                &Tree::merge(&l0, &n1.left, f),
+                                &n1.elts,
+                                &Tree::merge(&r0, &n1.right, f),
+                            )
                         }
                     }
                 }

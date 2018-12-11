@@ -16,56 +16,15 @@ use std::{
 /// For good performance, it is very important to understand
 /// that clone is a fundamental operation, it needs to be fast
 /// for your key and data types, because it's going to be
-/// called a lot whenever you change the map. If your key and
-/// data types are cheap to clone (like e.g. Arc), and you
-/// perform your update operations in largish batches, then it
-/// is possible to get very good performance, even approaching
-/// that of a standard HashMap.
+/// called a lot whenever you change the map.
 ///
 /// # Why
 ///
-/// Which begs the question, why would anyone ever want to use
-/// a data structure where very careful structuring of key and
-/// data type, and careful batching, MIGHT APPROACH the
-/// performance of a plain old HashMap, it seems a silly thing
-/// to work on. I know of two cases.
+/// 1. Multiple threads can read this structure even while one thread
+/// is updating it. Using a library like arc_swap you can avoid ever
+/// blocking readers.
 ///
-/// 1. Multiple threads can read this structure even while one
-/// thread is updating it.
-///
-/// 2. You can take a snapshot and e.g. write it to disk, or
-/// replicate it to another process without stopping reads or
-/// writes.
-///
-/// There is some nuance to #1, because HashMap is generally
-/// faster to read than a BTree. In a pure read application
-/// it's the obvious choice when you don't require sorted
-/// data. In a mixed read/write scenario at 4 reads for every
-/// write HashMap is already the same speed as chunkmap for
-/// reading a 10M entry map. That's a pretty write heavy
-/// application, and wouldn't be news by itself. The real
-/// killer of the mutable strucures is large operations, any
-/// kind of housekeeping operation that's going to touch a
-/// large number of keys can be death for availability,
-/// holding onto a write lock for multiple hundreds of
-/// milliseconds, even seconds, even longer. Sure it's
-/// possible to amortize this in some cases by doing your
-/// housekeeping in small batches, but that can be complex,
-/// and it isn't always possible, and readers still pay a
-/// price even if it's amortized.
-///
-/// That brings us to #2, which is really the mother of all
-/// housekeeping operations. There is no way to amortize
-/// taking a consistent snapshot, the best you can possibly do
-/// is hold the write lock long enough to make a complete copy
-/// of the data, if you even have the memory for that. God
-/// help you if you miscalculate and start swapping while
-/// you're making that copy, holding the write lock while your
-/// disk or if you're lucky SSD churns away moving pages back
-/// and forth between main memory, you may be holding that
-/// lock for a long long time. Chunkmap gives you free
-/// snapshots in exchange for slower writes, which, carefully
-/// considered don't even need to be that much slower.
+/// 2. Snapshotting this structure is free.
 ///
 /// # Examples
 /// ```
@@ -307,6 +266,44 @@ where
     {
         let (root, prev) = self.0.update(q, d, f);
         (Map(root), prev)
+    }
+
+    /// Merge two maps together. Bindings that exist in both maps will
+    /// be passed to f, which may elect to remove the binding by
+    /// returning None. This function runs in O(log(n) + m) time and
+    /// space, where n is the size of the largest map, and m is the
+    /// number of intersecting chunks. It will never be slower than
+    /// calling update_many on the first map with an iterator over the
+    /// second, and will be significantly faster if the intersection
+    /// is minimal or empty.
+    ///
+    /// # Examples
+    /// ```
+    /// use self::immutable_chunkmap::map::Map;
+    ///
+    /// let m0 = Map::new().insert_many((0..10).map(|k| (k, 1)));
+    /// let m1 = Map::new().insert_many((10..20).map(|k| (k, 1)));
+    /// let m2 = m0.merge(&m1, &mut |_k, _v0, _v1| panic!("no intersection expected"));
+    ///
+    /// for i in 0..20 {
+    ///     assert!(m2.get(&i).is_some())
+    /// }
+    ///
+    /// let m3 = Map::new().insert_many((5..9).map(|k| (k, 1)));
+    /// let m4 = m3.merge(&m2, &mut |_k, v0, v1| Some(v0 + v1));
+    ///
+    /// for i in 0..20 {
+    ///    assert!(
+    ///        *m4.get(&i).unwrap() ==
+    ///        *m3.get(&i).unwrap_or(&0) + *m2.get(&i).unwrap_or(&0)
+    ///    )
+    /// }
+    /// ```
+    pub fn merge<F>(&self, other: &Map<K, V>, f: &mut F) -> Self
+    where
+        F: FnMut(&K, &V, &V) -> Option<V>,
+    {
+        Map(Tree::merge(&self.0, &other.0, f))
     }
 
     /// lookup the mapping for k. If it doesn't exist return
