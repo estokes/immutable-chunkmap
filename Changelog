@@ -1,8 +1,18 @@
+0.5.1
+* implement Set::union, and Map::merge, O(log(N) + M) where M is the
+  number of intersecting chunks and N is the size of the largest
+  tree. Should always be as fast as update_many from the other map's
+  iterator, a lot faster in the case of a small intersection.
+* remove my silly &mut F requirement for closure arguments to
+  functions in the public interface. Sorry I'm still learning rust, I
+  didn't know FnMut was also implemented by a &mut.
+
 0.5.0
 * implement map get_key, get_full
 * implement set update_many
 * fix some incorrect documentation
-* BREAKING change map and set update functions so they are able to work with borrowed forms of the key
+* BREAKING change map and set update functions so they are able to
+  work with borrowed forms of the key
 
 0.4.1
 * implement get in the set module
@@ -10,26 +20,30 @@
 
 0.4.0
 * add a set module
-* remove the rc and arc modules. There is no observable
-performance difference between rc and arc, so just use arc
-everywhere. This is especially relevant because all the practical
-applications of this library than I know about require using Arc.
+* remove the rc and arc modules. There is no observable performance
+  difference between rc and arc, so just use arc everywhere. This is
+  especially relevant because all the practical applications of this
+  library than I know about require using Arc.
 * BREAKING: fix return type of insert and remove to match BTreeMap
 
 0.3.2
-* fix a small performance regression in update_many caused by my last change
+* fix a small performance regression in update_many caused by my last
+  change
 
 0.3.1
-* fix a bug in update_many that could rarely cause a removed item not to be removed
+* fix a bug in update_many that could rarely cause a removed item not
+  to be removed
 
 0.3.0(yanked)
 * BREAKING: change the name of insert_sorted to insert_many
 * add update, and update_many
 * insert 14% performance improvement
-* insert_many 42% performance improvement on unsorted data, now faster than insert on random data
+* insert_many 42% performance improvement on unsorted data, now faster
+  than insert on random data
 
 0.2.1
-* BREAKING: change signature of insert to match BTreeMap as closely as possible. Sorry I was new to rust when I first wrote this module :-(
+* BREAKING: change signature of insert to match BTreeMap as closely as
+  possible. Sorry I was new to rust when I first wrote this module :-(
 
 0.2.0
 * iteration runs in constant space
@@ -40,4 +54,4 @@ applications of this library than I know about require using Arc.
 * BREAKING: change the name of length to len, like BTreeMap
 
 0.1.2
-Initial public release
+* Initial public release
