@@ -242,7 +242,20 @@ where
     /// N is the largest of the two sets, and M is the number of
     /// chunks that intersect, which is roughly proportional to the
     /// size of the intersection.
-    pub fn union(&self, other: Set<K>) -> Self {
+    ///
+    /// # Examples
+    /// ```
+    /// use std::iter::FromIterator;
+    /// use self::immutable_chunkmap::set::Set;
+    ///
+    /// let s0 = Set::from_iter(0..10);
+    /// let s1 = Set::from_iter(5..15);
+    /// let s2 = s0.union(&s1);
+    /// for i in 0..15 {
+    ///     assert!(s2.contains(&i));
+    /// }
+    /// ```
+    pub fn union(&self, other: &Set<K>) -> Self {
         Set(Tree::merge(&self.0, &other.0, &mut |_, (), ()| Some(())))
     }
 
