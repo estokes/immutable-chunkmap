@@ -7,7 +7,7 @@ description = "A cache efficient immutable map and set with lookup performance e
 categories = ["data-structures"]
 keywords = ["map", "immutable", "persistent", "functional"]
 license = "MIT/Apache-2.0"
-documentation = "https://estokes.github.io/immutable-chunkmap/immutable_chunkmap"
+documentation = "https://docs.rs/immutable-chunkmap"
 repository = "https://github.com/estokes/immutable-chunkmap"
 
 [dependencies]
