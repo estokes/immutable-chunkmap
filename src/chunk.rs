@@ -2,7 +2,8 @@ use std::{
     borrow::Borrow,
     cmp::{Ord, Ordering},
     fmt::{self, Debug, Formatter},
-    iter, slice, vec,
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher}, iter, slice, vec,
 };
 
 #[derive(PartialEq)]
@@ -56,6 +57,7 @@ pub(crate) enum Update<Q: Ord, K: Ord + Clone + Borrow<Q>, V: Clone, D> {
 pub(crate) struct Chunk<K, V> {
     keys: Vec<K>,
     vals: Vec<V>,
+    hashidx: Vec<u16>
 }
 
 impl<K, V> Debug for Chunk<K, V>
@@ -70,13 +72,14 @@ where
 
 impl<K, V> Chunk<K, V>
 where
-    K: Ord + Clone,
+    K: Ord + Hash + Clone,
     V: Clone,
 {
     pub(crate) fn singleton(k: K, v: V) -> Self {
         let mut t = Chunk::with_capacity(1);
         t.keys.push(k);
         t.vals.push(v);
+        t.hashidx.push(0);
         t
     }
 
@@ -84,6 +87,7 @@ where
         Chunk {
             keys: Vec::new(),
             vals: Vec::new(),
+            hashidx: Vec::new(),
         }
     }
 
@@ -91,16 +95,29 @@ where
         Chunk {
             keys: Vec::with_capacity(n),
             vals: Vec::with_capacity(n),
+            hashidx: Vec::with_capacity(n),
         }
     }
 
-    pub(crate) fn get_local<Q: ?Sized + Ord>(&self, k: &Q) -> Option<usize>
+    pub(crate) fn get_local<Q: ?Sized + Ord + Hash>(&self, k: &Q) -> Option<usize>
     where
         K: Borrow<Q>,
     {
-        match self.keys.binary_search_by_key(&k, |k| k.borrow()) {
-            Ok(i) => Some(i),
-            Err(_) => None,
+        let mut hasher = DefaultHasher::new();
+        k.hash(&mut hasher);
+        let mut i = (hasher.finish() % self.len() as u64) as usize;
+        let mut tries = 0;
+        loop {
+            if i < 0 || i >= self.len() { break None }
+            else if tries > 3 {
+                break match self.keys.binary_search_by_key(&k, |k| k.borrow()) {
+                    Result::Ok(i) => Some(i),
+                    Result::Err(_) => None
+                }
+            }
+            match self.keys[i].borrow().cmp(k) {
+                
+            }
         }
     }
 
