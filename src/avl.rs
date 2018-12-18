@@ -479,13 +479,11 @@ where
                             let (t1, t0) = Tree::merge_root_to(&t1, &t0, f);
                             Tree::merge(&t0, &t1, f)
                         }
-                        Some((l0, r0)) => {
-                            Tree::join(
-                                &Tree::merge(&l0, &n1.left, f),
-                                &n1.elts,
-                                &Tree::merge(&r0, &n1.right, f),
-                            )
-                        }
+                        Some((l0, r0)) => Tree::join(
+                            &Tree::merge(&l0, &n1.left, f),
+                            &n1.elts,
+                            &Tree::merge(&r0, &n1.right, f),
+                        ),
                     }
                 }
             }
@@ -832,6 +830,13 @@ where
             &Tree::Node(ref n) => {
                 let mut tn = n;
                 loop {
+                    if tn.height == 1 {
+                        let e = &tn.elts;
+                        break match e.get_local(k) {
+                            Some(i) => Some(f(e, i)),
+                            None => None,
+                        };
+                    }
                     match (k.cmp(tn.min_key.borrow()), k.cmp(tn.max_key.borrow())) {
                         (Ordering::Less, _) => match tn.left {
                             Tree::Empty => break None,
