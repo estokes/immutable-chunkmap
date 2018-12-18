@@ -66,7 +66,9 @@ where
     V: Debug + Clone,
 {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        f.debug_map().entries(self.into_iter().map(|(k, v, _)| (k, v))).finish()
+        f.debug_map()
+            .entries(self.into_iter().map(|(k, v, _)| (k, v)))
+            .finish()
     }
 }
 
@@ -100,17 +102,21 @@ where
     where
         K: Borrow<Q>,
     {
-        // CR estokes: how expensive is this, and if it's too
-        // expensive what to do about it?
-        if self.len() == 0 {
+        let len = self.len();
+        if len == 0 {
             return Err(0);
         }
         let mut hasher = DefaultHasher::new();
         k.hash(&mut hasher);
-        let i = (hasher.finish() % self.len() as u64) as usize;
+        let idx = (hasher.finish() % len as u64) as usize;
+        let i = self.hashidx[idx] as usize;
         match k.cmp(self.vals[i].0.borrow()) {
-            Ordering::Equal => Ok(i),
+            Ordering::Equal => {
+                //println!("hit");
+                Ok(i)
+            }
             Ordering::Less | Ordering::Greater => {
+                //println!("miss");
                 match self.vals.binary_search_by_key(&k, |(k, _, _)| k.borrow()) {
                     Result::Ok(i) => Ok(i),
                     Result::Err(i) => Err(i),
@@ -143,19 +149,23 @@ where
     }
 
     fn rehash(&mut self) {
-        let len = self.len() as u64;
-        self.hashidx.resize(len as usize, 0);
-        for i in 0..self.len() {
+        let len = self.len();
+        let len64 = len as u64;
+        self.hashidx.resize(len, 0);
+        for i in 0..self.hashidx.len() {
+            self.hashidx[i] = 0;
+        }
+        for i in 0..len {
             match self.vals[i].2 {
                 Some(h) => {
-                    self.hashidx[(h % len) as usize] = i as u16;
+                    self.hashidx[(h % len64) as usize] = i as u16;
                 }
                 None => {
                     let mut hasher = DefaultHasher::new();
                     self.vals[i].0.hash(&mut hasher);
                     let h = hasher.finish();
                     self.vals[i].2 = Some(h);
-                    self.hashidx[(h % len) as usize] = i as u16;
+                    self.hashidx[(h % len64) as usize] = i as u16;
                 }
             }
         }
@@ -227,6 +237,7 @@ where
                         not_done.push((q, d));
                         continue;
                     }
+                    elts.rehash();
                     match elts.get(&q) {
                         Loc::Here(i) => {
                             match f(q, d, Some((&elts.vals[i].0, &elts.vals[i].1))) {
@@ -272,8 +283,8 @@ where
                     }
                 }
                 overflow_right.reverse();
-                elts.rehash();
                 if elts.len() > 0 {
+                    elts.rehash();
                     assert_eq!(not_done.len(), 0);
                     UpdateChunk::Updated {
                         elts,
