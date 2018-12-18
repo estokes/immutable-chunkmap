@@ -43,7 +43,7 @@ where
 
 impl<K> Default for Set<K>
 where
-    K: Ord + Clone,
+    K: Ord + Hash + Clone,
 {
     fn default() -> Set<K> {
         Set::new()
@@ -52,18 +52,18 @@ where
 
 impl<K> PartialEq for Set<K>
 where
-    K: Ord + Clone,
+    K: Ord + Hash + Clone,
 {
     fn eq(&self, other: &Set<K>) -> bool {
         self.0 == other.0
     }
 }
 
-impl<K> Eq for Set<K> where K: Eq + Ord + Clone {}
+impl<K> Eq for Set<K> where K: Eq + Ord + Hash + Clone {}
 
 impl<K> PartialOrd for Set<K>
 where
-    K: Ord + Clone,
+    K: Ord + Hash + Clone,
 {
     fn partial_cmp(&self, other: &Set<K>) -> Option<Ordering> {
         self.0.partial_cmp(&other.0)
@@ -72,7 +72,7 @@ where
 
 impl<K> Ord for Set<K>
 where
-    K: Ord + Clone,
+    K: Ord + Hash + Clone,
 {
     fn cmp(&self, other: &Set<K>) -> Ordering {
         self.0.cmp(&other.0)
@@ -81,7 +81,7 @@ where
 
 impl<K> Debug for Set<K>
 where
-    K: Debug + Ord + Clone,
+    K: Debug + Ord + Hash + Clone,
 {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         f.debug_set().entries(self.into_iter()).finish()
@@ -90,7 +90,7 @@ where
 
 impl<K> FromIterator<K> for Set<K>
 where
-    K: Ord + Clone,
+    K: Ord + Hash + Clone,
 {
     fn from_iter<T: IntoIterator<Item = K>>(iter: T) -> Self {
         Set::new().insert_many(iter)
@@ -101,8 +101,8 @@ pub struct SetIter<'a, Q: Ord, K: 'a + Clone + Ord + Borrow<Q>>(Iter<'a, Q, K, (
 
 impl<'a, Q, K> Iterator for SetIter<'a, Q, K>
 where
-    Q: Ord,
-    K: 'a + Clone + Ord + Borrow<Q>,
+    Q: Ord + Hash,
+    K: 'a + Clone + Ord + Hash + Borrow<Q>,
 {
     type Item = &'a K;
     fn next(&mut self) -> Option<Self::Item> {
@@ -112,8 +112,8 @@ where
 
 impl<'a, Q, K> DoubleEndedIterator for SetIter<'a, Q, K>
 where
-    Q: Ord,
-    K: 'a + Clone + Ord + Borrow<Q>,
+    Q: Ord + Hash,
+    K: 'a + Clone + Ord + Hash + Borrow<Q>,
 {
     fn next_back(&mut self) -> Option<Self::Item> {
         self.0.next_back().map(|(k, ())| k)
@@ -122,7 +122,7 @@ where
 
 impl<'a, K> IntoIterator for &'a Set<K>
 where
-    K: 'a + Borrow<K> + Ord + Clone,
+    K: 'a + Borrow<K> + Ord + Hash + Clone,
 {
     type Item = &'a K;
     type IntoIter = SetIter<'a, K, K>;
@@ -133,7 +133,7 @@ where
 
 impl<K> Set<K>
 where
-    K: Ord + Clone,
+    K: Ord + Hash + Clone,
 {
     /// Create a new empty set
     pub fn new() -> Self {
@@ -166,7 +166,7 @@ where
     /// to insert_many.
     pub fn remove_many<Q, E>(&self, elts: E) -> Self
     where
-        Q: Ord,
+        Q: Ord + Hash,
         K: Borrow<Q>,
         E: IntoIterator<Item = Q>,
     {
@@ -182,17 +182,17 @@ where
     /// this method is for you.
     pub fn update_many<Q, E, F>(&self, elts: E, mut f: F) -> Self
     where
-        Q: Ord,
+        Q: Ord + Hash,
         K: Borrow<Q>,
         E: IntoIterator<Item = Q>,
         F: FnMut(Q, Option<&K>) -> Option<K>,
     {
-        let root = self
-            .0
-            .update_many(elts.into_iter().map(|k| (k, ())), &mut |q, (), cur| {
-                let cur = cur.map(|(k, ())| k);
-                f(q, cur).map(|k| (k, ()))
-            });
+        let root =
+            self.0
+                .update_many(elts.into_iter().map(|k| (k, ())), &mut |q, (), cur| {
+                    let cur = cur.map(|(k, ())| k);
+                    f(q, cur).map(|k| (k, ()))
+                });
         Set(root)
     }
 
@@ -213,7 +213,7 @@ where
     /// the set.
     pub fn contains<'a, Q>(&'a self, k: &Q) -> bool
     where
-        Q: ?Sized + Ord,
+        Q: ?Sized + Ord + Hash,
         K: Borrow<Q>,
     {
         self.0.get(k).is_some()
@@ -222,7 +222,7 @@ where
     /// return a reference to an item in the set if any that is equal to the given value.
     pub fn get<'a, Q>(&'a self, k: &Q) -> Option<&K>
     where
-        Q: ?Sized + Ord,
+        Q: ?Sized + Ord + Hash,
         K: Borrow<Q>,
     {
         self.0.get_key(k)
@@ -230,8 +230,9 @@ where
 
     /// return a new set with k removed. Runs in log(N) time
     /// and log(N) space, where N is the size of the set
-    pub fn remove<Q: Sized + Ord>(&self, k: &Q) -> (Self, bool)
+    pub fn remove<Q>(&self, k: &Q) -> (Self, bool)
     where
+        Q: Sized + Ord + Hash,
         K: Borrow<Q>,
     {
         let (t, prev) = self.0.remove(k);
@@ -283,7 +284,7 @@ where
 
 impl<K> Set<K>
 where
-    K: Ord + Clone + Debug,
+    K: Ord + Hash + Clone + Debug,
 {
     #[allow(dead_code)]
     pub(crate) fn invariant(&self) -> () {

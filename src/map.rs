@@ -47,7 +47,7 @@ use std::{
 /// }
 /// ```
 #[derive(Clone)]
-pub struct Map<K: Ord + Clone, V: Clone>(Tree<K, V>);
+pub struct Map<K, V>(Tree<K, V>);
 
 impl<K, V> Hash for Map<K, V>
 where
@@ -61,7 +61,7 @@ where
 
 impl<K, V> Default for Map<K, V>
 where
-    K: Ord + Clone,
+    K: Ord + Hash + Clone,
     V: Clone,
 {
     fn default() -> Map<K, V> {
@@ -71,7 +71,7 @@ where
 
 impl<K, V> PartialEq for Map<K, V>
 where
-    K: PartialEq + Ord + Clone,
+    K: Ord + Hash + Clone,
     V: PartialEq + Clone,
 {
     fn eq(&self, other: &Map<K, V>) -> bool {
@@ -81,14 +81,14 @@ where
 
 impl<K, V> Eq for Map<K, V>
 where
-    K: Eq + Ord + Clone,
+    K: Ord + Eq + Hash + Clone,
     V: Eq + Clone,
 {
 }
 
 impl<K, V> PartialOrd for Map<K, V>
 where
-    K: Ord + Clone,
+    K: Ord + Hash + Clone,
     V: PartialOrd + Clone,
 {
     fn partial_cmp(&self, other: &Map<K, V>) -> Option<Ordering> {
@@ -98,7 +98,7 @@ where
 
 impl<K, V> Ord for Map<K, V>
 where
-    K: Ord + Clone,
+    K: Ord + Hash + Clone,
     V: Ord + Clone,
 {
     fn cmp(&self, other: &Map<K, V>) -> Ordering {
@@ -108,7 +108,7 @@ where
 
 impl<K, V> Debug for Map<K, V>
 where
-    K: Debug + Ord + Clone,
+    K: Debug + Ord + Hash + Clone,
     V: Debug + Clone,
 {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
@@ -118,8 +118,8 @@ where
 
 impl<'a, Q, K, V> Index<&'a Q> for Map<K, V>
 where
-    Q: Ord,
-    K: Ord + Clone + Borrow<Q>,
+    Q: Ord + Hash,
+    K: Ord + Hash + Clone + Borrow<Q>,
     V: Clone,
 {
     type Output = V;
@@ -130,7 +130,7 @@ where
 
 impl<K, V> FromIterator<(K, V)> for Map<K, V>
 where
-    K: Ord + Clone,
+    K: Ord + Hash + Clone,
     V: Clone,
 {
     fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
@@ -140,7 +140,7 @@ where
 
 impl<'a, K, V> IntoIterator for &'a Map<K, V>
 where
-    K: 'a + Borrow<K> + Ord + Clone,
+    K: 'a + Borrow<K> + Ord + Hash + Clone,
     V: 'a + Clone,
 {
     type Item = (&'a K, &'a V);
@@ -152,7 +152,7 @@ where
 
 impl<K, V> Map<K, V>
 where
-    K: Ord + Clone,
+    K: Ord + Hash + Clone,
     V: Clone,
 {
     /// Create a new empty map
@@ -213,7 +213,7 @@ where
     pub fn update_many<Q, D, E, F>(&self, elts: E, mut f: F) -> Self
     where
         E: IntoIterator<Item = (Q, D)>,
-        Q: Ord,
+        Q: Ord + Hash,
         K: Borrow<Q>,
         F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
     {
@@ -261,7 +261,7 @@ where
     /// ```
     pub fn update<Q, D, F>(&self, q: Q, d: D, mut f: F) -> (Self, Option<V>)
     where
-        Q: Ord,
+        Q: Ord + Hash,
         K: Borrow<Q>,
         F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
     {
@@ -311,8 +311,9 @@ where
     /// lookup the mapping for k. If it doesn't exist return
     /// None. Runs in log(N) time and constant space. where N
     /// is the size of the map.
-    pub fn get<'a, Q: ?Sized + Ord>(&'a self, k: &Q) -> Option<&'a V>
+    pub fn get<'a, Q>(&'a self, k: &Q) -> Option<&'a V>
     where
+        Q: ?Sized + Ord + Hash,
         K: Borrow<Q>,
     {
         self.0.get(k)
@@ -321,8 +322,9 @@ where
     /// lookup the mapping for k. Return the key. If it doesn't exist
     /// return None. Runs in log(N) time and constant space. where N
     /// is the size of the map.
-    pub fn get_key<'a, Q: ?Sized + Ord>(&'a self, k: &Q) -> Option<&'a K>
+    pub fn get_key<'a, Q>(&'a self, k: &Q) -> Option<&'a K>
     where
+        Q: ?Sized + Ord + Hash,
         K: Borrow<Q>,
     {
         self.0.get_key(k)
@@ -331,8 +333,9 @@ where
     /// lookup the mapping for k. Return both the key and the
     /// value. If it doesn't exist return None. Runs in log(N) time
     /// and constant space. where N is the size of the map.
-    pub fn get_full<'a, Q: ?Sized + Ord>(&'a self, k: &Q) -> Option<(&'a K, &'a V)>
+    pub fn get_full<'a, Q>(&'a self, k: &Q) -> Option<(&'a K, &'a V)>
     where
+        Q: ?Sized + Ord + Hash,
         K: Borrow<Q>,
     {
         self.0.get_full(k)
@@ -342,8 +345,9 @@ where
     /// the binding existed in the old map return it. Runs in
     /// log(N) time and log(N) space, where N is the size of
     /// the map.
-    pub fn remove<Q: Sized + Ord>(&self, k: &Q) -> (Self, Option<V>)
+    pub fn remove<Q>(&self, k: &Q) -> (Self, Option<V>)
     where
+        Q: Sized + Ord + Hash,
         K: Borrow<Q>,
     {
         let (t, prev) = self.0.remove(k);
@@ -374,7 +378,7 @@ where
 
 impl<K, V> Map<K, V>
 where
-    K: Ord + Clone + Debug,
+    K: Ord + Hash + Clone + Debug,
     V: Clone + Debug,
 {
     #[allow(dead_code)]

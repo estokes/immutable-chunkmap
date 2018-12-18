@@ -68,7 +68,7 @@ fn permutation<T: Clone>(v: &Vec<T>) -> Vec<T> {
 fn insert<I, T>(r: I) -> avl::Tree<T, T>
 where
     I: IntoIterator<Item = T>,
-    T: Ord + Clone + Debug,
+    T: Ord + Hash + Clone + Debug,
 {
     let mut t = avl::Tree::new();
     for i in r {
@@ -105,7 +105,7 @@ fn test_insert_int_rand() {
     ()
 }
 
-fn test_get_rand<T: Ord + Clone + Debug + Rand>() {
+fn test_get_rand<T: Ord + Hash + Clone + Debug + Rand>() {
     let v = randvec::<T>(SIZE);
     let t = insert(&v);
     for k in &v {
@@ -258,7 +258,7 @@ fn test_str_insert_many() {
     test_insert_many::<String>()
 }
 
-fn test_map_rand<T: Ord + Clone + Debug + Rand>() {
+fn test_map_rand<T: Ord + Hash + Clone + Debug + Rand>() {
     let v = randvec::<T>(SIZE);
     let mut t = Map::new();
     let mut i = 0;
@@ -297,7 +297,7 @@ fn test_str_map_rand() {
     test_map_rand::<String>()
 }
 
-fn test_map_iter<T: Borrow<T> + Ord + Clone + Debug + Rand>() {
+fn test_map_iter<T: Borrow<T> + Ord + Hash + Clone + Debug + Rand>() {
     let mut v = randvec::<T>(SIZE);
     let t = Map::new().insert_many(v.iter().map(|k| (k.clone(), k.clone())));
     t.invariant();

@@ -6,7 +6,6 @@ use std::{
     default::Default,
     fmt::{self, Debug, Formatter},
     hash::{Hash, Hasher},
-    iter,
     mem::swap,
     ops::{Bound, Index},
     slice,
@@ -17,7 +16,7 @@ use std::{
 const MAX_DEPTH: usize = 64;
 
 #[derive(Clone)]
-pub(crate) struct Node<K: Ord + Clone, V: Clone> {
+pub(crate) struct Node<K, V> {
     elts: Arc<Chunk<K, V>>,
     min_key: K,
     max_key: K,
@@ -28,7 +27,7 @@ pub(crate) struct Node<K: Ord + Clone, V: Clone> {
 }
 
 #[derive(Clone)]
-pub(crate) enum Tree<K: Ord + Clone, V: Clone> {
+pub(crate) enum Tree<K, V> {
     Empty,
     Node(Arc<Node<K, V>>),
 }
@@ -45,11 +44,7 @@ where
     }
 }
 
-impl<K, V> Default for Tree<K, V>
-where
-    K: Ord + Clone,
-    V: Clone,
-{
+impl<K, V> Default for Tree<K, V> {
     fn default() -> Tree<K, V> {
         Tree::Empty
     }
@@ -57,7 +52,7 @@ where
 
 impl<K, V> PartialEq for Tree<K, V>
 where
-    K: PartialEq + Ord + Clone,
+    K: Ord + Clone + Hash,
     V: PartialEq + Clone,
 {
     fn eq(&self, other: &Tree<K, V>) -> bool {
@@ -67,14 +62,14 @@ where
 
 impl<K, V> Eq for Tree<K, V>
 where
-    K: Eq + Ord + Clone,
+    K: Ord + Hash + Eq + Clone,
     V: Eq + Clone,
 {
 }
 
 impl<K, V> PartialOrd for Tree<K, V>
 where
-    K: Ord + Clone,
+    K: Ord + Hash + Clone,
     V: PartialOrd + Clone,
 {
     fn partial_cmp(&self, other: &Tree<K, V>) -> Option<Ordering> {
@@ -84,7 +79,7 @@ where
 
 impl<K, V> Ord for Tree<K, V>
 where
-    K: Ord + Clone,
+    K: Ord + Hash + Clone,
     V: Ord + Clone,
 {
     fn cmp(&self, other: &Tree<K, V>) -> Ordering {
@@ -94,7 +89,7 @@ where
 
 impl<K, V> Debug for Tree<K, V>
 where
-    K: Debug + Ord + Clone,
+    K: Debug + Ord + Clone + Hash,
     V: Debug + Clone,
 {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
@@ -104,8 +99,8 @@ where
 
 impl<'a, Q, K, V> Index<&'a Q> for Tree<K, V>
 where
-    Q: Ord,
-    K: Ord + Clone + Borrow<Q>,
+    Q: Ord + Hash,
+    K: Ord + Hash + Clone + Borrow<Q>,
     V: Clone,
 {
     type Output = V;
@@ -117,23 +112,23 @@ where
 pub struct Iter<'a, Q, K, V>
 where
     Q: Ord,
-    K: 'a + Borrow<Q> + Ord + Clone,
-    V: 'a + Clone,
+    K: 'a + Borrow<Q> + Ord,
+    V: 'a,
 {
     ubound: Bound<Q>,
     lbound: Bound<Q>,
     stack: ArrayVec<[(bool, &'a Node<K, V>); MAX_DEPTH]>,
-    elts: Option<iter::Zip<slice::Iter<'a, K>, slice::Iter<'a, V>>>,
+    elts: Option<slice::Iter<'a, (K, V, Option<u64>)>>,
     current: Option<&'a K>,
     stack_rev: ArrayVec<[(bool, &'a Node<K, V>); MAX_DEPTH]>,
-    elts_rev: Option<iter::Zip<slice::Iter<'a, K>, slice::Iter<'a, V>>>,
+    elts_rev: Option<slice::Iter<'a, (K, V, Option<u64>)>>,
     current_rev: Option<&'a K>,
 }
 
 impl<'a, Q, K, V> Iter<'a, Q, K, V>
 where
     Q: Ord,
-    K: 'a + Borrow<Q> + Ord + Clone,
+    K: 'a + Borrow<Q> + Ord + Hash + Clone,
     V: 'a + Clone,
 {
     // is at least one element of the chunk in bounds
@@ -179,7 +174,7 @@ where
 impl<'a, Q, K, V> Iterator for Iter<'a, Q, K, V>
 where
     Q: Ord,
-    K: 'a + Borrow<Q> + Ord + Clone,
+    K: 'a + Borrow<Q> + Ord + Hash + Clone,
     V: 'a + Clone,
 {
     type Item = (&'a K, &'a V);
@@ -190,7 +185,7 @@ where
                     &mut None => break,
                     &mut Some(ref mut s) => match s.next() {
                         None => break,
-                        Some((k, v)) => (k, v),
+                        Some((k, v, _)) => (k, v),
                     },
                 };
                 if let Some(back) = self.current_rev {
@@ -243,7 +238,7 @@ where
 impl<'a, Q, K, V> DoubleEndedIterator for Iter<'a, Q, K, V>
 where
     Q: Ord,
-    K: 'a + Borrow<Q> + Ord + Clone,
+    K: 'a + Borrow<Q> + Ord + Hash + Clone,
     V: 'a + Clone,
 {
     fn next_back(&mut self) -> Option<Self::Item> {
@@ -253,7 +248,7 @@ where
                     &mut None => break,
                     &mut Some(ref mut s) => match s.next_back() {
                         None => break,
-                        Some((k, v)) => (k, v),
+                        Some((k, v, _)) => (k, v),
                     },
                 };
                 if let Some(front) = self.current {
@@ -305,7 +300,7 @@ where
 
 impl<'a, K, V> IntoIterator for &'a Tree<K, V>
 where
-    K: 'a + Borrow<K> + Ord + Clone,
+    K: 'a + Borrow<K> + Ord + Hash + Clone,
     V: 'a + Clone,
 {
     type Item = (&'a K, &'a V);
@@ -317,7 +312,7 @@ where
 
 impl<K, V> Tree<K, V>
 where
-    K: Ord + Clone,
+    K: Ord + Clone + Hash,
     V: Clone,
 {
     pub(crate) fn new() -> Self {
@@ -479,13 +474,11 @@ where
                             let (t1, t0) = Tree::merge_root_to(&t1, &t0, f);
                             Tree::merge(&t0, &t1, f)
                         }
-                        Some((l0, r0)) => {
-                            Tree::join(
-                                &Tree::merge(&l0, &n1.left, f),
-                                &n1.elts,
-                                &Tree::merge(&r0, &n1.right, f),
-                            )
-                        }
+                        Some((l0, r0)) => Tree::join(
+                            &Tree::merge(&l0, &n1.left, f),
+                            &n1.elts,
+                            &Tree::merge(&r0, &n1.right, f),
+                        ),
                     }
                 }
             }
@@ -568,7 +561,7 @@ where
 
     fn update_chunk<Q, D, F>(&self, chunk: Vec<(Q, D)>, f: &mut F) -> Self
     where
-        Q: Ord,
+        Q: Ord + Hash,
         K: Borrow<Q>,
         F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
     {
@@ -638,7 +631,7 @@ where
 
     fn do_chunk<Q, D, F>(&mut self, chunk: &mut Vec<(Q, D)>, f: &mut F)
     where
-        Q: Ord,
+        Q: Ord + Hash,
         K: Borrow<Q>,
         F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
     {
@@ -656,7 +649,7 @@ where
     pub(crate) fn update_many<Q, D, E, F>(&self, elts: E, f: &mut F) -> Self
     where
         E: IntoIterator<Item = (Q, D)>,
-        Q: Ord,
+        Q: Ord + Hash,
         K: Borrow<Q>,
         F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
     {
@@ -691,7 +684,7 @@ where
 
     pub(crate) fn update<Q, D, F>(&self, q: Q, d: D, f: &mut F) -> (Self, Option<V>)
     where
-        Q: Ord,
+        Q: Ord + Hash,
         K: Borrow<Q>,
         F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
     {
@@ -787,8 +780,9 @@ where
         }
     }
 
-    pub(crate) fn remove<Q: ?Sized + Ord>(&self, k: &Q) -> (Self, Option<V>)
+    pub(crate) fn remove<Q>(&self, k: &Q) -> (Self, Option<V>)
     where
+        Q: ?Sized + Ord + Hash,
         K: Borrow<Q>,
     {
         match self {
@@ -822,7 +816,7 @@ where
     // 2018-07-19
     fn get_gen<'a, Q, F, R>(&'a self, k: &Q, f: F) -> Option<R>
     where
-        Q: ?Sized + Ord,
+        Q: ?Sized + Ord + Hash,
         K: Borrow<Q>,
         F: FnOnce(&'a Chunk<K, V>, usize) -> R,
         R: 'a,
@@ -832,6 +826,13 @@ where
             &Tree::Node(ref n) => {
                 let mut tn = n;
                 loop {
+                    if tn.height == 1 {
+                        let e = &tn.elts;
+                        break match e.get_local(k) {
+                            Ok(i) => Some(f(e, i)),
+                            Err(_) => None,
+                        };
+                    }
                     match (k.cmp(tn.min_key.borrow()), k.cmp(tn.max_key.borrow())) {
                         (Ordering::Less, _) => match tn.left {
                             Tree::Empty => break None,
@@ -844,8 +845,8 @@ where
                         (_, _) => {
                             let e = &tn.elts;
                             break match e.get_local(k) {
-                                Some(i) => Some(f(e, i)),
-                                None => None,
+                                Ok(i) => Some(f(e, i)),
+                                Err(_) => None,
                             };
                         }
                     }
@@ -856,7 +857,7 @@ where
 
     pub(crate) fn get<'a, Q>(&'a self, k: &Q) -> Option<&'a V>
     where
-        Q: ?Sized + Ord,
+        Q: ?Sized + Ord + Hash,
         K: Borrow<Q>,
     {
         self.get_gen(k, |e, i| e.val(i))
@@ -864,7 +865,7 @@ where
 
     pub(crate) fn get_key<'a, Q>(&'a self, k: &Q) -> Option<&'a K>
     where
-        Q: ?Sized + Ord,
+        Q: ?Sized + Ord + Hash,
         K: Borrow<Q>,
     {
         self.get_gen(k, |e, i| e.key(i))
@@ -872,7 +873,7 @@ where
 
     pub(crate) fn get_full<'a, Q>(&'a self, k: &Q) -> Option<(&'a K, &'a V)>
     where
-        Q: ?Sized + Ord,
+        Q: ?Sized + Ord + Hash,
         K: Borrow<Q>,
     {
         self.get_gen(k, |e, i| e.kv(i))
@@ -881,7 +882,7 @@ where
 
 impl<K, V> Tree<K, V>
 where
-    K: Ord + Clone + Debug,
+    K: Ord + Clone + Debug + Hash,
     V: Clone + Debug,
 {
     #[allow(dead_code)]
@@ -899,18 +900,18 @@ where
                 None => true,
                 Some(lower) => elts
                     .into_iter()
-                    .all(|(k, _)| lower.cmp(k) == Ordering::Less),
+                    .all(|(k, _, _)| lower.cmp(k) == Ordering::Less),
             }) && (match upper {
                 None => true,
                 Some(upper) => elts
                     .into_iter()
-                    .all(|(k, _)| upper.cmp(k) == Ordering::Greater),
+                    .all(|(k, _, _)| upper.cmp(k) == Ordering::Greater),
             })
         }
 
         fn sorted<K, V>(elts: &Chunk<K, V>) -> bool
         where
-            K: Ord + Clone + Debug,
+            K: Ord + Clone + Debug + Hash,
             V: Clone + Debug,
         {
             if elts.len() == 1 {
@@ -934,7 +935,7 @@ where
             len: usize,
         ) -> (u16, usize)
         where
-            K: Ord + Clone + Debug,
+            K: Ord + Clone + Debug + Hash,
             V: Clone + Debug,
         {
             match *t {
