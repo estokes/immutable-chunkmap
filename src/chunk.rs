@@ -125,7 +125,20 @@ where
         }
     }
 
-    pub(crate) fn get<Q: ?Sized + Ord + Hash>(&self, k: &Q) -> Loc
+    pub(crate) fn get_local_nohash<Q: ?Sized + Ord + Hash>(
+        &self,
+        k: &Q,
+    ) -> Result<usize, usize>
+    where
+        K: Borrow<Q>,
+    {
+        match self.vals.binary_search_by_key(&k, |(k, _, _)| k.borrow()) {
+            Result::Ok(i) => Ok(i),
+            Result::Err(i) => Err(i),
+        }
+    }
+
+    pub(crate) fn get<Q: ?Sized + Ord + Hash>(&self, k: &Q, hash: bool) -> Loc
     where
         K: Borrow<Q>,
     {
@@ -140,7 +153,11 @@ where
                 (_, Ordering::Equal) => Loc::Here(len - 1),
                 (Ordering::Less, _) => Loc::InLeft,
                 (_, Ordering::Greater) => Loc::InRight,
-                (Ordering::Greater, Ordering::Less) => match self.get_local(k) {
+                (Ordering::Greater, Ordering::Less) => match if hash {
+                    self.get_local(k)
+                } else {
+                    self.get_local_nohash(k)
+                } {
                     Result::Ok(i) => Loc::Here(i),
                     Result::Err(i) => Loc::NotPresent(i),
                 },
@@ -194,8 +211,8 @@ where
             UpdateChunk::Created(elts)
         } else {
             let full = !leaf || self.len() >= SIZE;
-            let in_left = self.get(&chunk[chunk.len() - 1].0) == Loc::InLeft;
-            let in_right = self.get(&chunk[0].0) == Loc::InRight;
+            let in_left = self.get(&chunk[chunk.len() - 1].0, false) == Loc::InLeft;
+            let in_right = self.get(&chunk[0].0, false) == Loc::InRight;
             if full && in_left {
                 UpdateChunk::UpdateLeft(chunk)
             } else if full && in_right {
@@ -237,8 +254,7 @@ where
                         not_done.push((q, d));
                         continue;
                     }
-                    elts.rehash();
-                    match elts.get(&q) {
+                    match elts.get(&q, false) {
                         Loc::Here(i) => {
                             match f(q, d, Some((&elts.vals[i].0, &elts.vals[i].1))) {
                                 None => {
@@ -316,7 +332,7 @@ where
         K: Borrow<Q>,
         F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
     {
-        match self.get(&q) {
+        match self.get(&q, false) {
             Loc::Here(i) => {
                 let mut elts = Chunk::with_capacity(self.len());
                 elts.vals.extend_from_slice(&self.vals[0..i]);

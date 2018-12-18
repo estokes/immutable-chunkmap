@@ -787,7 +787,7 @@ where
     {
         match self {
             &Tree::Empty => (Tree::Empty, None),
-            &Tree::Node(ref tn) => match tn.elts.get(k) {
+            &Tree::Node(ref tn) => match tn.elts.get(k, true) {
                 Loc::NotPresent(_) => (self.clone(), None),
                 Loc::Here(i) => {
                     let p = tn.elts.val(i).clone();
