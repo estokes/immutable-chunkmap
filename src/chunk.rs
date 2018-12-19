@@ -362,6 +362,31 @@ where
         }
     }
 
+    pub(crate) fn intersect<F>(&self, other: &Chunk<K, V>, mut f: F) -> Chunk<K, V>
+    where
+        F: FnMut(&K, &V, &V) -> Option<V>,
+    {
+        let mut elts = Chunk::empty();
+        if self.len() == 0 || other.len() == 0 { elts }
+        else {
+            for (i, k) in self.keys.iter().enumerate() {
+                match other.keys.binary_search(&k) {
+                    Err(_) => (),
+                    Ok(j) => {
+                        match f(k, &self.vals[i], &other.vals[j]) {
+                            None => (),
+                            Some(v) => {
+                                elts.keys.push(k.clone());
+                                elts.vals.push(v);
+                            }
+                        }
+                    }
+                }
+            }
+            elts
+        }
+    }
+
     pub(crate) fn remove_elt_at(&self, i: usize) -> Self {
         let mut elts = Chunk::with_capacity(self.len() - 1);
         if self.len() == 0 {
@@ -428,7 +453,9 @@ where
     }
 
     pub(crate) fn to_vec(&self) -> Vec<(K, V)> {
-        self.into_iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+        self.into_iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect()
     }
 }
 
