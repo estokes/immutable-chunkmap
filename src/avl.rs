@@ -399,19 +399,18 @@ where
 
     /// split the tree according to elts, return two balanced trees
     /// representing all the elements less than and greater than elts,
-    /// if there is an intersection return None.
+    /// if there is a possible intersection return the intersecting
+    /// chunk.
     fn split(&self, vmin: &K, vmax: &K) -> Option<(Self, Self)> {
         match self {
             Tree::Empty => Some((Tree::Empty, Tree::Empty)),
             Tree::Node(ref n) => {
                 if *vmax < n.min_key {
-                    n.left
-                        .split(vmin, vmax)
-                        .map(|(ll, rl)| (ll, Tree::join(&rl, &n.elts, &n.right)))
+                    let (ll, inter, rl) = n.left.split(vmin, vmax);
+                    (ll, inter, Tree::join(&rl, &n.elts, &n.right))
                 } else if *vmin > n.max_key {
-                    n.right
-                        .split(vmin, vmax)
-                        .map(|(lr, rr)| (Tree::join(&n.left, &n.elts, &lr), rr))
+                    let (lr, inter, rr) = n.right.split(vmin, vmax);
+                    (Tree::join(&n.left, &n.elts, &lr), inter, rr)
                 } else {
                     None
                 }
@@ -479,17 +478,22 @@ where
                             let (t1, t0) = Tree::merge_root_to(&t1, &t0, f);
                             Tree::merge(&t0, &t1, f)
                         }
-                        Some((l0, r0)) => {
-                            Tree::join(
-                                &Tree::merge(&l0, &n1.left, f),
-                                &n1.elts,
-                                &Tree::merge(&r0, &n1.right, f),
-                            )
-                        }
+                        Some((l0, r0)) => Tree::join(
+                            &Tree::merge(&l0, &n1.left, f),
+                            &n1.elts,
+                            &Tree::merge(&r0, &n1.right, f),
+                        ),
                     }
                 }
             }
         }
+    }
+
+    pub(crate) fn intersect<F>(t0: &Tree<K, V>, t1: &Tree<K, V>, f: F)
+    where
+        F: FnMut(&K, &V, &V) -> Option<V>,
+    {
+
     }
 
     fn is_empty(&self) -> bool {

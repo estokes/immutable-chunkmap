@@ -362,28 +362,36 @@ where
         }
     }
 
-    pub(crate) fn intersect<F>(&self, other: &Chunk<K, V>, mut f: F) -> Chunk<K, V>
+    pub(crate) fn intersect<F>(
+        c0: &Chunk<K, V>,
+        c1: &Chunk<K, V>,
+        mut f: F,
+    ) -> Option<Chunk<K, V>>
     where
         F: FnMut(&K, &V, &V) -> Option<V>,
     {
         let mut elts = Chunk::empty();
-        if self.len() == 0 || other.len() == 0 { elts }
-        else {
-            for (i, k) in self.keys.iter().enumerate() {
-                match other.keys.binary_search(&k) {
+        if c0.len() == 0 || c1.len() == 0 {
+            None
+        } else {
+            let (c0, c1) = if c0.len() < c1.len() {
+                (c0, c1)
+            } else {
+                (c1, c0)
+            };
+            for (i, k) in c0.keys.iter().enumerate() {
+                match c1.keys.binary_search(&k) {
                     Err(_) => (),
-                    Ok(j) => {
-                        match f(k, &self.vals[i], &other.vals[j]) {
-                            None => (),
-                            Some(v) => {
-                                elts.keys.push(k.clone());
-                                elts.vals.push(v);
-                            }
+                    Ok(j) => match f(k, &c0.vals[i], &c1.vals[j]) {
+                        None => (),
+                        Some(v) => {
+                            elts.keys.push(k.clone());
+                            elts.vals.push(v);
                         }
-                    }
+                    },
                 }
             }
-            elts
+            Some(elts)
         }
     }
 
