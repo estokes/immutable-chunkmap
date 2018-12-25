@@ -400,10 +400,11 @@ where
     /// split the tree according to elts, return two balanced trees
     /// representing all the elements less than and greater than elts,
     /// if there is a possible intersection return the intersecting
-    /// chunk.
-    fn split(&self, vmin: &K, vmax: &K) -> Option<(Self, Self)> {
+    /// chunk. In the case of an intersection there may also be an
+    /// intersection at the left and/or right nodes.
+    fn split(&self, vmin: &K, vmax: &K) -> (Self, Option<Arc<Chunk<K, V>>>, Self) {
         match self {
-            Tree::Empty => Some((Tree::Empty, Tree::Empty)),
+            Tree::Empty => (Tree::Empty, None, Tree::Empty),
             Tree::Node(ref n) => {
                 if *vmax < n.min_key {
                     let (ll, inter, rl) = n.left.split(vmin, vmax);
@@ -412,7 +413,7 @@ where
                     let (lr, inter, rr) = n.right.split(vmin, vmax);
                     (Tree::join(&n.left, &n.elts, &lr), inter, rr)
                 } else {
-                    None
+                    (n.left.clone(), Some(n.elts.clone()), n.right.clone())
                 }
             }
         }
@@ -462,11 +463,11 @@ where
             (Tree::Node(ref n0), Tree::Node(ref n1)) => {
                 if n0.height > n1.height {
                     match t1.split(&n0.min_key, &n0.max_key) {
-                        None => {
+                        (_, Some(_), _) => {
                             let (t0, t1) = Tree::merge_root_to(&t0, &t1, f);
                             Tree::merge(&t0, &t1, f)
                         }
-                        Some((l1, r1)) => Tree::join(
+                        (l1, None, r1) => Tree::join(
                             &Tree::merge(&n0.left, &l1, f),
                             &n0.elts,
                             &Tree::merge(&n0.right, &r1, f),
@@ -474,11 +475,11 @@ where
                     }
                 } else {
                     match t0.split(&n1.min_key, &n1.max_key) {
-                        None => {
+                        (_, Some(_), _) => {
                             let (t1, t0) = Tree::merge_root_to(&t1, &t0, f);
                             Tree::merge(&t0, &t1, f)
                         }
-                        Some((l0, r0)) => Tree::join(
+                        (l0, None, r0) => Tree::join(
                             &Tree::merge(&l0, &n1.left, f),
                             &n1.elts,
                             &Tree::merge(&r0, &n1.right, f),
@@ -489,11 +490,27 @@ where
         }
     }
 
-    pub(crate) fn intersect<F>(t0: &Tree<K, V>, t1: &Tree<K, V>, f: F)
+    pub(crate) fn intersect<F>(t0: &Tree<K, V>, t1: &Tree<K, V>, f: &mut F) -> Self
     where
         F: FnMut(&K, &V, &V) -> Option<V>,
     {
-
+        match (t0, t1) {
+            (Tree::Empty, _) => Tree::Empty,
+            (_, Tree::Empty) => Tree::Empty,
+            (Tree::Node(ref n0), t1) => match t1.split(&n0.min_key, &n0.max_key) {
+                (l1, None, r1) => Tree::concat(
+                    &Tree::intersect(&n0.left, &l1, f),
+                    &Tree::intersect(&n0.right, &r1, f),
+                ),
+                (l1, Some(elts), r1) => {
+                    let t = Tree::intersect(t0, &Tree::concat(&l1, &r1), f);
+                    match Chunk::intersect(&n0.elts, &elts, f) {
+                        Some(elts) => t.insert_many(elts.into_iter()),
+                        None => t,
+                    }
+                }
+            },
+        }
     }
 
     fn is_empty(&self) -> bool {
