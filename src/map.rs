@@ -313,8 +313,8 @@ where
     /// maps. The function f runs on each intersecting element, and
     /// has the option to omit elements from the intersection by
     /// returning None, or change the value any way it likes. Runs in
-    /// O(log(N) + M) where N is the size of the smallest map, and M
-    /// is the number of intersecting chunks.
+    /// O(log(N) + M) time and space where N is the size of the
+    /// smallest map, and M is the number of intersecting chunks.
     ///
     /// # Examples
     ///```

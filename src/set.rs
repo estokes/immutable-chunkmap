@@ -239,10 +239,10 @@ where
         (Set(t), prev.is_some())
     }
 
-    /// return the union of 2 sets. Runs in O(log(N) + M) time, where
-    /// N is the largest of the two sets, and M is the number of
-    /// chunks that intersect, which is roughly proportional to the
-    /// size of the intersection.
+    /// return the union of 2 sets. Runs in O(log(N) + M) time and
+    /// space, where N is the largest of the two sets, and M is the
+    /// number of chunks that intersect, which is roughly proportional
+    /// to the size of the intersection.
     ///
     /// # Examples
     /// ```
@@ -260,9 +260,9 @@ where
         Set(Tree::merge(&self.0, &other.0, &mut |_, (), ()| Some(())))
     }
 
-    /// return the intersection of 2 sets. Runs in O(log(N) + M) time,
-    /// where N is the smallest of the two sets, and M is the number
-    /// of intersecting chunks.
+    /// return the intersection of 2 sets. Runs in O(log(N) + M) time
+    /// and space, where N is the smallest of the two sets, and M is
+    /// the number of intersecting chunks.
     ///
     /// # Examples
     /// ```
