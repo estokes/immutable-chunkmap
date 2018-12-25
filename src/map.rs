@@ -308,6 +308,38 @@ where
         Map(Tree::merge(&self.0, &other.0, &mut f))
     }
 
+
+    /// Produce a map containing the intersection (by key) of two
+    /// maps. The function f runs on each intersecting element, and
+    /// has the option to omit elements from the intersection by
+    /// returning None, or change the value any way it likes. Runs in
+    /// O(log(N) + M) where N is the size of the smallest map, and M
+    /// is the number of intersecting chunks.
+    ///
+    /// # Examples
+    ///```
+    /// use std::iter::FromIterator;
+    /// use self::immutable_chunkmap::map::Map;
+    ///
+    /// let m0 = Map::from_iter((0..100).map(|k| (k, 1)));
+    /// let m1 = Map::from_iter((20..50).map(|k| (k, 1)));
+    /// let m2 = m0.intersect(&m1, |_k, v0, v1| Some(v0 + v1));
+    ///
+    /// for i in 0..100 {
+    ///     if i < 20 || i >= 50 {
+    ///         assert!(m2.get(&i).is_none());
+    ///     } else {
+    ///         assert!(m2.get(&i).unwrap() == 2);
+    ///     }
+    /// }
+    /// ```
+    pub fn intersect<F>(&self, other: &Map<K, V>, mut f: F) -> Self
+    where
+        F: FnMut(&K, &V, &V) -> Option<V>,
+    {
+        Map(Tree::intersect(&self.0, &other.0, &mut f))
+    }
+
     /// lookup the mapping for k. If it doesn't exist return
     /// None. Runs in log(N) time and constant space. where N
     /// is the size of the map.

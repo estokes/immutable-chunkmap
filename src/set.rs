@@ -219,7 +219,8 @@ where
         self.0.get(k).is_some()
     }
 
-    /// return a reference to an item in the set if any that is equal to the given value.
+    /// return a reference to the item in the set that is equal to the
+    /// given value, or None if no such value exists.
     pub fn get<'a, Q>(&'a self, k: &Q) -> Option<&K>
     where
         Q: ?Sized + Ord,
@@ -257,6 +258,32 @@ where
     /// ```
     pub fn union(&self, other: &Set<K>) -> Self {
         Set(Tree::merge(&self.0, &other.0, &mut |_, (), ()| Some(())))
+    }
+
+    /// return the intersection of 2 sets. Runs in O(log(N) + M) time,
+    /// where N is the smallest of the two sets, and M is the number
+    /// of intersecting chunks.
+    ///
+    /// # Examples
+    /// ```
+    /// use std::iter::FromIterator;
+    /// use self::immutable_chunkmap::set::Set;
+    ///
+    /// let s0 = Set::from_iter(0..100);
+    /// let s1 = Set::from_iter(20..50);
+    /// let s2 = s0.intersect(&s1);
+    ///
+    /// assert!(s2.len() == 30);
+    /// for i in 0..100 {
+    ///     if i < 20 || i >= 50 {
+    ///         assert!(!s2.contains(&i));
+    ///     } else {
+    ///         assert!(s2.contains(&i));
+    ///     }
+    /// }
+    /// ```
+    pub fn intersect(&self, other: &Set<K>) -> Self {
+        Set(Tree::intersect(&self.0, &other.0, &mut |_, (), ()| Some(())))
     }
 
     /// get the number of elements in the map O(1) time and space
