@@ -503,7 +503,10 @@ where
                     &Tree::intersect(&n0.right, &r1, f),
                 ),
                 (l1, Some(elts), r1) => {
-                    let t = Tree::intersect(t0, &Tree::concat(&l1, &r1), f);
+                    let t = Tree::concat(
+                        &Tree::intersect(t0, &Tree::concat(&l1, &r1), f),
+                        &Tree::intersect(&Tree::concat(&n0.left, &n0.right), t1, f),
+                    );
                     match Chunk::intersect(&n0.elts, &elts, f) {
                         Some(elts) => t.insert_many(elts.into_iter()),
                         None => t,
