@@ -329,7 +329,7 @@ where
     ///     if i < 20 || i >= 50 {
     ///         assert!(m2.get(&i).is_none());
     ///     } else {
-    ///         assert!(m2.get(&i).unwrap() == 2);
+    ///         assert!(*m2.get(&i).unwrap() == 2);
     ///     }
     /// }
     /// ```
