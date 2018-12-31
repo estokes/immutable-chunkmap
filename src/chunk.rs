@@ -367,8 +367,7 @@ where
         c1: &Chunk<K, V>,
         r: &mut Vec<(K, V)>,
         f: &mut F,
-    )
-    where
+    ) where
         F: FnMut(&K, &V, &V) -> Option<V>,
     {
         if c0.len() > 0 && c1.len() > 0 {
@@ -377,15 +376,12 @@ where
             } else {
                 (c1, c0)
             };
-            for (i, k) in c0.keys.iter().enumerate() {
+            r.extend(c0.keys.iter().enumerate().filter_map(|(i, k)| {
                 match c1.keys.binary_search(&k) {
-                    Err(_) => (),
-                    Ok(j) => match f(k, &c0.vals[i], &c1.vals[j]) {
-                        None => (),
-                        Some(v) => r.push((k.clone(), v))
-                    },
+                    Err(_) => None,
+                    Ok(j) => f(k, &c0.vals[i], &c1.vals[j]).map(|v| (k.clone(), v)),
                 }
-            }
+            }))
         }
     }
 
