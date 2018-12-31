@@ -321,16 +321,16 @@ where
     /// use std::iter::FromIterator;
     /// use self::immutable_chunkmap::map::Map;
     ///
-    /// let m0 = Map::from_iter((0..6).map(|k| (k, 1)));
-    /// let m1 = Map::from_iter((1..4).map(|k| (k, 1)));
+    /// let m0 = Map::from_iter((0..100000).map(|k| (k, 1)));
+    /// let m1 = Map::from_iter((50..30000).map(|k| (k, 1)));
     /// m0.invariant();
     /// m1.invariant();
     /// let m2 = m0.intersect(&m1, |_k, v0, v1| Some(v0 + v1));
     /// m2.invariant();
     ///
     /// println!("{:#?}", m2);
-    /// for i in 0..6 {
-    ///     if i > 3 || i < 1 {
+    /// for i in 0..100000 {
+    ///     if i >= 30000 || i < 50 {
     ///         assert!(m2.get(&i).is_none());
     ///     } else {
     ///         println!("i: {}", i);
@@ -340,7 +340,7 @@ where
     /// ```
     pub fn intersect<F>(&self, other: &Map<K, V>, mut f: F) -> Self
     where
-        F: FnMut(&K, &V, &V) -> Option<V>, K: Debug, V: Debug
+        F: FnMut(&K, &V, &V) -> Option<V>
     {
         Map(Tree::intersect(&self.0, &other.0, &mut f))
     }

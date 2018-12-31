@@ -493,85 +493,60 @@ where
     pub(crate) fn intersect<F>(t0: &Tree<K, V>, t1: &Tree<K, V>, f: &mut F) -> Self
     where
         F: FnMut(&K, &V, &V) -> Option<V>,
-        K: Debug,
-        V: Debug,
     {
-        println!("t0: {:?}", t0);
-        println!("t1: {:?}", t1);
         match (t0, t1) {
             (Tree::Empty, _) => Tree::Empty,
             (_, Tree::Empty) => Tree::Empty,
-            (Tree::Node(ref n0), t1) => {
-                println!("split t1 with {:?}, {:?}", n0.min_key, n0.max_key);
-                match t1.split(&n0.min_key, &n0.max_key) {
-                    (l1, None, r1) => {
-                        println!("");
-                        Tree::concat(
-                            &Tree::intersect(&n0.left, &l1, f),
-                            &Tree::intersect(&n0.right, &r1, f),
-                        )
-                    }
-                    (l1, Some(elts), r1) => {
-                        println!("{:?} Some({:?}), {:?}", l1, elts, r1);
-                        let t = {
-                            let (min_k, max_k) = elts.min_max_key().unwrap();
-                            if n0.min_key < min_k && n0.max_key > max_k {
-                                println!("n0 super");
-                                Tree::intersect(t0, &Tree::concat(&l1, &r1), f)
-                            } else if n0.min_key >= min_k && n0.max_key <= max_k {
-                                println!("n0 sub");
-                                Tree::intersect(
-                                    &Tree::concat(&n0.left, &n0.right),
-                                    &Tree::create(&l1, &elts, &r1),
+            (Tree::Node(ref n0), t1) => match t1.split(&n0.min_key, &n0.max_key) {
+                (l1, None, r1) => Tree::concat(
+                    &Tree::intersect(&n0.left, &l1, f),
+                    &Tree::intersect(&n0.right, &r1, f),
+                ),
+                (l1, Some(elts), r1) => {
+                    let t = {
+                        let (min_k, max_k) = elts.min_max_key().unwrap();
+                        if n0.min_key < min_k && n0.max_key > max_k {
+                            Tree::intersect(t0, &Tree::concat(&l1, &r1), f)
+                        } else if n0.min_key >= min_k && n0.max_key <= max_k {
+                            Tree::intersect(
+                                &Tree::concat(&n0.left, &n0.right),
+                                &Tree::create(&l1, &elts, &r1),
+                                f,
+                            )
+                        } else if n0.min_key < min_k {
+                            Tree::concat(
+                                &Tree::intersect(
+                                    &Tree::join(&n0.left, &n0.elts, &Tree::Empty),
+                                    &l1,
                                     f,
-                                )
-                            } else if n0.min_key < min_k {
-                                println!("overlap left");
-                                assert!(n0.max_key <= max_k);
-                                Tree::concat(
-                                    &Tree::intersect(
-                                        &Tree::join(&n0.left, &n0.elts, &Tree::Empty),
-                                        &l1,
-                                        f,
-                                    ),
-                                    &Tree::intersect(
-                                        &n0.right,
-                                        &Tree::join(&Tree::Empty, &elts, &r1),
-                                        f,
-                                    ),
-                                )
-                            } else {
-                                println!(
-                                    "overlap right n0: {:?}, {:?}, k: {:?}, {:?}",
-                                    n0.min_key, n0.max_key, min_k, max_k
-                                );
-                                assert!(n0.min_key >= min_k && n0.max_key > max_k);
-                                Tree::concat(
-                                    &Tree::intersect(
-                                        &n0.left,
-                                        &Tree::join(&l1, &elts, &Tree::Empty),
-                                        f,
-                                    ),
-                                    &Tree::intersect(
-                                        &Tree::join(&Tree::Empty, &n0.elts, &n0.right),
-                                        &r1,
-                                        f,
-                                    ),
-                                )
-                            }
-                        };
-                        println!("checking intersection t0: {:?}", n0.elts);
-                        println!("checking intersection t1: {:?}", elts);
-                        match Chunk::intersect(&n0.elts, &elts, f) {
-                            Some(elts) => {
-                                println!("adding intersection {:?}", elts);
-                                t.insert_many(elts.into_iter())
-                            }
-                            None => t,
+                                ),
+                                &Tree::intersect(
+                                    &n0.right,
+                                    &Tree::join(&Tree::Empty, &elts, &r1),
+                                    f,
+                                ),
+                            )
+                        } else {
+                            Tree::concat(
+                                &Tree::intersect(
+                                    &n0.left,
+                                    &Tree::join(&l1, &elts, &Tree::Empty),
+                                    f,
+                                ),
+                                &Tree::intersect(
+                                    &Tree::join(&Tree::Empty, &n0.elts, &n0.right),
+                                    &r1,
+                                    f,
+                                ),
+                            )
                         }
+                    };
+                    match Chunk::intersect(&n0.elts, &elts, f) {
+                        Some(elts) => t.insert_many(elts.into_iter()),
+                        None => t,
                     }
                 }
-            }
+            },
         }
     }
 

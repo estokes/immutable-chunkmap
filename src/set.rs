@@ -280,7 +280,7 @@ where
     ///         assert!(s2.contains(&i));
     ///     }
     /// }
-    pub fn intersect(&self, other: &Set<K>) -> Self where K: Debug {
+    pub fn intersect(&self, other: &Set<K>) -> Self {
         Set(Tree::intersect(&self.0, &other.0, &mut |_, (), ()| Some(())))
     }
 
