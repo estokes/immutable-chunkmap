@@ -519,10 +519,10 @@ where
                         let tr = Tree::join(&Tree::Empty, &elts, &r1);
                         Tree::intersect_int(&n0.right, &tr, r, f);
                     } else {
-                        let tr = Tree::join(&l1, &elts, &Tree::Empty);
-                        Tree::intersect_int(&n0.left, &tr, r, f);
-                        let tl = Tree::join(&Tree::Empty, &n0.elts, &n0.right);
-                        Tree::intersect_int(&tl, &r1, r, f);
+                        let tl = Tree::join(&l1, &elts, &Tree::Empty);
+                        Tree::intersect_int(&tl, &n0.left, r, f);
+                        let tr = Tree::join(&Tree::Empty, &n0.elts, &n0.right);
+                        Tree::intersect_int(&r1, &tr, r, f);
                     }
                 }
             },
