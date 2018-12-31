@@ -27,7 +27,7 @@ pub(crate) struct Node<K: Ord + Clone, V: Clone> {
     height: u16,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) enum Tree<K: Ord + Clone, V: Clone> {
     Empty,
     Node(Arc<Node<K, V>>),
@@ -92,6 +92,7 @@ where
     }
 }
 
+/*
 impl<K, V> Debug for Tree<K, V>
 where
     K: Debug + Ord + Clone,
@@ -101,6 +102,7 @@ where
         f.debug_map().entries(self.into_iter()).finish()
     }
 }
+*/
 
 impl<'a, Q, K, V> Index<&'a Q> for Tree<K, V>
 where
@@ -510,7 +512,7 @@ where
                         } else if n0.min_key >= min_k && n0.max_key <= max_k {
                             Tree::intersect(
                                 &Tree::concat(&n0.left, &n0.right),
-                                &Tree::create(&l1, &elts, &r1),
+                                &Tree::join(&l1, &elts, &r1),
                                 f,
                             )
                         } else if n0.min_key < min_k {
