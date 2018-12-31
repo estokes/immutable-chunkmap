@@ -9,7 +9,7 @@ use std::{
     fmt::Debug,
     hash::Hash,
     i32,
-    iter::{IntoIterator, FromIterator},
+    iter::{FromIterator, IntoIterator},
     ops::Bound::{Excluded, Included, Unbounded},
     vec::Vec,
 };
@@ -575,16 +575,16 @@ fn test_merge_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
     dedup(&mut v1);
     let m0 = Map::from_iter(v0.iter().map(|k| (k.clone(), 1)));
     let m1 = Map::from_iter(v1.iter().map(|k| (k.clone(), 1)));
-    let m3 = m0.merge(&m1, |_, v0, v1| Some(v0 + v1));
-    m3.invariant();
+    let m2 = m0.merge(&m1, |_, v0, v1| Some(v0 + v1));
+    m2.invariant();
     let mut hm = HashMap::new();
     for k in v0.iter().chain(v1.iter()) {
         *hm.entry(k.clone()).or_insert(0) += 1;
     }
     for (k, v) in &hm {
-        assert!(m3.get(k).unwrap() == v)
+        assert!(m2.get(k).unwrap() == v)
     }
-    for (k, v) in &m3 {
+    for (k, v) in &m2 {
         assert!(hm.get(k).unwrap() == v)
     }
 }
@@ -597,4 +597,47 @@ fn test_merge_string() {
 #[test]
 fn test_merge_int() {
     test_merge_gen::<i32>()
+}
+
+fn test_intersect_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
+    let mut v0 = randvec::<T>(SIZE);
+    let mut v1 = randvec::<T>(SIZE);
+    dedup(&mut v0);
+    dedup(&mut v1);
+    let m0 = Map::from_iter(v0.iter().map(|k| (k.clone(), 1)));
+    let m1 = Map::from_iter(v1.iter().map(|k| (k.clone(), 1)));
+    let m2 = m0.intersect(&m1, |_, v0, v1| Some(v0 + v1));
+    m2.invariant();
+    let mut hm0 = HashMap::new();
+    let mut hm1 = HashMap::new();
+    let mut hm2 = HashMap::new();
+    let ins = |v: Vec<T>, hm: &mut HashMap<T, i32>| {
+        for k in v.iter() {
+            *hm.entry(k.clone()).or_insert(0) += 1;
+        }
+    };
+    ins(v0, &mut hm0);
+    ins(v1, &mut hm1);
+    for (k, v0) in &hm0 {
+        match hm1.get(&k) {
+            None => (),
+            Some(v1) => { hm2.insert(k.clone(), *v0 + *v1); }
+        }
+    }
+    for (k, v) in &hm2 {
+        assert_eq!(v, m2.get(k).unwrap())
+    }
+    for (k, v) in &m2 {
+        assert_eq!(v, hm2.get(k).unwrap())
+    }
+}
+
+#[test]
+fn test_intersect_string() {
+    test_intersect_gen::<String>();
+}
+
+#[test]
+fn test_intersect_int() {
+    test_intersect_gen::<i32>();
 }
