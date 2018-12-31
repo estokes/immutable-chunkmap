@@ -27,7 +27,7 @@ pub(crate) struct Node<K: Ord + Clone, V: Clone> {
     height: u16,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub(crate) enum Tree<K: Ord + Clone, V: Clone> {
     Empty,
     Node(Arc<Node<K, V>>),
@@ -92,7 +92,6 @@ where
     }
 }
 
-/*
 impl<K, V> Debug for Tree<K, V>
 where
     K: Debug + Ord + Clone,
@@ -102,7 +101,6 @@ where
         f.debug_map().entries(self.into_iter()).finish()
     }
 }
-*/
 
 impl<'a, Q, K, V> Index<&'a Q> for Tree<K, V>
 where
@@ -505,47 +503,48 @@ where
                     &Tree::intersect(&n0.right, &r1, f),
                 ),
                 (l1, Some(elts), r1) => {
-                    let t = {
-                        let (min_k, max_k) = elts.min_max_key().unwrap();
-                        if n0.min_key < min_k && n0.max_key > max_k {
-                            Tree::intersect(t0, &Tree::concat(&l1, &r1), f)
-                        } else if n0.min_key >= min_k && n0.max_key <= max_k {
-                            Tree::intersect(
-                                &Tree::concat(&n0.left, &n0.right),
-                                &Tree::join(&l1, &elts, &r1),
-                                f,
-                            )
-                        } else if n0.min_key < min_k {
-                            Tree::concat(
-                                &Tree::intersect(
-                                    &Tree::join(&n0.left, &n0.elts, &Tree::Empty),
-                                    &l1,
-                                    f,
-                                ),
-                                &Tree::intersect(
-                                    &n0.right,
-                                    &Tree::join(&Tree::Empty, &elts, &r1),
-                                    f,
-                                ),
-                            )
-                        } else {
-                            Tree::concat(
-                                &Tree::intersect(
-                                    &n0.left,
-                                    &Tree::join(&l1, &elts, &Tree::Empty),
-                                    f,
-                                ),
-                                &Tree::intersect(
-                                    &Tree::join(&Tree::Empty, &n0.elts, &n0.right),
-                                    &r1,
-                                    f,
-                                ),
-                            )
+                    let (min_k, max_k) = elts.min_max_key().unwrap();
+                    let inter = Chunk::intersect(&n0.elts, &elts, f);
+                    if n0.min_key < min_k && n0.max_key > max_k {
+                        let t = Tree::intersect(t0, &Tree::concat(&l1, &r1), f);
+                        inter.map(|e| t.insert_many(e.into_iter())).unwrap_or(t)
+                    } else if n0.min_key >= min_k && n0.max_key <= max_k {
+                        let t = Tree::intersect(
+                            &Tree::concat(&n0.left, &n0.right),
+                            &Tree::join(&l1, &elts, &r1),
+                            f,
+                        );
+                        inter.map(|e| t.insert_many(e.into_iter())).unwrap_or(t)
+                    } else if n0.min_key < min_k {
+                        let t0 = Tree::intersect(
+                            &Tree::join(&n0.left, &n0.elts, &Tree::Empty),
+                            &l1,
+                            f,
+                        );
+                        let t1 = Tree::intersect(
+                            &n0.right,
+                            &Tree::join(&Tree::Empty, &elts, &r1),
+                            f,
+                        );
+                        match inter {
+                            None => Tree::concat(&t0, &t1),
+                            Some(e) => Tree::join(&t0, &Arc::new(e), &t1),
                         }
-                    };
-                    match Chunk::intersect(&n0.elts, &elts, f) {
-                        Some(elts) => t.insert_many(elts.into_iter()),
-                        None => t,
+                    } else {
+                        let t0 = Tree::intersect(
+                            &n0.left,
+                            &Tree::join(&l1, &elts, &Tree::Empty),
+                            f,
+                        );
+                        let t1 = Tree::intersect(
+                            &Tree::join(&Tree::Empty, &n0.elts, &n0.right),
+                            &r1,
+                            f,
+                        );
+                        match inter {
+                            None => Tree::concat(&t0, &t1),
+                            Some(e) => Tree::join(&t0, &Arc::new(e), &t1),
+                        }
                     }
                 }
             },

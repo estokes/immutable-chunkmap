@@ -365,7 +365,7 @@ where
     pub(crate) fn intersect<F>(
         c0: &Chunk<K, V>,
         c1: &Chunk<K, V>,
-        mut f: F,
+        f: &mut F,
     ) -> Option<Chunk<K, V>>
     where
         F: FnMut(&K, &V, &V) -> Option<V>,
