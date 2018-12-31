@@ -340,8 +340,6 @@ where
     pub fn intersect<F>(&self, other: &Map<K, V>, mut f: F) -> Self
     where
         F: FnMut(&K, &V, &V) -> Option<V>,
-        K: Debug,
-        V: Debug,
     {
         Map(Tree::intersect(&self.0, &other.0, &mut f))
     }

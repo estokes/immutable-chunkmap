@@ -493,8 +493,6 @@ where
     fn intersect_int<F>(t0: &Tree<K, V>, t1: &Tree<K, V>, r: &mut Vec<(K, V)>, f: &mut F)
     where
         F: FnMut(&K, &V, &V) -> Option<V>,
-        K: Debug,
-        V: Debug,
     {
         match (t0, t1) {
             (Tree::Empty, _) => (),
