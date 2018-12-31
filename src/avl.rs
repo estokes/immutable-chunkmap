@@ -530,8 +530,6 @@ where
     pub(crate) fn intersect<F>(t0: &Tree<K, V>, t1: &Tree<K, V>, f: &mut F) -> Self
     where
         F: FnMut(&K, &V, &V) -> Option<V>,
-        K: Debug,
-        V: Debug,
     {
         let mut r = Vec::new();
         Tree::intersect_int(t0, t1, &mut r, f);
