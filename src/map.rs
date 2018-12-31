@@ -308,7 +308,6 @@ where
         Map(Tree::merge(&self.0, &other.0, &mut f))
     }
 
-
     /// Produce a map containing the intersection (by key) of two
     /// maps. The function f runs on each intersecting element, and
     /// has the option to omit elements from the intersection by
@@ -340,7 +339,9 @@ where
     /// ```
     pub fn intersect<F>(&self, other: &Map<K, V>, mut f: F) -> Self
     where
-        F: FnMut(&K, &V, &V) -> Option<V>
+        F: FnMut(&K, &V, &V) -> Option<V>,
+        K: Debug,
+        V: Debug,
     {
         Map(Tree::intersect(&self.0, &other.0, &mut f))
     }

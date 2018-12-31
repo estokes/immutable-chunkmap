@@ -365,15 +365,13 @@ where
     pub(crate) fn intersect<F>(
         c0: &Chunk<K, V>,
         c1: &Chunk<K, V>,
+        r: &mut Vec<(K, V)>,
         f: &mut F,
-    ) -> Option<Chunk<K, V>>
+    )
     where
         F: FnMut(&K, &V, &V) -> Option<V>,
     {
-        let mut elts = Chunk::empty();
-        if c0.len() == 0 || c1.len() == 0 {
-            None
-        } else {
+        if c0.len() > 0 && c1.len() > 0 {
             let (c0, c1) = if c0.len() < c1.len() {
                 (c0, c1)
             } else {
@@ -384,17 +382,9 @@ where
                     Err(_) => (),
                     Ok(j) => match f(k, &c0.vals[i], &c1.vals[j]) {
                         None => (),
-                        Some(v) => {
-                            elts.keys.push(k.clone());
-                            elts.vals.push(v);
-                        }
+                        Some(v) => r.push((k.clone(), v))
                     },
                 }
-            }
-            if elts.len() > 0 {
-                Some(elts)
-            } else {
-                None
             }
         }
     }

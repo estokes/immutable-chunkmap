@@ -490,65 +490,54 @@ where
         }
     }
 
-    pub(crate) fn intersect<F>(t0: &Tree<K, V>, t1: &Tree<K, V>, f: &mut F) -> Self
+    fn intersect_int<F>(t0: &Tree<K, V>, t1: &Tree<K, V>, r: &mut Vec<(K, V)>, f: &mut F)
     where
         F: FnMut(&K, &V, &V) -> Option<V>,
+        K: Debug,
+        V: Debug,
     {
         match (t0, t1) {
-            (Tree::Empty, _) => Tree::Empty,
-            (_, Tree::Empty) => Tree::Empty,
+            (Tree::Empty, _) => (),
+            (_, Tree::Empty) => (),
             (Tree::Node(ref n0), t1) => match t1.split(&n0.min_key, &n0.max_key) {
-                (l1, None, r1) => Tree::concat(
-                    &Tree::intersect(&n0.left, &l1, f),
-                    &Tree::intersect(&n0.right, &r1, f),
-                ),
+                (l1, None, r1) => {
+                    Tree::intersect_int(&n0.left, &l1, r, f);
+                    Tree::intersect_int(&n0.right, &r1, r, f);
+                }
                 (l1, Some(elts), r1) => {
                     let (min_k, max_k) = elts.min_max_key().unwrap();
-                    let inter = Chunk::intersect(&n0.elts, &elts, f);
+                    Chunk::intersect(&n0.elts, &elts, r, f);
                     if n0.min_key < min_k && n0.max_key > max_k {
-                        let t = Tree::intersect(t0, &Tree::concat(&l1, &r1), f);
-                        inter.map(|e| t.insert_many(e.into_iter())).unwrap_or(t)
+                        Tree::intersect_int(t0, &Tree::concat(&l1, &r1), r, f)
                     } else if n0.min_key >= min_k && n0.max_key <= max_k {
-                        let t = Tree::intersect(
-                            &Tree::concat(&n0.left, &n0.right),
-                            &Tree::join(&l1, &elts, &r1),
-                            f,
-                        );
-                        inter.map(|e| t.insert_many(e.into_iter())).unwrap_or(t)
+                        let t0 = Tree::concat(&n0.left, &n0.right);
+                        let t1 = Tree::join(&l1, &elts, &r1);
+                        Tree::intersect_int(&t0, &t1, r, f);
                     } else if n0.min_key < min_k {
-                        let t0 = Tree::intersect(
-                            &Tree::join(&n0.left, &n0.elts, &Tree::Empty),
-                            &l1,
-                            f,
-                        );
-                        let t1 = Tree::intersect(
-                            &n0.right,
-                            &Tree::join(&Tree::Empty, &elts, &r1),
-                            f,
-                        );
-                        match inter {
-                            None => Tree::concat(&t0, &t1),
-                            Some(e) => Tree::join(&t0, &Arc::new(e), &t1),
-                        }
+                        let tl = Tree::join(&n0.left, &n0.elts, &Tree::Empty);
+                        Tree::intersect_int(&tl, &l1, r, f);
+                        let tr = Tree::join(&Tree::Empty, &elts, &r1);
+                        Tree::intersect_int(&n0.right, &tr, r, f);
                     } else {
-                        let t0 = Tree::intersect(
-                            &n0.left,
-                            &Tree::join(&l1, &elts, &Tree::Empty),
-                            f,
-                        );
-                        let t1 = Tree::intersect(
-                            &Tree::join(&Tree::Empty, &n0.elts, &n0.right),
-                            &r1,
-                            f,
-                        );
-                        match inter {
-                            None => Tree::concat(&t0, &t1),
-                            Some(e) => Tree::join(&t0, &Arc::new(e), &t1),
-                        }
+                        let tr = Tree::join(&l1, &elts, &Tree::Empty);
+                        Tree::intersect_int(&n0.left, &tr, r, f);
+                        let tl = Tree::join(&Tree::Empty, &n0.elts, &n0.right);
+                        Tree::intersect_int(&tl, &r1, r, f);
                     }
                 }
             },
         }
+    }
+
+    pub(crate) fn intersect<F>(t0: &Tree<K, V>, t1: &Tree<K, V>, f: &mut F) -> Self
+    where
+        F: FnMut(&K, &V, &V) -> Option<V>,
+        K: Debug,
+        V: Debug,
+    {
+        let mut r = Vec::new();
+        Tree::intersect_int(t0, t1, &mut r, f);
+        Tree::Empty.insert_many(r.into_iter())
     }
 
     fn is_empty(&self) -> bool {
