@@ -265,7 +265,6 @@ where
     /// the number of intersecting chunks.
     ///
     /// # Examples
-    /// ```
     /// use std::iter::FromIterator;
     /// use self::immutable_chunkmap::set::Set;
     ///
@@ -281,8 +280,7 @@ where
     ///         assert!(s2.contains(&i));
     ///     }
     /// }
-    /// ```
-    pub fn intersect(&self, other: &Set<K>) -> Self {
+    pub fn intersect(&self, other: &Set<K>) -> Self where K: Debug {
         Set(Tree::intersect(&self.0, &other.0, &mut |_, (), ()| Some(())))
     }
 

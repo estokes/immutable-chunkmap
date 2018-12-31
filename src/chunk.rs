@@ -23,7 +23,7 @@ time a key is added or removed
 -- increases the size of each allocation
 -- icreases the overall amount of memory allocated for each change to the tree
  */
-pub(crate) const SIZE: usize = 512;
+pub(crate) const SIZE: usize = 2;
 
 pub(crate) enum UpdateChunk<Q: Ord, K: Ord + Clone + Borrow<Q>, V: Clone, D> {
     UpdateLeft(Vec<(Q, D)>),
@@ -391,7 +391,11 @@ where
                     },
                 }
             }
-            Some(elts)
+            if elts.len() > 0 {
+                Some(elts)
+            } else {
+                None
+            }
         }
     }
 
