@@ -1,3 +1,7 @@
+0.5.2
+* implement Set::intersect, and Map::intersect, O(log(N) + M)
+  where M is the number of intersecting chunks.
+
 0.5.1
 * implement Set::union, and Map::merge, O(log(N) + M) where M is the
   number of intersecting chunks and N is the size of the largest
