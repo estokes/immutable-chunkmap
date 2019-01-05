@@ -9,9 +9,10 @@ keys. Full test data in the results.gnumeric spreadsheet. Tests
 performed on an Intel Core i7 6700HQ under Linux, cpu frequency
 governor 'performance'.
 
-* OCaml: core map (from the Jane Street core library), an AVL tree with
-distinct leaf nodes and a relaxed balance constraint.
-* Std Avl: a classical AVL tree map from the 'immutable-map' cargo package
+* OCaml: core map (from the Jane Street core library), an AVL tree
+  with distinct leaf nodes and a relaxed balance constraint.
+* Std Avl: a classical AVL tree map from the 'immutable-map' cargo
+  package
 * Chunkmap: this library
 * BTreeMap: from the Rust standard library
 * Binary Search: binary search in a sorted array of keys
