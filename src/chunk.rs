@@ -385,6 +385,21 @@ where
         }
     }
 
+    pub(crate) fn diff<F>(
+        c0: &Chunk<K, V>,
+        c1: &Chunk<K, V>,
+        f: &mut F,
+    ) -> Self where F: FnMut(&K, &V, &V) -> Option<V> {
+        let (keys, vals): (Vec<K>, Vec<V>) =
+            c0.into_iter().filter_map(|(k, v)| {
+                match c1.keys.binary_search(&k) {
+                    Err(_) => Some((k.clone(), v.clone())),
+                    Ok(i) => f(k, v, &c1.vals[i]).map(|v| (k.clone(), v))
+                }
+            }).unzip();
+        Chunk { keys, vals }
+    }
+
     pub(crate) fn remove_elt_at(&self, i: usize) -> Self {
         let mut elts = Chunk::with_capacity(self.len() - 1);
         if self.len() == 0 {
