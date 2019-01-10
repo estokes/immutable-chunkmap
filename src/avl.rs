@@ -593,14 +593,14 @@ where
                             f,
                         );
                         let l = {
-                            if chunk.len() > 0 {
+                            if chunk.len() == 0 {
+                                Tree::diff(&n0.left, &l1, f)
+                            } else {
                                 Tree::diff(
                                     &Tree::join(&n0.left, &Arc::new(chunk), &Tree::Empty),
                                     &l1,
                                     f,
                                 )
-                            } else {
-                                Tree::diff(&n0.left, &l1, f)
                             }
                         };
                         Tree::concat(&l, &r)
@@ -611,7 +611,9 @@ where
                             f,
                         );
                         let r = {
-                            if chunk.len() > 0 {
+                            if chunk.len() == 0 {
+                                Tree::diff(&n0.right, &r1, f)
+                            } else {
                                 Tree::diff(
                                     &Tree::join(
                                         &Tree::Empty,
@@ -621,8 +623,6 @@ where
                                     &r1,
                                     f,
                                 )
-                            } else {
-                                Tree::diff(&n0.right, &r1, f)
                             }
                         };
                         Tree::concat(&l, &r)
