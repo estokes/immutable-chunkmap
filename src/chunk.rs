@@ -390,7 +390,7 @@ where
         c1: &Chunk<K, V>,
         f: &mut F,
     ) -> Self where F: FnMut(&K, &V, &V) -> Option<V> {
-        let (keys, vals): (Vec<K>, Vec<V>) =
+        let (keys, vals) =
             c0.into_iter().filter_map(|(k, v)| {
                 match c1.keys.binary_search(&k) {
                     Err(_) => Some((k.clone(), v.clone())),

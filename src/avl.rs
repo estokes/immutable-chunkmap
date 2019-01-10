@@ -452,7 +452,7 @@ where
     /// merge two trees, where f is run on the intersection. O(log(n)
     /// + m) where n is the size of the largest tree, and m is the number of
     /// intersecting chunks.
-    pub(crate) fn merge<F>(t0: &Tree<K, V>, t1: &Tree<K, V>, f: &mut F) -> Self
+    pub(crate) fn union<F>(t0: &Tree<K, V>, t1: &Tree<K, V>, f: &mut F) -> Self
     where
         F: FnMut(&K, &V, &V) -> Option<V>,
     {
@@ -465,24 +465,24 @@ where
                     match t1.split(&n0.min_key, &n0.max_key) {
                         (_, Some(_), _) => {
                             let (t0, t1) = Tree::merge_root_to(&t0, &t1, f);
-                            Tree::merge(&t0, &t1, f)
+                            Tree::union(&t0, &t1, f)
                         }
                         (l1, None, r1) => Tree::join(
-                            &Tree::merge(&n0.left, &l1, f),
+                            &Tree::union(&n0.left, &l1, f),
                             &n0.elts,
-                            &Tree::merge(&n0.right, &r1, f),
+                            &Tree::union(&n0.right, &r1, f),
                         ),
                     }
                 } else {
                     match t0.split(&n1.min_key, &n1.max_key) {
                         (_, Some(_), _) => {
                             let (t1, t0) = Tree::merge_root_to(&t1, &t0, f);
-                            Tree::merge(&t0, &t1, f)
+                            Tree::union(&t0, &t1, f)
                         }
                         (l0, None, r0) => Tree::join(
-                            &Tree::merge(&l0, &n1.left, f),
+                            &Tree::union(&l0, &n1.left, f),
                             &n1.elts,
-                            &Tree::merge(&r0, &n1.right, f),
+                            &Tree::union(&r0, &n1.right, f),
                         ),
                     }
                 }
@@ -534,6 +534,86 @@ where
         let mut r = Vec::new();
         Tree::intersect_int(t0, t1, &mut r, f);
         Tree::Empty.insert_many(r.into_iter())
+    }
+
+    pub(crate) fn diff<F>(t0: &Tree<K, V>, t1: &Tree<K, V>, f: &mut F) -> Self
+    where
+        F: FnMut(&K, &V, &V) -> Option<V>,
+    {
+        match (t0, t1) {
+            (Tree::Empty, _) => Tree::Empty,
+            (_, Tree::Empty) => t0.clone(),
+            (Tree::Node(ref n0), t1) => match t1.split(&n0.min_key, &n0.max_key) {
+                (l1, None, r1) => Tree::concat(
+                    &Tree::diff(&n0.left, &l1, f),
+                    &Tree::diff(&n0.right, &r1, f),
+                ),
+                (l1, Some(elts), r1) => {
+                    let (min_k, max_k) = elts.min_max_key().unwrap();
+                    let chunk = Chunk::diff(&n0.elts, &elts, f);
+                    let (l, r) = {
+                        if n0.min_key < min_k && n0.max_key > max_k {
+                            (
+                                Tree::diff(
+                                    &Tree::join(&n0.left, &n0.elts, &Tree::Empty),
+                                    &l1,
+                                    f,
+                                ),
+                                Tree::diff(
+                                    &Tree::join(&Tree::Empty, &n0.elts, &n0.right),
+                                    &r1,
+                                    f,
+                                ),
+                            )
+                        } else if n0.min_key >= min_k && n0.max_key <= max_k {
+                            (
+                                Tree::diff(
+                                    &n0.left,
+                                    &Tree::join(&l1, &elts, &Tree::Empty),
+                                    f,
+                                ),
+                                Tree::diff(
+                                    &n0.right,
+                                    &Tree::join(&Tree::Empty, &elts, &r1),
+                                    f,
+                                ),
+                            )
+                        } else if n0.min_key < min_k {
+                            (
+                                Tree::diff(
+                                    &Tree::join(&n0.left, &n0.elts, &Tree::Empty),
+                                    &l1,
+                                    f,
+                                ),
+                                Tree::diff(
+                                    &n0.right,
+                                    &Tree::join(&Tree::Empty, &elts, &r1),
+                                    f,
+                                ),
+                            )
+                        } else {
+                            (
+                                Tree::diff(
+                                    &n0.left,
+                                    &Tree::join(&l1, &elts, &Tree::Empty),
+                                    f,
+                                ),
+                                Tree::diff(
+                                    &Tree::join(&Tree::Empty, &n0.elts, &n0.right),
+                                    &r1,
+                                    f,
+                                ),
+                            )
+                        }
+                    };
+                    if chunk.len() > 0 {
+                        Tree::join(&l, &Arc::new(chunk), &r)
+                    } else {
+                        Tree::concat(&l, &r)
+                    }
+                }
+            },
+        }
     }
 
     fn is_empty(&self) -> bool {

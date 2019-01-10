@@ -285,14 +285,14 @@ where
     ///
     /// let m0 = Map::from_iter((0..10).map(|k| (k, 1)));
     /// let m1 = Map::from_iter((10..20).map(|k| (k, 1)));
-    /// let m2 = m0.merge(&m1, |_k, _v0, _v1| panic!("no intersection expected"));
+    /// let m2 = m0.union(&m1, |_k, _v0, _v1| panic!("no intersection expected"));
     ///
     /// for i in 0..20 {
     ///     assert!(m2.get(&i).is_some())
     /// }
     ///
     /// let m3 = Map::from_iter((5..9).map(|k| (k, 1)));
-    /// let m4 = m3.merge(&m2, |_k, v0, v1| Some(v0 + v1));
+    /// let m4 = m3.union(&m2, |_k, v0, v1| Some(v0 + v1));
     ///
     /// for i in 0..20 {
     ///    assert!(
@@ -301,19 +301,20 @@ where
     ///    )
     /// }
     /// ```
-    pub fn merge<F>(&self, other: &Map<K, V>, mut f: F) -> Self
+    pub fn union<F>(&self, other: &Map<K, V>, mut f: F) -> Self
     where
         F: FnMut(&K, &V, &V) -> Option<V>,
     {
-        Map(Tree::merge(&self.0, &other.0, &mut f))
+        Map(Tree::union(&self.0, &other.0, &mut f))
     }
 
-    /// Produce a map containing the intersection (by key) of two
-    /// maps. The function f runs on each intersecting element, and
-    /// has the option to omit elements from the intersection by
-    /// returning None, or change the value any way it likes. Runs in
-    /// O(log(N) + M) time and space where N is the size of the
-    /// smallest map, and M is the number of intersecting chunks.
+    /// Produce a map containing the mapping over F of the
+    /// intersection (by key) of two maps. The function f runs on each
+    /// intersecting element, and has the option to omit elements from
+    /// the intersection by returning None, or change the value any
+    /// way it likes. Runs in O(log(N) + M) time and space where N is
+    /// the size of the smallest map, and M is the number of
+    /// intersecting chunks.
     ///
     /// # Examples
     ///```
@@ -322,17 +323,12 @@ where
     ///
     /// let m0 = Map::from_iter((0..100000).map(|k| (k, 1)));
     /// let m1 = Map::from_iter((50..30000).map(|k| (k, 1)));
-    /// m0.invariant();
-    /// m1.invariant();
     /// let m2 = m0.intersect(&m1, |_k, v0, v1| Some(v0 + v1));
-    /// m2.invariant();
     ///
-    /// println!("{:#?}", m2);
     /// for i in 0..100000 {
     ///     if i >= 30000 || i < 50 {
     ///         assert!(m2.get(&i).is_none());
     ///     } else {
-    ///         println!("i: {}", i);
     ///         assert!(*m2.get(&i).unwrap() == 2);
     ///     }
     /// }
@@ -342,6 +338,35 @@ where
         F: FnMut(&K, &V, &V) -> Option<V>,
     {
         Map(Tree::intersect(&self.0, &other.0, &mut f))
+    }
+
+    /// Produce a map containing the second map subtracted from the
+    /// first. The function F is called for each intersecting element,
+    /// and ultimately decides whether it appears in the result, for
+    /// example, to compute a classical set diff, the function should
+    /// always return None.
+    ///
+    /// # Examples
+    ///```
+    /// use std::iter::FromIterator;
+    /// use self::immutable_chunkmap::map::Map;
+    ///
+    /// let m0 = Map::from_iter((0..100000).map(|k| (k, 1)));
+    /// let m1 = Map::from_iter((50..30000).map(|k| (k, 1)));
+    /// let m2 = m0.diff(&m1, |_k, _v0, _v1| None);
+    ///
+    /// for i in 0..100000 {
+    ///     if i >= 30000 || i < 50 {
+    ///         assert!(*m2.get(&i) == 1);
+    ///     } else {
+    ///         assert!(m2.get(&i).is_none());
+    ///     }
+    /// }
+    /// ```
+    pub fn diff<F>(&self, other: &Map<K, V>, mut f: F) -> Self
+    where F: FnMut(&K, &V, &V) -> Option<V>,
+    {
+        Map(Tree::diff(&self.0, &other.0, &mut f))
     }
 
     /// lookup the mapping for k. If it doesn't exist return

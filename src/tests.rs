@@ -568,14 +568,14 @@ fn test_ord() {
     assert_eq!(s0.cmp(&s3), Ordering::Greater);
 }
 
-fn test_merge_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
+fn test_union_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
     let mut v0 = randvec::<T>(SIZE);
     let mut v1 = randvec::<T>(SIZE);
     dedup(&mut v0);
     dedup(&mut v1);
     let m0 = Map::from_iter(v0.iter().map(|k| (k.clone(), 1)));
     let m1 = Map::from_iter(v1.iter().map(|k| (k.clone(), 1)));
-    let m2 = m0.merge(&m1, |_, v0, v1| Some(v0 + v1));
+    let m2 = m0.union(&m1, |_, v0, v1| Some(v0 + v1));
     m2.invariant();
     let mut hm = HashMap::new();
     for k in v0.iter().chain(v1.iter()) {
@@ -591,12 +591,12 @@ fn test_merge_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
 
 #[test]
 fn test_merge_string() {
-    test_merge_gen::<String>()
+    test_union_gen::<String>()
 }
 
 #[test]
 fn test_merge_int() {
-    test_merge_gen::<i32>()
+    test_union_gen::<i32>()
 }
 
 fn test_intersect_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
