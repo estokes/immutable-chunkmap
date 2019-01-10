@@ -551,64 +551,80 @@ where
                 (l1, Some(elts), r1) => {
                     let (min_k, max_k) = elts.min_max_key().unwrap();
                     let chunk = Chunk::diff(&n0.elts, &elts, f);
-                    let (l, r) = {
-                        if n0.min_key < min_k && n0.max_key > max_k {
-                            (
-                                Tree::diff(
-                                    &Tree::join(&n0.left, &n0.elts, &Tree::Empty),
-                                    &l1,
-                                    f,
-                                ),
-                                Tree::diff(
-                                    &Tree::join(&Tree::Empty, &n0.elts, &n0.right),
-                                    &r1,
-                                    f,
-                                ),
-                            )
-                        } else if n0.min_key >= min_k && n0.max_key <= max_k {
-                            (
-                                Tree::diff(
-                                    &n0.left,
-                                    &Tree::join(&l1, &elts, &Tree::Empty),
-                                    f,
-                                ),
-                                Tree::diff(
-                                    &n0.right,
-                                    &Tree::join(&Tree::Empty, &elts, &r1),
-                                    f,
-                                ),
-                            )
-                        } else if n0.min_key < min_k {
-                            (
-                                Tree::diff(
-                                    &Tree::join(&n0.left, &n0.elts, &Tree::Empty),
-                                    &l1,
-                                    f,
-                                ),
-                                Tree::diff(
-                                    &n0.right,
-                                    &Tree::join(&Tree::Empty, &elts, &r1),
-                                    f,
-                                ),
-                            )
+                    if n0.min_key < min_k && n0.max_key > max_k {
+                        if chunk.len() > 0 {
+                            let chunk = Arc::new(chunk);
+                            let l = Tree::diff(
+                                &Tree::join(&n0.left, &chunk, &Tree::Empty),
+                                &l1,
+                                f,
+                            );
+                            let r = Tree::diff(
+                                &Tree::join(&Tree::Empty, &chunk, &n0.right),
+                                &r1,
+                                f,
+                            );
+                            Tree::concat(&l, &r)
                         } else {
-                            (
+                            let l = Tree::diff(&n0.left, &l1, f);
+                            let r = Tree::diff(&n0.right, &r1, f);
+                            Tree::concat(&l, &r)
+                        }
+                    } else if n0.min_key >= min_k && n0.max_key <= max_k {
+                        let l = Tree::diff(
+                            &n0.left,
+                            &Tree::join(&l1, &elts, &Tree::Empty),
+                            f,
+                        );
+                        let r = Tree::diff(
+                            &n0.right,
+                            &Tree::join(&Tree::Empty, &elts, &r1),
+                            f,
+                        );
+                        if chunk.len() > 0 {
+                            Tree::join(&l, &Arc::new(chunk), &r)
+                        } else {
+                            Tree::concat(&l, &r)
+                        }
+                    } else if n0.min_key < min_k {
+                        let r = Tree::diff(
+                            &n0.right,
+                            &Tree::join(&Tree::Empty, &elts, &r1),
+                            f,
+                        );
+                        let l = {
+                            if chunk.len() > 0 {
                                 Tree::diff(
-                                    &n0.left,
-                                    &Tree::join(&l1, &elts, &Tree::Empty),
+                                    &Tree::join(&n0.left, &Arc::new(chunk), &Tree::Empty),
+                                    &l1,
                                     f,
-                                ),
+                                )
+                            } else {
+                                Tree::diff(&n0.left, &l1, f)
+                            }
+                        };
+                        Tree::concat(&l, &r)
+                    } else {
+                        let l = Tree::diff(
+                            &n0.left,
+                            &Tree::join(&l1, &elts, &Tree::Empty),
+                            f,
+                        );
+                        let r = {
+                            if chunk.len() > 0 {
                                 Tree::diff(
-                                    &Tree::join(&Tree::Empty, &n0.elts, &n0.right),
+                                    &Tree::join(
+                                        &Tree::Empty,
+                                        &Arc::new(chunk),
+                                        &n0.right,
+                                    ),
                                     &r1,
                                     f,
-                                ),
-                            )
-                        }
-                    };
-                    if chunk.len() > 0 {
-                        Tree::join(&l, &Arc::new(chunk), &r)
-                    } else {
+                                )
+                            } else {
+                                Tree::diff(&n0.right, &r1, f)
+                            }
+                        };
                         Tree::concat(&l, &r)
                     }
                 }

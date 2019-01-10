@@ -299,7 +299,7 @@ where
     ///
     /// assert!(s2.len() == 70);
     /// for i in 0..100 {
-    ///     if < 20 || i >= 50 {
+    ///     if i < 20 || i >= 50 {
     ///         assert!(s2.contains(&i));
     ///     } else {
     ///         assert!(!s2.contains(&i));

@@ -357,7 +357,7 @@ where
     ///
     /// for i in 0..100000 {
     ///     if i >= 30000 || i < 50 {
-    ///         assert!(*m2.get(&i) == 1);
+    ///         assert!(*m2.get(&i).unwrap() == 1);
     ///     } else {
     ///         assert!(m2.get(&i).is_none());
     ///     }
