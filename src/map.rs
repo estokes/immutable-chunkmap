@@ -355,6 +355,7 @@ where
     /// let m1 = Map::from_iter((50..30000).map(|k| (k, 1)));
     /// let m2 = m0.diff(&m1, |_k, _v0, _v1| None);
     ///
+    /// m2.invariant();
     /// for i in 0..100000 {
     ///     if i >= 30000 || i < 50 {
     ///         assert!(*m2.get(&i).unwrap() == 1);

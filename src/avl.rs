@@ -553,18 +553,8 @@ where
                     let chunk = Chunk::diff(&n0.elts, &elts, f);
                     if n0.min_key < min_k && n0.max_key > max_k {
                         if chunk.len() > 0 {
-                            let chunk = Arc::new(chunk);
-                            let l = Tree::diff(
-                                &Tree::join(&n0.left, &chunk, &Tree::Empty),
-                                &l1,
-                                f,
-                            );
-                            let r = Tree::diff(
-                                &Tree::join(&Tree::Empty, &chunk, &n0.right),
-                                &r1,
-                                f,
-                            );
-                            Tree::concat(&l, &r)
+                            let t0 = Tree::join(&n0.left, &Arc::new(chunk), &n0.right);
+                            Tree::diff(&t0, &Tree::concat(&l1, &r1), f)
                         } else {
                             let l = Tree::diff(&n0.left, &l1, f);
                             let r = Tree::diff(&n0.right, &r1, f);
