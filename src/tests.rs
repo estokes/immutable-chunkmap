@@ -641,3 +641,37 @@ fn test_intersect_string() {
 fn test_intersect_int() {
     test_intersect_gen::<i32>();
 }
+
+fn test_diff_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
+    let mut v0 = randvec::<T>(SIZE);
+    let mut v1 = randvec::<T>(SIZE);
+    dedup(&mut v0);
+    dedup(&mut v1);
+    let m0 = Map::from_iter(v0.iter().map(|k| (k.clone(), ())));
+    let m1 = Map::from_iter(v1.iter().map(|k| (k.clone(), ())));
+    let m2 = m0.diff(&m1, |_, (), ()| None);
+    m2.invariant();
+    let mut hm = HashMap::new();
+    for k in v0.iter() {
+        hm.insert(k, ());
+    }
+    for k in &v1 {
+        hm.remove(&k);
+    }
+    for (k, ()) in &hm {
+        m2.get(k).unwrap();
+    }
+    for (k, ()) in &m2 {
+        hm.get(k).unwrap();
+    }
+}
+
+#[test]
+fn test_diff_string() {
+    test_diff_gen::<String>();
+}
+
+#[test]
+fn test_diff_int() {
+    test_diff_gen::<i32>();
+}

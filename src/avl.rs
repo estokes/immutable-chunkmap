@@ -540,9 +540,8 @@ where
     where
         F: FnMut(&K, &V, &V) -> Option<V>,
     {
-        let mut r = Vec::new();
         let mut actions = Vec::new();
-        Tree::intersect_int(t0, t1, &mut r, &mut |k, v0, v1| {
+        Tree::intersect_int(t0, t1, &mut Vec::new(), &mut |k, v0, v1| {
             actions.push((k.clone(), f(k, v0, v1)));
             None
         });
