@@ -590,12 +590,12 @@ fn test_union_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
 }
 
 #[test]
-fn test_merge_string() {
+fn test_union_string() {
     test_union_gen::<String>()
 }
 
 #[test]
-fn test_merge_int() {
+fn test_union_int() {
     test_union_gen::<i32>()
 }
 
