@@ -351,13 +351,15 @@ where
     /// use std::iter::FromIterator;
     /// use self::immutable_chunkmap::map::Map;
     ///
-    /// let m0 = Map::from_iter((0..100000).map(|k| (k, 1)));
-    /// let m1 = Map::from_iter((50..30000).map(|k| (k, 1)));
+    /// let m0 = Map::from_iter((0..10000).map(|k| (k, 1)));
+    /// let m1 = Map::from_iter((50..3000).map(|k| (k, 1)));
     /// let m2 = m0.diff(&m1, |_k, _v0, _v1| None);
     ///
     /// m2.invariant();
-    /// for i in 0..100000 {
-    ///     if i >= 30000 || i < 50 {
+    /// dbg!(m2.len());
+    /// assert!(m2.len() == 10000 - 2950);
+    /// for i in 0..10000 {
+    ///     if i >= 3000 || i < 50 {
     ///         assert!(*m2.get(&i).unwrap() == 1);
     ///     } else {
     ///         assert!(m2.get(&i).is_none());
@@ -365,7 +367,7 @@ where
     /// }
     /// ```
     pub fn diff<F>(&self, other: &Map<K, V>, mut f: F) -> Self
-    where F: FnMut(&K, &V, &V) -> Option<V>,
+    where F: FnMut(&K, &V, &V) -> Option<V>, K: Debug, V: Debug
     {
         Map(Tree::diff(&self.0, &other.0, &mut f))
     }

@@ -540,86 +540,13 @@ where
     where
         F: FnMut(&K, &V, &V) -> Option<V>,
     {
-        match (t0, t1) {
-            (Tree::Empty, _) => Tree::Empty,
-            (_, Tree::Empty) => t0.clone(),
-            (Tree::Node(ref n0), t1) => match t1.split(&n0.min_key, &n0.max_key) {
-                (l1, None, r1) => Tree::concat(
-                    &Tree::diff(&n0.left, &l1, f),
-                    &Tree::diff(&n0.right, &r1, f),
-                ),
-                (l1, Some(elts), r1) => {
-                    let (min_k, max_k) = elts.min_max_key().unwrap();
-                    let chunk = Chunk::diff(&n0.elts, &elts, f);
-                    if n0.min_key < min_k && n0.max_key > max_k {
-                        if chunk.len() > 0 {
-                            let t0 = Tree::join(&n0.left, &Arc::new(chunk), &n0.right);
-                            Tree::diff(&t0, &Tree::concat(&l1, &r1), f)
-                        } else {
-                            let l = Tree::diff(&n0.left, &l1, f);
-                            let r = Tree::diff(&n0.right, &r1, f);
-                            Tree::concat(&l, &r)
-                        }
-                    } else if n0.min_key >= min_k && n0.max_key <= max_k {
-                        let l = Tree::diff(
-                            &n0.left,
-                            &Tree::join(&l1, &elts, &Tree::Empty),
-                            f,
-                        );
-                        let r = Tree::diff(
-                            &n0.right,
-                            &Tree::join(&Tree::Empty, &elts, &r1),
-                            f,
-                        );
-                        if chunk.len() > 0 {
-                            Tree::join(&l, &Arc::new(chunk), &r)
-                        } else {
-                            Tree::concat(&l, &r)
-                        }
-                    } else if n0.min_key < min_k {
-                        let r = Tree::diff(
-                            &n0.right,
-                            &Tree::join(&Tree::Empty, &elts, &r1),
-                            f,
-                        );
-                        let l = {
-                            if chunk.len() == 0 {
-                                Tree::diff(&n0.left, &l1, f)
-                            } else {
-                                Tree::diff(
-                                    &Tree::join(&n0.left, &Arc::new(chunk), &Tree::Empty),
-                                    &l1,
-                                    f,
-                                )
-                            }
-                        };
-                        Tree::concat(&l, &r)
-                    } else {
-                        let l = Tree::diff(
-                            &n0.left,
-                            &Tree::join(&l1, &elts, &Tree::Empty),
-                            f,
-                        );
-                        let r = {
-                            if chunk.len() == 0 {
-                                Tree::diff(&n0.right, &r1, f)
-                            } else {
-                                Tree::diff(
-                                    &Tree::join(
-                                        &Tree::Empty,
-                                        &Arc::new(chunk),
-                                        &n0.right,
-                                    ),
-                                    &r1,
-                                    f,
-                                )
-                            }
-                        };
-                        Tree::concat(&l, &r)
-                    }
-                }
-            },
-        }
+        let mut r = Vec::new();
+        let mut actions = Vec::new();
+        Tree::intersect_int(t0, t1, &mut r, &mut |k, v0, v1| {
+            actions.push((k.clone(), f(k, v0, v1)));
+            None
+        });
+        t0.update_many(actions, &mut |k, v, _| v.map(|v| (k, v)))
     }
 
     fn is_empty(&self) -> bool {
@@ -662,34 +589,46 @@ where
         if hl > hr + 1 {
             match *l {
                 Tree::Empty => panic!("tree heights wrong"),
-                Tree::Node(ref ln) => if ln.left.height() >= ln.right.height() {
-                    Tree::create(&ln.left, &ln.elts, &Tree::create(&ln.right, elts, r))
-                } else {
-                    match ln.right {
-                        Tree::Empty => panic!("tree heights wrong"),
-                        Tree::Node(ref lrn) => Tree::create(
-                            &Tree::create(&ln.left, &ln.elts, &lrn.left),
-                            &lrn.elts,
-                            &Tree::create(&lrn.right, elts, r),
-                        ),
+                Tree::Node(ref ln) => {
+                    if ln.left.height() >= ln.right.height() {
+                        Tree::create(
+                            &ln.left,
+                            &ln.elts,
+                            &Tree::create(&ln.right, elts, r),
+                        )
+                    } else {
+                        match ln.right {
+                            Tree::Empty => panic!("tree heights wrong"),
+                            Tree::Node(ref lrn) => Tree::create(
+                                &Tree::create(&ln.left, &ln.elts, &lrn.left),
+                                &lrn.elts,
+                                &Tree::create(&lrn.right, elts, r),
+                            ),
+                        }
                     }
-                },
+                }
             }
         } else if hr > hl + 1 {
             match *r {
                 Tree::Empty => panic!("tree heights are wrong"),
-                Tree::Node(ref rn) => if rn.right.height() >= rn.left.height() {
-                    Tree::create(&Tree::create(l, elts, &rn.left), &rn.elts, &rn.right)
-                } else {
-                    match rn.left {
-                        Tree::Empty => panic!("tree heights are wrong"),
-                        Tree::Node(ref rln) => Tree::create(
-                            &Tree::create(l, elts, &rln.left),
-                            &rln.elts,
-                            &Tree::create(&rln.right, &rn.elts, &rn.right),
-                        ),
+                Tree::Node(ref rn) => {
+                    if rn.right.height() >= rn.left.height() {
+                        Tree::create(
+                            &Tree::create(l, elts, &rn.left),
+                            &rn.elts,
+                            &rn.right,
+                        )
+                    } else {
+                        match rn.left {
+                            Tree::Empty => panic!("tree heights are wrong"),
+                            Tree::Node(ref rln) => Tree::create(
+                                &Tree::create(l, elts, &rln.left),
+                                &rln.elts,
+                                &Tree::create(&rln.right, &rn.elts, &rn.right),
+                            ),
+                        }
                     }
-                },
+                }
             }
         } else {
             Tree::create(l, elts, r)

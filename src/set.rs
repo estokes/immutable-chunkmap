@@ -294,20 +294,19 @@ where
     /// use self::immutable_chunkmap::set::Set;
     ///
     /// let s0 = Set::from_iter(0..100);
-    /// let s1 = Set::from_iter(20..50);
+    /// let s1 = Set::from_iter(0..50);
     /// let s2 = s0.diff(&s1);
     ///
-    /// assert!(s2.len() == 70);
-    /// for i in 0..100 {
-    ///     if i < 20 || i >= 50 {
-    ///         assert!(s2.contains(&i));
-    ///     } else {
-    ///         assert!(!s2.contains(&i));
-    ///     }
+    /// assert!(s2.len() == 50);
+    /// for i in 0..50 {
+    ///     assert!(!s2.contains(&i));
+    /// }
+    /// for i in 50..100 {
+    ///     assert!(s2.contains(&i));
     /// }
     /// ```
-    pub fn diff(&self, other: &Set<K>) -> Self {
-        Set(Tree::diff(&self.0, &other.0, &mut |_, (), ()| Some(())))
+    pub fn diff(&self, other: &Set<K>) -> Self where K: Debug {
+        Set(Tree::diff(&self.0, &other.0, &mut |_, (), ()| None))
     }
 
     /// get the number of elements in the map O(1) time and space
