@@ -1,5 +1,5 @@
 use arrayvec::ArrayVec;
-use chunk::{Chunk, Loc, Update, UpdateChunk, SIZE};
+use crate::chunk::{Chunk, Loc, Update, UpdateChunk, SIZE};
 use std::{
     borrow::Borrow,
     cmp::{max, min, Eq, Ord, Ordering, PartialEq, PartialOrd},

@@ -1,11 +1,10 @@
-extern crate num_cpus;
 use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use std::vec::{Vec};
 use std::thread;
 use std::cmp::min;
-use utils;
+use crate::utils;
 
 fn bench_insert(len: usize) -> (Arc<RwLock<HashMap<i64, i64>>>, Arc<Vec<i64>>, Duration) {
     let mut m = HashMap::new();

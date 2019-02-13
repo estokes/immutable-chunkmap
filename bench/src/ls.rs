@@ -1,10 +1,9 @@
-extern crate num_cpus;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::vec::Vec;
 use std::thread;
 use std::cmp::min;
-use utils;
+use crate::utils;
 
 fn get(k: i64, data: &Arc<Vec<i64>>) -> Option<i64> {
     for i in 0..data.len() {

@@ -1,4 +1,4 @@
-use avl::{Iter, Tree};
+use crate::avl::{Iter, Tree};
 use std::{
     borrow::Borrow,
     cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd},
