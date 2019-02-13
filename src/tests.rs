@@ -1,7 +1,5 @@
-extern crate rand;
-use avl;
-use map::Map;
-use set::Set;
+use crate::{map::Map, set::Set, avl};
+use rand::Rng;
 use std::{
     borrow::Borrow,
     cmp::Ordering,
@@ -13,7 +11,6 @@ use std::{
     ops::Bound::{Excluded, Included, Unbounded},
     vec::Vec,
 };
-use tests::rand::Rng;
 
 const STRSIZE: usize = 10;
 const SIZE: usize = 500000;
@@ -621,7 +618,9 @@ fn test_intersect_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
     for (k, v0) in &hm0 {
         match hm1.get(&k) {
             None => (),
-            Some(v1) => { hm2.insert(k.clone(), *v0 + *v1); }
+            Some(v1) => {
+                hm2.insert(k.clone(), *v0 + *v1);
+            }
         }
     }
     for (k, v) in &hm2 {
