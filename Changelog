@@ -1,3 +1,7 @@
+0.5.3
+* small performance optimization to update_chunk resulting in a
+  10% gain.
+
 0.5.2
 * implement Set::intersect, and Map::intersect, O(log(N) + M)
   where M is the number of intersecting chunks.

@@ -1,6 +1,6 @@
 [package]
 name = "immutable-chunkmap"
-version = "0.5.2"
+version = "0.5.3"
 authors = ["Eric Stokes <letaris@gmail.com>"]
 publish = true
 description = "A cache efficient immutable map and set with lookup performance equivalent to BTreeMap and BTreeSet, fast batch insert and update methods, and efficient implementations of all set operations."
