@@ -9,8 +9,8 @@ use std::{
     iter,
     mem::swap,
     ops::{Bound, Index},
-    slice,
     sync::Arc,
+    collections::vec_deque,
 };
 
 // until we get 128 bit machines with exabytes of memory
@@ -123,10 +123,10 @@ where
     ubound: Bound<Q>,
     lbound: Bound<Q>,
     stack: ArrayVec<[(bool, &'a Node<K, V>); MAX_DEPTH]>,
-    elts: Option<iter::Zip<slice::Iter<'a, K>, slice::Iter<'a, V>>>,
+    elts: Option<iter::Zip<vec_deque::Iter<'a, K>, vec_deque::Iter<'a, V>>>,
     current: Option<&'a K>,
     stack_rev: ArrayVec<[(bool, &'a Node<K, V>); MAX_DEPTH]>,
-    elts_rev: Option<iter::Zip<slice::Iter<'a, K>, slice::Iter<'a, V>>>,
+    elts_rev: Option<iter::Zip<vec_deque::Iter<'a, K>, vec_deque::Iter<'a, V>>>,
     current_rev: Option<&'a K>,
 }
 

@@ -5,6 +5,7 @@ authors = ["Eric Stokes <letaris@gmail.com>"]
 
 [profile.release]
 lto = true
+codegen-units = 1
 
 [dependencies]
 immutable-chunkmap = {path = "../"}
