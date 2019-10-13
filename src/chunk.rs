@@ -158,18 +158,16 @@ where
             } else if full && in_right {
                 UpdateChunk::UpdateRight(chunk)
             } else if leaf && (in_left || in_right) {
+                let (mut keys, mut vals): (Vec<_>, Vec<_>) =
+                    chunk.drain(0..).filter_map(|(q, d)| f(q, d, None)).unzip();
                 let mut elts = {
                     if in_right {
                         let mut elts = self.clone();
-                        for (k, v) in chunk.drain(0..).filter_map(|(q, d)| f(q, d, None)) {
-                            elts.keys.push(k);
-                            elts.vals.push(v);
-                        }
+                        elts.keys.append(&mut keys);
+                        elts.vals.append(&mut vals);
                         elts
                     } else {
                         let mut elts = Chunk::empty();
-                        let (keys, vals): (Vec<_>, Vec<_>) =
-                            chunk.drain(0..).filter_map(|(q, d)| f(q, d, None)).unzip();
                         elts.keys = keys;
                         elts.vals = vals;
                         elts.keys.extend_from_slice(&self.keys);
