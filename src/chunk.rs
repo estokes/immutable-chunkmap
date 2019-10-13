@@ -181,7 +181,7 @@ where
             } else if leaf && (in_left || in_right) {
                 let mut elts = self.clone();
                 if in_left {
-                    while let Some((k, v)) = chunk.pop().map(|(q, d)| f(q, d, None)) {
+                    while let Some((k, v)) = chunk.pop().and_then(|(q, d)| f(q, d, None)) {
                         elts.keys.push_front(k);
                         elts.vals.push_front(v);
                     }
