@@ -1,6 +1,5 @@
 0.5.3
-* small performance optimization to update_chunk resulting in a
-  10% gain.
+* small performance optimization in update_chunk
 
 0.5.2
 * implement Set::intersect, and Map::intersect, O(log(N) + M)
