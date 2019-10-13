@@ -180,14 +180,13 @@ where
                 UpdateChunk::UpdateRight(chunk)
             } else if leaf && (in_left || in_right) {
                 let mut elts = self.clone();
-                let iter = chunk.drain(0..).filter_map(|(q, d)| f(q, d, None));
                 if in_left {
-                    for (k, v) in iter {
+                    while let Some((k, v)) = chunk.pop().map(|(q, d)| f(q, d, None)) {
                         elts.keys.push_front(k);
                         elts.vals.push_front(v);
                     }
                 } else {
-                    for (k, v) in iter {
+                    for (k, v) in chunk.drain(0..).filter_map(|(q, d)| f(q, d, None)) {
                         elts.keys.push_back(k);
                         elts.vals.push_back(v);
                     }
