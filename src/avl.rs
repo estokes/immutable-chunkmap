@@ -17,7 +17,7 @@ use std::{
 const MAX_DEPTH: usize = 64;
 
 #[derive(Clone, Debug)]
-struct InnerNode<K: Ord + Clone, V: Clone> {
+pub(crate) struct InnerNode<K: Ord + Clone, V: Clone> {
     elts: Arc<Chunk<K, V>>,
     min_key: K,
     max_key: K,
@@ -28,12 +28,12 @@ struct InnerNode<K: Ord + Clone, V: Clone> {
 }
 
 #[derive(Clone)]
-enum Node<K: Ord + Clone, V: Clone> {
+pub(crate) enum Node<K: Ord + Clone, V: Clone> {
     Leaf(Arc<Chunk<K, V>>),
     Inner(Arc<InnerNode<K, V>>),
 }
 
-impl Node<K: Ord + Clone, V: Clone> {
+impl<K: Ord + Clone, V: Clone> Node<K, V> {
     fn elts(&self) -> &Arc<Chunk<K, V>> {
         match self {
             Node::Leaf(ref c) => c,
@@ -51,11 +51,11 @@ impl Node<K: Ord + Clone, V: Clone> {
     fn right(&self) -> &Tree<K, V> {
         match self {
             Node::Leaf(_) => &Tree::Empty,
-            Node:Inner(ref n) => &n.right
+            Node::Inner(ref n) => &n.right
         }
     }
 
-    fn height(&self) -> usize {
+    fn height(&self) -> u16 {
         match self {
             Node::Leaf(_) => 1,
             Node::Inner(ref n) => n.height,
@@ -87,7 +87,7 @@ impl Node<K: Ord + Clone, V: Clone> {
 #[derive(Clone)]
 pub(crate) enum Tree<K: Ord + Clone, V: Clone> {
     Empty,
-    Node(Node),
+    Node(Node<K, V>),
 }
 
 impl<K, V> Hash for Tree<K, V>
@@ -273,7 +273,7 @@ where
             let (visited, current) = self.stack[top];
             if visited {
                 if self.any_elts_in_bounds(current) {
-                    self.elts = Some((&(*current.elts())).into_iter());
+                    self.elts = Some((&(**current.elts())).into_iter());
                 }
                 self.stack.pop();
                 match current.right() {
@@ -336,7 +336,7 @@ where
             let (visited, current) = self.stack_rev[top];
             if visited {
                 if self.any_elts_in_bounds(current) {
-                    self.elts_rev = Some((&(*current.elts())).into_iter());
+                    self.elts_rev = Some((&(**current.elts())).into_iter());
                 }
                 self.stack_rev.pop();
                 match current.left() {
@@ -427,7 +427,7 @@ where
         match self {
             Tree::Empty => Tree::create(&Tree::Empty, elts.clone(), &Tree::Empty),
             Tree::Node(ref n) =>
-                Tree::bal(n.left().add_min_elts(elts), n.elts(), n.right()),
+                Tree::bal(&n.left().add_min_elts(elts), n.elts(), n.right()),
         }
     }
 
@@ -467,10 +467,10 @@ where
         match self {
             Tree::Empty => (Tree::Empty, None, Tree::Empty),
             Tree::Node(ref n) => {
-                if *vmax < n.min_key() {
+                if vmax < n.min_key() {
                     let (ll, inter, rl) = n.left().split(vmin, vmax);
                     (ll, inter, Tree::join(&rl, n.elts(), n.right()))
-                } else if *vmin > n.max_key() {
+                } else if vmin > n.max_key() {
                     let (lr, inter, rr) = n.right().split(vmin, vmax);
                     (Tree::join(n.left(), n.elts(), &lr), inter, rr)
                 } else {
@@ -566,13 +566,13 @@ where
                 (l1, Some(elts), r1) => {
                     let (min_k, max_k) = elts.min_max_key().unwrap();
                     Chunk::intersect(n0.elts(), &elts, r, f);
-                    if n0.min_key < min_k && n0.max_key > max_k {
+                    if n0.min_key() < &min_k && n0.max_key() > &max_k {
                         Tree::intersect_int(t0, &Tree::concat(&l1, &r1), r, f)
-                    } else if n0.min_key >= min_k && n0.max_key() <= max_k {
+                    } else if n0.min_key() >= &min_k && n0.max_key() <= &max_k {
                         let t0 = Tree::concat(n0.left(), n0.right());
                         let t1 = Tree::join(&l1, &elts, &r1);
                         Tree::intersect_int(&t0, &t1, r, f);
-                    } else if n0.min_key() < min_k {
+                    } else if n0.min_key() < &min_k {
                         let tl = Tree::join(n0.left(), n0.elts(), &Tree::Empty);
                         Tree::intersect_int(&tl, &l1, r, f);
                         let tr = Tree::join(&Tree::Empty, &elts, &r1);
@@ -646,7 +646,7 @@ where
                     Tree::create(
                         ln.left(),
                         ln.elts().clone(),
-                        &Tree::create(ln.right(), elts, r)
+                        &Tree::create(ln.right(), elts.clone(), r)
                     )
                 } else {
                     match ln.right() {
@@ -859,7 +859,7 @@ where
                             if elts.len() == 0 {
                                 (Tree::concat(tn.left(), &r), previous)
                             } else {
-                                (Tree::bal(&tn.left, &Arc::new(elts), &r), previous)
+                                (Tree::bal(tn.left(), &Arc::new(elts), &r), previous)
                             }
                         }
                     },
@@ -966,7 +966,7 @@ where
                         },
                         (_, _) => {
                             let e = &tn.elts;
-                            e.get_local(k).map(|i| f(e, i))
+                            break e.get_local(k).map(|i| f(e, i))
                         }
                     }
                 }
@@ -1062,7 +1062,7 @@ where
                 Tree::Node(ref tn) => {
                     if !in_range(lower, upper, tn.elts()) {
                         panic!("tree invariant violated lower\n{:#?}\n\nupper\n{:#?}\n\nelts\n{:#?}\n\ntree\n{:#?}",
-                               lower, upper, &tn.elts, t)
+                               lower, upper, tn.elts(), t)
                     };
                     if !sorted(tn.elts()) {
                         panic!("elements isn't sorted")
