@@ -180,7 +180,7 @@ where
                             elts.vals.push(v);
                         }
                         for i in 0..t.len() {
-                            if elts.keys.len() < SIZE {
+                            if elts.len() < SIZE {
                                 elts.keys.push(t.keys[i].clone());
                                 elts.vals.push(t.vals[i].clone());
                             } else {
@@ -242,7 +242,7 @@ where
                             }
                         }
                         Loc::InLeft => {
-                            if leaf && elts.keys.len() < SIZE {
+                            if leaf && elts.len() < SIZE {
                                 if let Some((k, v)) = f(q, d, None) {
                                     elts.keys.insert(0, k);
                                     elts.vals.insert(0, v);
@@ -324,14 +324,14 @@ where
                 elts.keys.extend(self.keys[0..i].into_iter().cloned());
                 elts.vals.extend(self.vals[0..i].into_iter().cloned());
                 if let Some((k, v)) = f(q, d, None) {
-                    if elts.keys.len() < SIZE {
+                    if elts.len() < SIZE {
                         elts.keys.push(k);
                         elts.vals.push(v);
                     } else {
                         overflow = Some((k, v))
                     }
                 }
-                if elts.keys.len() + len - i <= SIZE {
+                if elts.len() + len - i <= SIZE {
                     elts.keys.extend(self.keys[i..len].into_iter().cloned());
                     elts.vals.extend(self.vals[i..len].into_iter().cloned());
                 } else {
@@ -441,7 +441,7 @@ where
     }
 
     pub(crate) fn max_key_not_empty(&self) -> &K {
-        &self.keys[self.keys.len() - 1]
+        &self.keys[self.len() - 1]
     }
 
     pub(crate) fn min_max_key(&self) -> Option<(K, K)> {
@@ -491,20 +491,6 @@ where
             .collect()
     }
 }
-
-/*
-impl<K, V> IntoIterator for Chunk<K, V>
-where
-    K: Ord + Clone,
-    V: Clone,
-{
-    type Item = (K, V);
-    type IntoIter = iter::Zip<vec::IntoIter<K>, vec::IntoIter<V>>;
-    fn into_iter(self) -> Self::IntoIter {
-        self.keys.into_iter().zip(self.vals)
-    }
-}
-*/
 
 impl<'a, K, V> IntoIterator for &'a Chunk<K, V>
 where
