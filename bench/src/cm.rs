@@ -13,20 +13,23 @@ const MIN_ITER: usize = 1000000;
 fn bench_insert_many(len: usize) -> (Arc<Map<i32, i32>>, Arc<Vec<i32>>, Duration) {
     let mut m = Map::new();
     let data = utils::randvec::<i32>(len);
-    let chunks = 100;
+    let nchunks = 100;
     let elapsed = {
         let mut i = 0;
-        let mut chunk = Vec::with_capacity(len / chunks);
-        let begin = Instant::now();
-        while i < len {
-            chunk.clear();
-            for _ in 0..(len / chunks) {
+        let mut chunks = Vec::new();
+        for _ in 0..nchunks {
+            chunks.push(Vec::new());
+        }
+        for c in 0..nchunks {
+            for _ in 0..(len / nchunks) {
                 if i < len {
-                    chunk.push(data[i]);
+                    chunks[c].push(data[i]);
                 }
                 i += 1
             }
-            //chunk.sort_unstable();
+        }
+        let begin = Instant::now();
+        for chunk in chunks {
             m = m.insert_many(chunk.iter().map(|k| (*k, *k)));
         }
         begin.elapsed()
