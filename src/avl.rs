@@ -366,14 +366,14 @@ where
 
     fn add_min_elts(&self, elts: &Arc<Chunk<K, V>>) -> Self {
         match self {
-            Tree::Empty => Tree::create(&Tree::Empty, elts, &Tree::Empty),
+            Tree::Empty => Tree::create(&Tree::Empty, elts.clone(), &Tree::Empty),
             Tree::Node(ref n) => Tree::bal(&n.left.add_min_elts(elts), &n.elts, &n.right),
         }
     }
 
     fn add_max_elts(&self, elts: &Arc<Chunk<K, V>>) -> Self {
         match self {
-            Tree::Empty => Tree::create(&Tree::Empty, elts, &Tree::Empty),
+            Tree::Empty => Tree::create(&Tree::Empty, elts.clone(), &Tree::Empty),
             Tree::Node(ref n) => Tree::bal(&n.left, &n.elts, &n.right.add_max_elts(elts)),
         }
     }
@@ -391,7 +391,7 @@ where
                 } else if rn.height > ln.height + 2 {
                     Tree::bal(&Tree::join(l, elts, &rn.left), &rn.elts, &rn.right)
                 } else {
-                    Tree::create(l, elts, r)
+                    Tree::create(l, elts.clone(), r)
                 }
             }
         }
@@ -557,10 +557,10 @@ where
         }
     }
 
-    fn create(l: &Tree<K, V>, elts: &Arc<Chunk<K, V>>, r: &Tree<K, V>) -> Self {
+    fn create(l: &Tree<K, V>, elts: Arc<Chunk<K, V>>, r: &Tree<K, V>) -> Self {
         let (min_key, max_key) = elts.min_max_key().unwrap();
         let n = Node {
-            elts: elts.clone(),
+            elts: elts,
             min_key: min_key,
             max_key: max_key,
             left: l.clone(),
@@ -577,14 +577,18 @@ where
             match *l {
                 Tree::Empty => panic!("tree heights wrong"),
                 Tree::Node(ref ln) => if ln.left.height() >= ln.right.height() {
-                    Tree::create(&ln.left, &ln.elts, &Tree::create(&ln.right, elts, r))
+                    Tree::create(
+                        &ln.left,
+                        ln.elts.clone(),
+                        &Tree::create(&ln.right, elts.clone(), r)
+                    )
                 } else {
                     match ln.right {
                         Tree::Empty => panic!("tree heights wrong"),
                         Tree::Node(ref lrn) => Tree::create(
-                            &Tree::create(&ln.left, &ln.elts, &lrn.left),
-                            &lrn.elts,
-                            &Tree::create(&lrn.right, elts, r),
+                            &Tree::create(&ln.left, ln.elts.clone(), &lrn.left),
+                            lrn.elts.clone(),
+                            &Tree::create(&lrn.right, elts.clone(), r),
                         ),
                     }
                 },
@@ -593,20 +597,24 @@ where
             match *r {
                 Tree::Empty => panic!("tree heights are wrong"),
                 Tree::Node(ref rn) => if rn.right.height() >= rn.left.height() {
-                    Tree::create(&Tree::create(l, elts, &rn.left), &rn.elts, &rn.right)
+                    Tree::create(
+                        &Tree::create(l, elts.clone(), &rn.left),
+                        rn.elts.clone(),
+                        &rn.right
+                    )
                 } else {
                     match rn.left {
                         Tree::Empty => panic!("tree heights are wrong"),
                         Tree::Node(ref rln) => Tree::create(
-                            &Tree::create(l, elts, &rln.left),
-                            &rln.elts,
-                            &Tree::create(&rln.right, &rn.elts, &rn.right),
+                            &Tree::create(l, elts.clone(), &rln.left),
+                            rln.elts.clone(),
+                            &Tree::create(&rln.right, rn.elts.clone(), &rn.right),
                         ),
                     }
                 },
             }
         } else {
-            Tree::create(l, elts, r)
+            Tree::create(l, elts.clone(), r)
         }
     }
 
@@ -631,7 +639,7 @@ where
                         UpdateChunk::UpdateRight(_) => unreachable!(),
                     }
                 };
-                Tree::create(&Tree::Empty, &Arc::new(elts), &Tree::Empty)
+                Tree::create(&Tree::Empty, Arc::new(elts), &Tree::Empty)
             }
             &Tree::Node(ref tn) => {
                 let leaf = match (&tn.left, &tn.right) {
@@ -640,7 +648,7 @@ where
                 };
                 match tn.elts.update_chunk(chunk, leaf, f) {
                     UpdateChunk::Created(elts) => {
-                        Tree::create(&tn.left, &Arc::new(elts), &tn.right)
+                        Tree::create(&tn.left, Arc::new(elts), &tn.right)
                     }
                     UpdateChunk::Updated {
                         elts,
@@ -745,7 +753,7 @@ where
                 Some((k, v)) => (
                     Tree::create(
                         &Tree::Empty,
-                        &Arc::new(Chunk::singleton(k, v)),
+                        Arc::new(Chunk::singleton(k, v)),
                         &Tree::Empty,
                     ),
                     None,
@@ -775,7 +783,7 @@ where
                                 (Tree::concat(&tn.left, &tn.right), previous)
                             } else {
                                 (
-                                    Tree::create(&tn.left, &Arc::new(elts), &tn.right),
+                                    Tree::create(&tn.left, Arc::new(elts), &tn.right),
                                     previous,
                                 )
                             }
@@ -845,7 +853,7 @@ where
                     if elts.len() == 0 {
                         (Tree::concat(&tn.left, &tn.right), Some(p))
                     } else {
-                        (Tree::create(&tn.left, &Arc::new(elts), &tn.right), Some(p))
+                        (Tree::create(&tn.left, Arc::new(elts), &tn.right), Some(p))
                     }
                 }
                 Loc::InLeft => {
@@ -872,8 +880,8 @@ where
         R: 'a,
     {
         match self {
-            &Tree::Empty => None,
-            &Tree::Node(ref n) => {
+            Tree::Empty => None,
+            Tree::Node(n) => {
                 let mut tn = n;
                 loop {
                     match (k.cmp(tn.min_key.borrow()), k.cmp(tn.max_key.borrow())) {
@@ -887,10 +895,7 @@ where
                         },
                         (_, _) => {
                             let e = &tn.elts;
-                            break match e.get_local(k) {
-                                Some(i) => Some(f(e, i)),
-                                None => None,
-                            };
+                            break e.get_local(k).map(|i| f(e, i))
                         }
                     }
                 }
