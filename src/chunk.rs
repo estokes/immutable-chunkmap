@@ -28,8 +28,8 @@ time a key is added or removed
 pub(crate) const SIZE: usize = 512;
 
 pub(crate) enum UpdateChunk<Q: Ord, K: Ord + Clone + Borrow<Q>, V: Clone, D> {
-    UpdateLeft(Vec<(Q, D)>),
-    UpdateRight(Vec<(Q, D)>),
+    UpdateLeft,
+    UpdateRight,
     Created(Arc<Chunk<K, V>>),
     Updated {
         elts: Arc<Chunk<K, V>>,
@@ -128,7 +128,7 @@ where
     // chunk must be sorted
     pub(crate) fn update_chunk<Q, D, F>(
         t: Option<&Chunk<K, V>>,
-        mut chunk: Vec<(Q, D)>,
+        chunk: &mut Vec<(Q, D)>,
         leaf: bool,
         f: &mut F,
     ) -> UpdateChunk<Q, K, V, D>
@@ -153,9 +153,9 @@ where
             let in_left = t.get(&chunk[chunk.len() - 1].0) == Loc::InLeft;
             let in_right = t.get(&chunk[0].0) == Loc::InRight;
             if full && in_left {
-                UpdateChunk::UpdateLeft(chunk)
+                UpdateChunk::UpdateLeft
             } else if full && in_right {
-                UpdateChunk::UpdateRight(chunk)
+                UpdateChunk::UpdateRight
             } else if leaf && (in_left || in_right) {
                 let iter = chunk.drain(0..).filter_map(|(q, d)| f(q, d, None));
                 let mut overflow_right = Vec::new();

@@ -7,7 +7,6 @@ use std::{
     fmt::{self, Debug, Formatter},
     hash::{Hash, Hasher},
     iter,
-    mem::swap,
     ops::{Bound, Index},
     slice,
     sync::Arc,
@@ -490,7 +489,7 @@ where
         match (from, to) {
             (Tree::Empty, to) => (Tree::Empty, to.clone()),
             (Tree::Node(ref n), to) => {
-                let to = to.update_chunk(n.elts().to_vec(), &mut |k0, v0, cur| match cur {
+                let to = to.update_chunk(&mut n.elts().to_vec(), &mut |k0, v0, cur| match cur {
                     None => Some((k0, v0)),
                     Some((_, v1)) => f(&k0, &v0, v1).map(|v| (k0, v)),
                 });
@@ -684,7 +683,7 @@ where
         }
     }
 
-    fn update_chunk<Q, D, F>(&self, chunk: Vec<(Q, D)>, f: &mut F) -> Self
+    fn update_chunk<Q, D, F>(&self, chunk: &mut Vec<(Q, D)>, f: &mut F) -> Self
     where
         Q: Ord,
         K: Borrow<Q>,
@@ -699,8 +698,8 @@ where
                     UpdateChunk::Created(elts) => elts,
                     UpdateChunk::Removed { .. } => unreachable!(),
                     UpdateChunk::Updated { .. } => unreachable!(),
-                    UpdateChunk::UpdateLeft(_) => unreachable!(),
-                    UpdateChunk::UpdateRight(_) => unreachable!(),
+                    UpdateChunk::UpdateLeft => unreachable!(),
+                    UpdateChunk::UpdateRight => unreachable!(),
                 };
                 Tree::create(&Tree::Empty, elts, &Tree::Empty)
             }
@@ -715,30 +714,30 @@ where
                     }
                     UpdateChunk::Updated {
                         elts,
-                        update_left,
-                        update_right,
-                        overflow_right,
+                        mut update_left,
+                        mut update_right,
+                        mut overflow_right,
                     } => {
-                        let l = tn.left().update_chunk(update_left, f);
-                        let r = tn.right().insert_chunk(overflow_right);
-                        let r = r.update_chunk(update_right, f);
+                        let l = tn.left().update_chunk(&mut update_left, f);
+                        let r = tn.right().insert_chunk(&mut overflow_right);
+                        let r = r.update_chunk(&mut update_right, f);
                         Tree::bal(&l, &elts, &r)
                     }
                     UpdateChunk::Removed {
-                        not_done,
-                        update_left,
-                        update_right,
+                        mut not_done,
+                        mut update_left,
+                        mut update_right,
                     } => {
-                        let l = tn.left().update_chunk(update_left, f);
-                        let r = tn.right().update_chunk(update_right, f);
+                        let l = tn.left().update_chunk(&mut update_left, f);
+                        let r = tn.right().update_chunk(&mut update_right, f);
                         let t = Tree::concat(&l, &r);
-                        t.update_chunk(not_done, f)
+                        t.update_chunk(&mut not_done, f)
                     }
-                    UpdateChunk::UpdateLeft(chunk) => {
+                    UpdateChunk::UpdateLeft => {
                         let l = tn.left().update_chunk(chunk, f);
                         Tree::bal(&l, tn.elts(), tn.right())
                     }
-                    UpdateChunk::UpdateRight(chunk) => {
+                    UpdateChunk::UpdateRight => {
                         let r = tn.right().update_chunk(chunk, f);
                         Tree::bal(tn.left(), tn.elts(), &r)
                     }
@@ -747,25 +746,8 @@ where
         }
     }
 
-    fn insert_chunk(&self, chunk: Vec<(K, V)>) -> Self {
+    fn insert_chunk(&self, chunk: &mut Vec<(K, V)>) -> Self {
         self.update_chunk(chunk, &mut |k, v, _| Some((k, v)))
-    }
-
-    fn do_chunk<Q, D, F>(&mut self, chunk: &mut Vec<(Q, D)>, f: &mut F)
-    where
-        Q: Ord,
-        K: Borrow<Q>,
-        F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
-    {
-        if chunk.len() < 6 {
-            for (q, d) in chunk.drain(0..) {
-                *self = self.update(q, d, f).0;
-            }
-        } else {
-            let mut new_chunk = Vec::new();
-            swap(&mut new_chunk, chunk);
-            *self = self.update_chunk(new_chunk, f);
-        }
     }
 
     pub(crate) fn update_many<Q, D, E, F>(&self, elts: E, f: &mut F) -> Self
@@ -787,17 +769,20 @@ where
                 Some(Ordering::Less) => {
                     chunk.push((q, d));
                     if chunk.len() >= SIZE {
-                        t.do_chunk(&mut chunk, f);
+                        t = t.update_chunk(&mut chunk, f);
                     }
                 }
                 Some(Ordering::Greater) => {
-                    t.do_chunk(&mut chunk, f);
+                    t = t.update_chunk(&mut chunk, f);
                     chunk.push((q, d))
                 }
             }
         }
-        t.do_chunk(&mut chunk, f);
-        t
+        if chunk.len() > 0 {
+            t.update_chunk(&mut chunk, f)
+        } else {
+            t
+        }
     }
 
     pub(crate) fn insert_many<E: IntoIterator<Item = (K, V)>>(&self, elts: E) -> Self {
