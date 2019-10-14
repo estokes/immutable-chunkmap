@@ -13,7 +13,7 @@ let bench_add v =
 
 let bench_add_sorted v =
   let st = Time.now () in
-  Array.sort ~cmp:Int.compare v;
+  Array.sort ~compare:Int.compare v;
   let m =
     Array.fold v ~init:(Map.empty (module Int)) ~f:(fun m k ->
       Map.set m ~key:k ~data:k)

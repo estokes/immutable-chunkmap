@@ -1,7 +1,5 @@
-extern crate rand;
-use avl;
-use map::Map;
-use set::Set;
+use crate::{map::Map, set::Set, avl};
+use rand::Rng;
 use std::{
     borrow::Borrow,
     cmp::Ordering,
@@ -13,7 +11,6 @@ use std::{
     ops::Bound::{Excluded, Included, Unbounded},
     vec::Vec,
 };
-use tests::rand::Rng;
 
 const STRSIZE: usize = 10;
 const SIZE: usize = 500000;
@@ -568,14 +565,14 @@ fn test_ord() {
     assert_eq!(s0.cmp(&s3), Ordering::Greater);
 }
 
-fn test_merge_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
+fn test_union_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
     let mut v0 = randvec::<T>(SIZE);
     let mut v1 = randvec::<T>(SIZE);
     dedup(&mut v0);
     dedup(&mut v1);
     let m0 = Map::from_iter(v0.iter().map(|k| (k.clone(), 1)));
     let m1 = Map::from_iter(v1.iter().map(|k| (k.clone(), 1)));
-    let m2 = m0.merge(&m1, |_, v0, v1| Some(v0 + v1));
+    let m2 = m0.union(&m1, |_, v0, v1| Some(v0 + v1));
     m2.invariant();
     let mut hm = HashMap::new();
     for k in v0.iter().chain(v1.iter()) {
@@ -590,13 +587,13 @@ fn test_merge_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
 }
 
 #[test]
-fn test_merge_string() {
-    test_merge_gen::<String>()
+fn test_union_string() {
+    test_union_gen::<String>()
 }
 
 #[test]
-fn test_merge_int() {
-    test_merge_gen::<i32>()
+fn test_union_int() {
+    test_union_gen::<i32>()
 }
 
 fn test_intersect_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
@@ -621,7 +618,9 @@ fn test_intersect_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
     for (k, v0) in &hm0 {
         match hm1.get(&k) {
             None => (),
-            Some(v1) => { hm2.insert(k.clone(), *v0 + *v1); }
+            Some(v1) => {
+                hm2.insert(k.clone(), *v0 + *v1);
+            }
         }
     }
     for (k, v) in &hm2 {
@@ -640,4 +639,38 @@ fn test_intersect_string() {
 #[test]
 fn test_intersect_int() {
     test_intersect_gen::<i32>();
+}
+
+fn test_diff_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
+    let mut v0 = randvec::<T>(SIZE);
+    let mut v1 = randvec::<T>(SIZE);
+    dedup(&mut v0);
+    dedup(&mut v1);
+    let m0 = Map::from_iter(v0.iter().map(|k| (k.clone(), ())));
+    let m1 = Map::from_iter(v1.iter().map(|k| (k.clone(), ())));
+    let m2 = m0.diff(&m1, |_, (), ()| None);
+    m2.invariant();
+    let mut hm = HashMap::new();
+    for k in v0.iter() {
+        hm.insert(k, ());
+    }
+    for k in &v1 {
+        hm.remove(&k);
+    }
+    for (k, ()) in &hm {
+        m2.get(k).unwrap();
+    }
+    for (k, ()) in &m2 {
+        hm.get(k).unwrap();
+    }
+}
+
+#[test]
+fn test_diff_string() {
+    test_diff_gen::<String>();
+}
+
+#[test]
+fn test_diff_int() {
+    test_diff_gen::<i32>();
 }

@@ -1,8 +1,7 @@
-extern crate immutable_map;
-use self::immutable_map::TreeMap;
+use immutable_map::TreeMap;
 use std::time::{Duration, Instant};
 use std::vec::{Vec};
-use utils;
+use crate::utils;
 
 fn bench_insert(len: usize) -> (TreeMap<i64, i64>, Vec<i64>, Duration) {
     let mut m = TreeMap::new();

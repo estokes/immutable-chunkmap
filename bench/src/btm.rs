@@ -1,11 +1,10 @@
-extern crate num_cpus;
 use std::cmp::{min, max};
 use std::collections::BTreeMap;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::{Duration, Instant};
 use std::vec::Vec;
-use utils;
+use crate::utils;
 
 const MIN_ITER: usize = 1000000;
 

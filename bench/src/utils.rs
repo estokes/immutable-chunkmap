@@ -1,5 +1,4 @@
-extern crate rand;
-use self::rand::{
+use rand::{
     distributions::{Distribution, Standard},
     random,
 };

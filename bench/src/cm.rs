@@ -1,12 +1,10 @@
-extern crate immutable_chunkmap;
-extern crate num_cpus;
-use self::immutable_chunkmap::map::Map;
+use immutable_chunkmap::map::Map;
 use std::cmp::{min, max};
 use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 use std::vec::Vec;
-use utils;
+use crate::utils;
 
 const MIN_ITER: usize = 1000000;
 
