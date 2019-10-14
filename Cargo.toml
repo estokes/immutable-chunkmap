@@ -11,7 +11,7 @@ documentation = "https://docs.rs/immutable-chunkmap"
 repository = "https://github.com/estokes/immutable-chunkmap"
 
 [dependencies]
-arrayvec = "0.4"
+arrayvec = "0.5"
 
 [dev-dependencies]
 rand = ">= 0.3"

@@ -1,8 +1,10 @@
+use arrayvec::ArrayVec;
 use std::{
     borrow::Borrow,
     cmp::{Ord, Ordering},
     fmt::{self, Debug, Formatter},
-    iter, slice, vec,
+    iter, slice,
+    sync::Arc,
 };
 
 #[derive(PartialEq)]
@@ -28,9 +30,9 @@ pub(crate) const SIZE: usize = 512;
 pub(crate) enum UpdateChunk<Q: Ord, K: Ord + Clone + Borrow<Q>, V: Clone, D> {
     UpdateLeft(Vec<(Q, D)>),
     UpdateRight(Vec<(Q, D)>),
-    Created(Chunk<K, V>),
+    Created(Arc<Chunk<K, V>>),
     Updated {
-        elts: Chunk<K, V>,
+        elts: Arc<Chunk<K, V>>,
         update_left: Vec<(Q, D)>,
         update_right: Vec<(Q, D)>,
         overflow_right: Vec<(K, V)>,
@@ -46,7 +48,7 @@ pub(crate) enum Update<Q: Ord, K: Ord + Clone + Borrow<Q>, V: Clone, D> {
     UpdateLeft(Q, D),
     UpdateRight(Q, D),
     Updated {
-        elts: Chunk<K, V>,
+        elts: Arc<Chunk<K, V>>,
         overflow: Option<(K, V)>,
         previous: Option<V>,
     },
@@ -54,8 +56,8 @@ pub(crate) enum Update<Q: Ord, K: Ord + Clone + Borrow<Q>, V: Clone, D> {
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct Chunk<K, V> {
-    keys: Vec<K>,
-    vals: Vec<V>,
+    keys: ArrayVec<[K; SIZE]>,
+    vals: ArrayVec<[V; SIZE]>,
 }
 
 impl<K, V> Debug for Chunk<K, V>
@@ -73,24 +75,18 @@ where
     K: Ord + Clone,
     V: Clone,
 {
-    pub(crate) fn singleton(k: K, v: V) -> Self {
-        let mut t = Chunk::with_capacity(1);
-        t.keys.push(k);
-        t.vals.push(v);
+    pub(crate) fn singleton(k: K, v: V) -> Arc<Self> {
+        let mut t = Arc::new(Chunk::empty());
+        let t_ref = Arc::get_mut(&mut t).unwrap();
+        t_ref.keys.push(k);
+        t_ref.vals.push(v);
         t
     }
 
     pub(crate) fn empty() -> Self {
         Chunk {
-            keys: Vec::new(),
-            vals: Vec::new(),
-        }
-    }
-
-    fn with_capacity(n: usize) -> Self {
-        Chunk {
-            keys: Vec::with_capacity(n),
-            vals: Vec::with_capacity(n),
+            keys: ArrayVec::new(),
+            vals: ArrayVec::new(),
         }
     }
 
@@ -98,7 +94,7 @@ where
     where
         K: Borrow<Q>,
     {
-        match self.keys.binary_search_by_key(&k, |k| k.borrow()) {
+        match self.keys.as_slice().binary_search_by_key(&k, |k| k.borrow()) {
             Ok(i) => Some(i),
             Err(_) => None,
         }
@@ -120,7 +116,7 @@ where
                 (Ordering::Less, _) => Loc::InLeft,
                 (_, Ordering::Greater) => Loc::InRight,
                 (Ordering::Greater, Ordering::Less) => {
-                    match self.keys.binary_search_by_key(&k, |k| k.borrow()) {
+                    match self.keys.as_slice().binary_search_by_key(&k, |k| k.borrow()) {
                         Result::Ok(i) => Loc::Here(i),
                         Result::Err(i) => Loc::NotPresent(i),
                     }
@@ -131,7 +127,7 @@ where
 
     // chunk must be sorted
     pub(crate) fn update_chunk<Q, D, F>(
-        &self,
+        t: Option<&Chunk<K, V>>,
         mut chunk: Vec<(Q, D)>,
         leaf: bool,
         f: &mut F,
@@ -142,52 +138,61 @@ where
         F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
     {
         assert!(chunk.len() <= SIZE && chunk.len() > 0);
-        if self.len() == 0 {
-            let mut elts = Chunk::empty();
-            let (keys, vals): (Vec<_>, Vec<_>) =
-                chunk.drain(0..).filter_map(|(q, d)| f(q, d, None)).unzip();
-            elts.keys = keys;
-            elts.vals = vals;
-            UpdateChunk::Created(elts)
+        if t.map(|t| t.len()).unwrap_or(0) == 0 {
+            assert!(leaf);
+            let mut elts_arc = Arc::new(Chunk::empty());
+            let elts = Arc::get_mut(&mut elts_arc).unwrap();
+            for (k, v) in chunk.drain(0..).filter_map(|(q, d)| f(q, d, None)) {
+                elts.keys.push(k);
+                elts.vals.push(v);
+            }
+            UpdateChunk::Created(elts_arc)
         } else {
-            let full = !leaf || self.len() >= SIZE;
-            let in_left = self.get(&chunk[chunk.len() - 1].0) == Loc::InLeft;
-            let in_right = self.get(&chunk[0].0) == Loc::InRight;
+            let t = t.unwrap();
+            let full = !leaf || t.len() >= SIZE;
+            let in_left = t.get(&chunk[chunk.len() - 1].0) == Loc::InLeft;
+            let in_right = t.get(&chunk[0].0) == Loc::InRight;
             if full && in_left {
                 UpdateChunk::UpdateLeft(chunk)
             } else if full && in_right {
                 UpdateChunk::UpdateRight(chunk)
             } else if leaf && (in_left || in_right) {
-                let (mut keys, mut vals): (Vec<_>, Vec<_>) =
-                    chunk.drain(0..).filter_map(|(q, d)| f(q, d, None)).unzip();
-                let mut elts = {
+                let iter = chunk.drain(0..).filter_map(|(q, d)| f(q, d, None));
+                let mut overflow_right = Vec::new();
+                let elts = {
                     if in_right {
-                        let mut elts = self.clone();
-                        elts.keys.append(&mut keys);
-                        elts.vals.append(&mut vals);
-                        elts
+                        let mut elts_arc = Arc::new(t.clone());
+                        let elts = Arc::get_mut(&mut elts_arc).unwrap();
+                        for (k, v) in iter {
+                            if elts.len() < SIZE {
+                                elts.keys.push(k);
+                                elts.vals.push(v);
+                            } else {
+                                overflow_right.push((k, v));
+                            }
+                        }
+                        elts_arc
                     } else {
-                        let mut elts = Chunk::empty();
-                        elts.keys = keys;
-                        elts.vals = vals;
-                        elts.keys.extend_from_slice(&self.keys);
-                        elts.vals.extend_from_slice(&self.vals);
-                        elts
+                        let mut elts_arc = Arc::new(Chunk::empty());
+                        let elts = Arc::get_mut(&mut elts_arc).unwrap();
+                        for (k, v) in iter {
+                            elts.keys.push(k);
+                            elts.vals.push(v);
+                        }
+                        for i in 0..t.len() {
+                            if elts.keys.len() < SIZE {
+                                elts.keys.push(t.keys[i].clone());
+                                elts.vals.push(t.vals[i].clone());
+                            } else {
+                                overflow_right.push((
+                                    t.keys[i].clone(),
+                                    t.vals[i].clone()
+                                ));
+                            }
+                        }
+                        elts_arc
                     }
                 };
-                let overflow_right = {
-                    if elts.len() <= SIZE {
-                        Vec::new()
-                    } else {
-                        elts.keys
-                            .split_off(SIZE)
-                            .into_iter()
-                            .zip(elts.vals.split_off(SIZE).into_iter())
-                            .collect::<Vec<_>>()
-                    }
-                };
-                elts.keys.shrink_to_fit();
-                elts.vals.shrink_to_fit();
                 UpdateChunk::Updated {
                     elts,
                     update_left: Vec::new(),
@@ -195,7 +200,8 @@ where
                     overflow_right,
                 }
             } else {
-                let mut elts = self.clone();
+                let mut elts_arc = Arc::new(t.clone());
+                let elts = Arc::get_mut(&mut elts_arc).unwrap();
                 let mut not_done = Vec::new();
                 let mut update_left = Vec::new();
                 let mut update_right = Vec::new();
@@ -261,7 +267,7 @@ where
                 if elts.len() > 0 {
                     assert_eq!(not_done.len(), 0);
                     UpdateChunk::Updated {
-                        elts,
+                        elts: elts_arc,
                         update_left,
                         update_right,
                         overflow_right,
@@ -290,71 +296,80 @@ where
         K: Borrow<Q>,
         F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
     {
+        let len = self.len();
         match self.get(&q) {
             Loc::Here(i) => {
-                let mut elts = Chunk::with_capacity(self.len());
-                elts.keys.extend_from_slice(&self.keys[0..i]);
-                elts.vals.extend_from_slice(&self.vals[0..i]);
+                let mut elts_arc = Arc::new(Chunk::empty());
+                let elts = Arc::get_mut(&mut elts_arc).unwrap();
+                elts.keys.extend(self.keys[0..i].into_iter().cloned());
+                elts.vals.extend(self.vals[0..i].into_iter().cloned());
                 if let Some((k, v)) = f(q, d, Some((&self.keys[i], &self.vals[i]))) {
                     elts.keys.push(k);
                     elts.vals.push(v);
                 }
-                if i + 1 < self.len() {
-                    elts.keys.extend_from_slice(&self.keys[i + 1..self.len()]);
-                    elts.vals.extend_from_slice(&self.vals[i + 1..self.len()]);
+                if i + 1 < len {
+                    elts.keys.extend(self.keys[i + 1..len].into_iter().cloned());
+                    elts.vals.extend(self.vals[i + 1..len].into_iter().cloned());
                 }
                 Update::Updated {
-                    elts,
+                    elts: elts_arc,
                     overflow: None,
                     previous: Some(self.vals[i].clone()),
                 }
             }
             Loc::NotPresent(i) => {
-                let mut elts = Chunk::with_capacity(self.len() + 1);
-                elts.keys.extend_from_slice(&self.keys[0..i]);
-                elts.vals.extend_from_slice(&self.vals[0..i]);
+                let mut elts_arc = Arc::new(Chunk::empty());
+                let elts = Arc::get_mut(&mut elts_arc).unwrap();
+                let mut overflow = None;
+                elts.keys.extend(self.keys[0..i].into_iter().cloned());
+                elts.vals.extend(self.vals[0..i].into_iter().cloned());
                 if let Some((k, v)) = f(q, d, None) {
-                    elts.keys.push(k);
-                    elts.vals.push(v);
-                }
-                elts.keys.extend_from_slice(&self.keys[i..self.len()]);
-                elts.vals.extend_from_slice(&self.vals[i..self.len()]);
-                let overflow = {
-                    if elts.len() <= SIZE {
-                        None
+                    if elts.keys.len() < SIZE {
+                        elts.keys.push(k);
+                        elts.vals.push(v);
                     } else {
-                        elts.keys
-                            .pop()
-                            .and_then(|k| elts.vals.pop().map(move |v| (k, v)))
+                        overflow = Some((k, v))
                     }
-                };
+                }
+                if elts.keys.len() + len - i <= SIZE {
+                    elts.keys.extend(self.keys[i..len].into_iter().cloned());
+                    elts.vals.extend(self.vals[i..len].into_iter().cloned());
+                } else {
+                    elts.keys.extend(self.keys[i..len - 1].into_iter().cloned());
+                    elts.vals.extend(self.vals[i..len - 1].into_iter().cloned());
+                    overflow = Some((
+                        self.keys[len - 1].clone(),
+                        self.vals[len - 1].clone()
+                    ))
+                }
                 Update::Updated {
-                    elts,
+                    elts: elts_arc,
                     overflow,
                     previous: None,
                 }
             }
             loc @ Loc::InLeft | loc @ Loc::InRight => {
-                if !leaf || self.len() == SIZE {
+                if !leaf || len == SIZE {
                     match loc {
                         Loc::InLeft => Update::UpdateLeft(q, d),
                         Loc::InRight => Update::UpdateRight(q, d),
                         Loc::Here(..) | Loc::NotPresent(..) => unreachable!(),
                     }
                 } else {
-                    let mut elts = Chunk::with_capacity(self.len() + 1);
+                    let mut elts_arc = Arc::new(Chunk::empty());
+                    let elts = Arc::get_mut(&mut elts_arc).unwrap();
                     match loc {
                         Loc::InLeft => {
                             if let Some((k, v)) = f(q, d, None) {
                                 elts.keys.push(k);
                                 elts.vals.push(v);
                             }
-                            elts.keys.extend_from_slice(&self.keys[0..self.len()]);
-                            elts.vals.extend_from_slice(&self.vals[0..self.len()]);
+                            elts.keys.extend(self.keys[0..len].into_iter().cloned());
+                            elts.vals.extend(self.vals[0..len].into_iter().cloned());
                         }
                         Loc::InRight => {
-                            elts.keys.extend_from_slice(&self.keys[0..self.len()]);
-                            elts.vals.extend_from_slice(&self.vals[0..self.len()]);
+                            elts.keys.extend(self.keys[0..len].into_iter().cloned());
+                            elts.vals.extend(self.vals[0..len].into_iter().cloned());
                             if let Some((k, v)) = f(q, d, None) {
                                 elts.keys.push(k);
                                 elts.vals.push(v);
@@ -363,7 +378,7 @@ where
                         _ => unreachable!("bug"),
                     };
                     Update::Updated {
-                        elts,
+                        elts: elts_arc,
                         overflow: None,
                         previous: None,
                     }
@@ -386,7 +401,7 @@ where
             } else {
                 (c1, c0)
             };
-            r.extend(c0.keys.iter().enumerate().filter_map(|(i, k)| {
+            r.extend((&c0.keys).into_iter().enumerate().filter_map(|(i, k)| {
                 match c1.keys.binary_search(&k) {
                     Err(_) => None,
                     Ok(j) => f(k, &c0.vals[i], &c1.vals[j]).map(|v| (k.clone(), v)),
@@ -395,27 +410,29 @@ where
         }
     }
 
-    pub(crate) fn remove_elt_at(&self, i: usize) -> Self {
-        let mut elts = Chunk::with_capacity(self.len() - 1);
-        if self.len() == 0 {
+    pub(crate) fn remove_elt_at(&self, i: usize) -> Arc<Self> {
+        let mut elts_arc = Arc::new(Chunk::empty());
+        let elts = Arc::get_mut(&mut elts_arc).unwrap();
+        let len = self.len();
+        if len == 0 {
             panic!("can't remove from an empty chunk")
-        } else if self.len() == 1 {
+        } else if len == 1 {
             assert_eq!(i, 0);
-            elts
+            elts_arc
         } else if i == 0 {
-            elts.keys.extend_from_slice(&self.keys[1..self.len()]);
-            elts.vals.extend_from_slice(&self.vals[1..self.len()]);
-            elts
-        } else if i == self.len() - 1 {
-            elts.keys.extend_from_slice(&self.keys[0..self.len() - 1]);
-            elts.vals.extend_from_slice(&self.vals[0..self.len() - 1]);
-            elts
+            elts.keys.extend(self.keys[1..len].into_iter().cloned());
+            elts.vals.extend(self.vals[1..len].into_iter().cloned());
+            elts_arc
+        } else if i == len - 1 {
+            elts.keys.extend(self.keys[0..len - 1].into_iter().cloned());
+            elts.vals.extend(self.vals[0..len - 1].into_iter().cloned());
+            elts_arc
         } else {
-            elts.keys.extend_from_slice(&self.keys[0..i]);
-            elts.keys.extend_from_slice(&self.keys[i + 1..self.len()]);
-            elts.vals.extend_from_slice(&self.vals[0..i]);
-            elts.vals.extend_from_slice(&self.vals[i + 1..self.len()]);
-            elts
+            elts.keys.extend(self.keys[0..i].into_iter().cloned());
+            elts.keys.extend(self.keys[i + 1..len].into_iter().cloned());
+            elts.vals.extend(self.vals[0..i].into_iter().cloned());
+            elts.vals.extend(self.vals[i + 1..len].into_iter().cloned());
+            elts_arc
         }
     }
 
@@ -475,6 +492,7 @@ where
     }
 }
 
+/*
 impl<K, V> IntoIterator for Chunk<K, V>
 where
     K: Ord + Clone,
@@ -486,6 +504,7 @@ where
         self.keys.into_iter().zip(self.vals)
     }
 }
+*/
 
 impl<'a, K, V> IntoIterator for &'a Chunk<K, V>
 where

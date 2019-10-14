@@ -695,26 +695,23 @@ where
         }
         match self {
             &Tree::Empty => {
-                let elts = {
-                    let t = Chunk::empty();
-                    match t.update_chunk(chunk, true, f) {
-                        UpdateChunk::Created(elts) => elts,
-                        UpdateChunk::Removed { .. } => unreachable!(),
-                        UpdateChunk::Updated { .. } => unreachable!(),
-                        UpdateChunk::UpdateLeft(_) => unreachable!(),
-                        UpdateChunk::UpdateRight(_) => unreachable!(),
-                    }
+                let elts = match Chunk::update_chunk(None, chunk, true, f) {
+                    UpdateChunk::Created(elts) => elts,
+                    UpdateChunk::Removed { .. } => unreachable!(),
+                    UpdateChunk::Updated { .. } => unreachable!(),
+                    UpdateChunk::UpdateLeft(_) => unreachable!(),
+                    UpdateChunk::UpdateRight(_) => unreachable!(),
                 };
-                Tree::create(&Tree::Empty, Arc::new(elts), &Tree::Empty)
+                Tree::create(&Tree::Empty, elts, &Tree::Empty)
             }
             &Tree::Node(ref tn) => {
                 let leaf = match (tn.left(), tn.right()) {
                     (&Tree::Empty, &Tree::Empty) => true,
                     (_, _) => false,
                 };
-                match tn.elts().update_chunk(chunk, leaf, f) {
+                match Chunk::update_chunk(Some(tn.elts()), chunk, leaf, f) {
                     UpdateChunk::Created(elts) => {
-                        Tree::create(tn.left(), Arc::new(elts), tn.right())
+                        Tree::create(tn.left(), elts, tn.right())
                     }
                     UpdateChunk::Updated {
                         elts,
@@ -725,7 +722,7 @@ where
                         let l = tn.left().update_chunk(update_left, f);
                         let r = tn.right().insert_chunk(overflow_right);
                         let r = r.update_chunk(update_right, f);
-                        Tree::bal(&l, &Arc::new(elts), &r)
+                        Tree::bal(&l, &elts, &r)
                     }
                     UpdateChunk::Removed {
                         not_done,
@@ -819,7 +816,7 @@ where
                 Some((k, v)) => (
                     Tree::create(
                         &Tree::Empty,
-                        Arc::new(Chunk::singleton(k, v)),
+                        Chunk::singleton(k, v),
                         &Tree::Empty,
                     ),
                     None,
@@ -849,7 +846,7 @@ where
                                 (Tree::concat(tn.left(), tn.right()), previous)
                             } else {
                                 (
-                                    Tree::create(tn.left(), Arc::new(elts), tn.right()),
+                                    Tree::create(tn.left(), elts, tn.right()),
                                     previous,
                                 )
                             }
@@ -859,7 +856,7 @@ where
                             if elts.len() == 0 {
                                 (Tree::concat(tn.left(), &r), previous)
                             } else {
-                                (Tree::bal(tn.left(), &Arc::new(elts), &r), previous)
+                                (Tree::bal(tn.left(), &elts, &r), previous)
                             }
                         }
                     },
@@ -919,7 +916,7 @@ where
                     if elts.len() == 0 {
                         (Tree::concat(tn.left(), tn.right()), Some(p))
                     } else {
-                        (Tree::create(tn.left(), Arc::new(elts), tn.right()), Some(p))
+                        (Tree::create(tn.left(), elts, tn.right()), Some(p))
                     }
                 }
                 Loc::InLeft => {
