@@ -419,6 +419,14 @@ where
         }
     }
 
+    pub(crate) fn min_key_not_empty(&self) -> &K {
+        &self.keys[0]
+    }
+
+    pub(crate) fn max_key_not_empty(&self) -> &K {
+        &self.keys[self.keys.len() - 1]
+    }
+
     pub(crate) fn min_max_key(&self) -> Option<(K, K)> {
         if self.len() == 0 {
             None
