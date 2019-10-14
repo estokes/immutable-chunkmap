@@ -1,5 +1,5 @@
 0.5.3
-* small performance optimizations to update and update_many
+* small performance optimizations update operations
 
 0.5.2
 * implement Set::intersect, and Map::intersect, O(log(N) + M)
