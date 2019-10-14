@@ -943,9 +943,9 @@ where
         R: 'a,
     {
         match self {
-            &Tree::Empty => None,
-            &Tree::Node(Node::Leaf(ref c)) => c.get_local(k).map(|i| f(c, i)),
-            &Tree::Node(Node::Inner(ref n)) => {
+            Tree::Empty => None,
+            Tree::Node(Node::Leaf(c)) => c.get_local(k).map(|i| f(c, i)),
+            Tree::Node(Node::Inner(n)) => {
                 let mut tn = n;
                 loop {
                     match (k.cmp(tn.min_key.borrow()), k.cmp(tn.max_key.borrow())) {
