@@ -529,9 +529,9 @@ where
                             Tree::union(&t0, &t1, f)
                         }
                         (l1, None, r1) => Tree::join(
-                            &Tree::merge(n0.left(), &l1, f),
+                            &Tree::union(n0.left(), &l1, f),
                             n0.elts(),
-                            &Tree::merge(n0.right(), &r1, f),
+                            &Tree::union(n0.right(), &r1, f),
                         ),
                     }
                 } else {
@@ -541,9 +541,9 @@ where
                             Tree::union(&t0, &t1, f)
                         }
                         (l0, None, r0) => Tree::join(
-                            &Tree::merge(&l0, n1.left(), f),
+                            &Tree::union(&l0, n1.left(), f),
                             n1.elts(),
-                            &Tree::merge(&r0, n1.right(), f),
+                            &Tree::union(&r0, n1.right(), f),
                         ),
                     }
                 }
