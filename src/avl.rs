@@ -1,5 +1,5 @@
 use arrayvec::ArrayVec;
-use chunk::{Chunk, Loc, Update, UpdateChunk, SIZE};
+use crate::chunk::{Chunk, Loc, Update, UpdateChunk, SIZE};
 use std::{
     borrow::Borrow,
     cmp::{max, min, Eq, Ord, Ordering, PartialEq, PartialOrd},
@@ -513,7 +513,7 @@ where
     /// merge two trees, where f is run on the intersection. O(log(n)
     /// + m) where n is the size of the largest tree, and m is the number of
     /// intersecting chunks.
-    pub(crate) fn merge<F>(t0: &Tree<K, V>, t1: &Tree<K, V>, f: &mut F) -> Self
+    pub(crate) fn union<F>(t0: &Tree<K, V>, t1: &Tree<K, V>, f: &mut F) -> Self
     where
         F: FnMut(&K, &V, &V) -> Option<V>,
     {
@@ -526,7 +526,7 @@ where
                     match t1.split(&n0.min_key(), &n0.max_key()) {
                         (_, Some(_), _) => {
                             let (t0, t1) = Tree::merge_root_to(&t0, &t1, f);
-                            Tree::merge(&t0, &t1, f)
+                            Tree::union(&t0, &t1, f)
                         }
                         (l1, None, r1) => Tree::join(
                             &Tree::merge(n0.left(), &l1, f),
@@ -538,7 +538,7 @@ where
                     match t0.split(n1.min_key(), n1.max_key()) {
                         (_, Some(_), _) => {
                             let (t1, t0) = Tree::merge_root_to(&t1, &t0, f);
-                            Tree::merge(&t0, &t1, f)
+                            Tree::union(&t0, &t1, f)
                         }
                         (l0, None, r0) => Tree::join(
                             &Tree::merge(&l0, n1.left(), f),
@@ -595,6 +595,18 @@ where
         let mut r = Vec::new();
         Tree::intersect_int(t0, t1, &mut r, f);
         Tree::Empty.insert_many(r.into_iter())
+    }
+
+    pub(crate) fn diff<F>(t0: &Tree<K, V>, t1: &Tree<K, V>, f: &mut F) -> Self
+    where
+        F: FnMut(&K, &V, &V) -> Option<V>,
+    {
+        let mut actions = Vec::new();
+        Tree::intersect_int(t0, t1, &mut Vec::new(), &mut |k, v0, v1| {
+            actions.push((k.clone(), f(k, v0, v1)));
+            None
+        });
+        t0.update_many(actions, &mut |k, v, _| v.map(|v| (k, v)))
     }
 
     fn is_empty(&self) -> bool {
@@ -657,7 +669,7 @@ where
                             &Tree::create(lrn.right(), elts.clone(), r),
                         ),
                     }
-                },
+                }
             }
         } else if hr > hl + 1 {
             match *r {
@@ -677,7 +689,7 @@ where
                             &Tree::create(rln.right(), rn.elts().clone(), rn.right()),
                         ),
                     }
-                },
+                }
             }
         } else {
             Tree::create(l, elts.clone(), r)

@@ -1,10 +1,9 @@
-extern crate num_cpus;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 use std::vec::Vec;
 use std::thread;
 use std::cmp::min;
-use utils;
+use crate::utils;
 
 fn create(len: usize) -> (Arc<RwLock<(Vec<i64>, Vec<i64>)>>, Arc<Vec<i64>>) {
     let data = utils::randvec::<i64>(len);

@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 use std::vec::Vec;
-use utils;
+use crate::utils;
 
 fn bench_get(m: &Vec<i64>) -> (i64, Duration) {
     let order = utils::permute::<usize>(&(0..m.len()).collect());

@@ -1,4 +1,4 @@
-use avl::{Iter, Tree};
+use crate::avl::{Iter, Tree};
 use std::{
     borrow::Borrow,
     cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd},
@@ -257,7 +257,7 @@ where
     /// }
     /// ```
     pub fn union(&self, other: &Set<K>) -> Self {
-        Set(Tree::merge(&self.0, &other.0, &mut |_, (), ()| Some(())))
+        Set(Tree::union(&self.0, &other.0, &mut |_, (), ()| Some(())))
     }
 
     /// return the intersection of 2 sets. Runs in O(log(N) + M) time
@@ -282,6 +282,31 @@ where
     /// }
     pub fn intersect(&self, other: &Set<K>) -> Self {
         Set(Tree::intersect(&self.0, &other.0, &mut |_, (), ()| Some(())))
+    }
+
+    /// Return the difference of two sets. Runs in O(log(N) + M) time
+    /// and space, where N is the smallest of the two sets, and M is
+    /// the number of intersecting chunks.
+    ///
+    /// # Examples
+    /// ```
+    /// use std::iter::FromIterator;
+    /// use self::immutable_chunkmap::set::Set;
+    ///
+    /// let s0 = Set::from_iter(0..100);
+    /// let s1 = Set::from_iter(0..50);
+    /// let s2 = s0.diff(&s1);
+    ///
+    /// assert!(s2.len() == 50);
+    /// for i in 0..50 {
+    ///     assert!(!s2.contains(&i));
+    /// }
+    /// for i in 50..100 {
+    ///     assert!(s2.contains(&i));
+    /// }
+    /// ```
+    pub fn diff(&self, other: &Set<K>) -> Self where K: Debug {
+        Set(Tree::diff(&self.0, &other.0, &mut |_, (), ()| None))
     }
 
     /// get the number of elements in the map O(1) time and space
