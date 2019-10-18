@@ -105,9 +105,9 @@ fn test_insert_int_rand() {
 
 fn test_get_rand<T: Ord + Clone + Debug + Rand + Any>() {
     let v = randvec::<T>(SIZE);
-    let t = insert(&v);
+    let t = insert(v.iter().cloned());
     for k in &v {
-        assert_eq!(*t.get(&k).unwrap(), k);
+        assert_eq!(t.get(k).unwrap(), k);
     }
 }
 
@@ -126,15 +126,15 @@ fn test_insert_remove_rand<T: Hash + Ord + Clone + Debug + Rand + Any>() {
     dedup(&mut v);
     let mut t = avl::Tree::new();
     for k in &v {
-        let (tn, p) = t.insert(k, k);
+        let (tn, p) = t.insert(k.clone(), k.clone());
         assert_eq!(p, None);
         t = tn;
-        assert_eq!(*t.get(&k).unwrap(), k);
+        assert_eq!(t.get(k).unwrap(), k);
         if t.len() % CHECK == 0 {
-            let (tn, p) = t.remove(&k);
-            assert_eq!(p, Some(k));
+            let (tn, p) = t.remove(k);
+            assert_eq!(p.as_ref(), Some(k));
             t = tn;
-            assert_eq!(t.get(&k), Option::None);
+            assert_eq!(t.get(k), Option::None);
             t.invariant();
         }
     }
@@ -158,22 +158,22 @@ fn test_insert_many_small() {
     let mut t = avl::Tree::new().insert_many(v.iter().map(|k| (*k, *k)));
     t.invariant();
     for k in &v {
-        assert_eq!(t.get(&k).unwrap(), k)
+        assert_eq!(t.get(k).unwrap(), k)
     }
     t = t.remove(&22i32).0;
     t = t.remove(&112i32).0;
     t.invariant();
     for k in &v {
         if *k == 22i32 || *k == 112i32 {
-            assert_eq!(t.get(&k), Option::None);
+            assert_eq!(t.get(k), Option::None);
         } else {
-            assert_eq!(t.get(&k), Option::Some(k));
+            assert_eq!(t.get(k), Option::Some(k));
         }
     }
     let v2: Vec<i32> = vec![12i32, 987i32, 19i32, 98i32];
     t = t.insert_many(v2.iter().map(|k| (k.clone(), k.clone())));
     for k in &v2 {
-        assert_eq!(t.get(&k).unwrap(), k);
+        assert_eq!(t.get(k).unwrap(), k);
     }
 }
 
@@ -196,13 +196,13 @@ fn test_insert_many<T: Ord + Clone + Debug + Rand + Hash + Any>() {
     let mut t = avl::Tree::new().insert_many(v.iter().map(|k| (k.clone(), k.clone())));
     t.invariant();
     for k in &v {
-        assert_eq!(t.get(&k).unwrap(), k)
+        assert_eq!(t.get(k).unwrap(), k)
     }
     {
         let mut i = 0;
         for k in &v {
             if i % CHECK == 0 {
-                t = t.remove(&k).0;
+                t = t.remove(k).0;
                 t.invariant();
             }
             i = i + 1;
@@ -210,9 +210,9 @@ fn test_insert_many<T: Ord + Clone + Debug + Rand + Hash + Any>() {
         i = 0;
         for k in &v {
             if i % CHECK == 0 {
-                assert_eq!(t.get(&k), None);
+                assert_eq!(t.get(k), None);
             } else {
-                assert_eq!(t.get(&k), Some(k));
+                assert_eq!(t.get(k), Some(k));
             }
             i = i + 1;
         }
@@ -225,13 +225,13 @@ fn test_insert_many<T: Ord + Clone + Debug + Rand + Hash + Any>() {
         let mut i = 0;
         for k in &v {
             if i % CHECK != 0 {
-                assert_eq!(t.get(&k), Some(k));
+                assert_eq!(t.get(k), Some(k));
             }
             i += 1
         }
     }
     for k in &v2 {
-        assert_eq!(t.get(&k), Some(k));
+        assert_eq!(t.get(k), Some(k));
     }
     let mut i = 0;
     t = t.update_many(v2.iter().map(|k| (k.clone(), ())), &mut |k, (), cur| {
@@ -242,7 +242,7 @@ fn test_insert_many<T: Ord + Clone + Debug + Rand + Hash + Any>() {
     t.invariant();
     assert_eq!(i, v2.len());
     for k in &v2 {
-        assert_eq!(t.get(&k), None)
+        assert_eq!(t.get(k), None)
     }
 }
 
@@ -261,12 +261,12 @@ fn test_map_rand<T: Ord + Clone + Debug + Rand + Any>() {
     let mut t = Map::new();
     let mut i = 0;
     for k in &v {
-        t = t.insert(k, k).0;
-        assert_eq!(*t.get(&k).unwrap(), k);
+        t = t.insert(k.clone(), k.clone()).0;
+        assert_eq!(t.get(k).unwrap(), k);
         if i % CHECK == 0 {
             t.invariant();
             for k in &v[0..i] {
-                assert_eq!(*t.get(&k).unwrap(), k);
+                assert_eq!(t.get(k).unwrap(), k);
             }
         }
         i = i + 1;
@@ -274,11 +274,11 @@ fn test_map_rand<T: Ord + Clone + Debug + Rand + Any>() {
 
     i = 0;
     for k in &v {
-        t = t.remove(&k).0;
+        t = t.remove(k).0;
         if i % CHECK == 0 {
             t.invariant();
             for k in &v[0..i] {
-                assert_eq!(t.get(&k), Option::None);
+                assert_eq!(t.get(k), Option::None);
             }
         }
         i = i + 1;
@@ -617,7 +617,7 @@ fn test_intersect_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash + Any>() 
     ins(v0, &mut hm0);
     ins(v1, &mut hm1);
     for (k, v0) in &hm0 {
-        match hm1.get(&k) {
+        match hm1.get(k) {
             None => (),
             Some(v1) => {
                 hm2.insert(k.clone(), *v0 + *v1);
@@ -656,7 +656,7 @@ fn test_diff_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash + Any>() {
         hm.insert(k, ());
     }
     for k in &v1 {
-        hm.remove(&k);
+        hm.remove(k);
     }
     for (k, ()) in &hm {
         m2.get(k).unwrap();

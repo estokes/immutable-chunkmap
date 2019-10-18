@@ -39,7 +39,7 @@ fn bench_insert(data: Arc<Vec<i32>>) -> Duration {
     let mut m = Map::new();
     let begin = Instant::now();
     for k in data.iter() {
-        m = m.insert(k, k).0;
+        m = m.insert(*k, *k).0;
     }
     begin.elapsed()
 }
