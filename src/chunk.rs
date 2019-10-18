@@ -86,8 +86,8 @@ pub(crate) struct Chunk<K, V> {
 
 impl<K, V> Debug for Chunk<K, V>
 where
-    K: Debug + Ord + Clone + 'static,
-    V: Debug + Clone + 'static,
+    K: Debug + Ord + Clone,
+    V: Debug + Clone,
 {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         f.debug_map().entries(self.into_iter()).finish()
@@ -96,8 +96,8 @@ where
 
 impl<K, V> Chunk<K, V>
 where
-    K: Ord + Clone + 'static,
-    V: Clone + 'static,
+    K: Ord + Clone,
+    V: Clone,
 {
     pub(crate) fn singleton(k: K, v: V) -> Arc<Self> {
         let mut t = Chunk::empty();
@@ -524,8 +524,8 @@ where
 
 impl<'a, K, V> IntoIterator for &'a Chunk<K, V>
 where
-    K: 'a + Ord + Clone + 'static,
-    V: 'a + Clone + 'static,
+    K: 'a + Ord + Clone,
+    V: 'a + Clone,
 {
     type Item = (&'a K, &'a V);
     type IntoIter = iter::Zip<slice::Iter<'a, K>, slice::Iter<'a, V>>;

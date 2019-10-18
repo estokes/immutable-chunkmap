@@ -34,7 +34,7 @@ pub(crate) enum Node<K: Ord + Clone + 'static, V: Clone + 'static> {
     Inner(Arc<InnerNode<K, V>>),
 }
 
-impl<K: Ord + Clone + 'static, V: Clone + 'static> Node<K, V> {
+impl<K: Ord + Clone, V: Clone> Node<K, V> {
     fn elts(&self) -> &CachedArc<Chunk<K, V>> {
         match self {
             Node::Leaf(ref c) => c,
@@ -191,8 +191,8 @@ where
 impl<'a, Q, K, V> Iter<'a, Q, K, V>
 where
     Q: Ord,
-    K: 'a + Borrow<Q> + Ord + Clone + 'static,
-    V: 'a + Clone + 'static,
+    K: 'a + Borrow<Q> + Ord + Clone,
+    V: 'a + Clone,
 {
     // is at least one element of the chunk in bounds
     fn any_elts_above_lbound(&self, n: &'a Node<K, V>) -> bool {
@@ -239,8 +239,8 @@ where
 impl<'a, Q, K, V> Iterator for Iter<'a, Q, K, V>
 where
     Q: Ord,
-    K: 'a + Borrow<Q> + Ord + Clone + 'static,
-    V: 'a + Clone + 'static,
+    K: 'a + Borrow<Q> + Ord + Clone,
+    V: 'a + Clone,
 {
     type Item = (&'a K, &'a V);
     fn next(&mut self) -> Option<Self::Item> {
@@ -303,8 +303,8 @@ where
 impl<'a, Q, K, V> DoubleEndedIterator for Iter<'a, Q, K, V>
 where
     Q: Ord,
-    K: 'a + Borrow<Q> + Ord + Clone + 'static,
-    V: 'a + Clone + 'static,
+    K: 'a + Borrow<Q> + Ord + Clone,
+    V: 'a + Clone,
 {
     fn next_back(&mut self) -> Option<Self::Item> {
         loop {
@@ -365,8 +365,8 @@ where
 
 impl<'a, K, V> IntoIterator for &'a Tree<K, V>
 where
-    K: 'a + Borrow<K> + Ord + Clone + 'static,
-    V: 'a + Clone + 'static,
+    K: 'a + Borrow<K> + Ord + Clone,
+    V: 'a + Clone,
 {
     type Item = (&'a K, &'a V);
     type IntoIter = Iter<'a, K, K, V>;
@@ -377,8 +377,8 @@ where
 
 impl<K, V> Tree<K, V>
 where
-    K: Ord + Clone + 'static,
-    V: Clone + 'static,
+    K: Ord + Clone,
+    V: Clone,
 {
     pub(crate) fn new() -> Self {
         Tree::Empty
@@ -1011,8 +1011,8 @@ where
 
 impl<K, V> Tree<K, V>
 where
-    K: Ord + Clone + Debug + 'static,
-    V: Clone + Debug + 'static,
+    K: Ord + Clone + Debug,
+    V: Clone + Debug,
 {
     #[allow(dead_code)]
     pub(crate) fn invariant(&self) -> () {
@@ -1022,8 +1022,8 @@ where
             elts: &Chunk<K, V>,
         ) -> bool
         where
-            K: Ord + Clone + Debug + 'static,
-            V: Clone + Debug + 'static,
+            K: Ord + Clone + Debug,
+            V: Clone + Debug,
         {
             (match lower {
                 None => true,
@@ -1040,8 +1040,8 @@ where
 
         fn sorted<K, V>(elts: &Chunk<K, V>) -> bool
         where
-            K: Ord + Clone + Debug + 'static,
-            V: Clone + Debug + 'static,
+            K: Ord + Clone + Debug,
+            V: Clone + Debug,
         {
             if elts.len() == 1 {
                 true
