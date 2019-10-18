@@ -35,7 +35,7 @@ fn bench_insert_many(len: usize) -> (Arc<Map<i32, i32>>, Arc<Vec<i32>>, Duration
     (Arc::new(m), Arc::new(data), elapsed)
 }
 
-fn bench_insert(data: &Arc<Vec<i32>>) -> Duration {
+fn bench_insert(data: Arc<Vec<i32>>) -> Duration {
     let mut m = Map::new();
     let begin = Instant::now();
     for k in data.iter() {
@@ -92,7 +92,7 @@ fn bench_remove(m: Arc<Map<i32, i32>>, d: Arc<Vec<i32>>) -> Duration {
 pub(crate) fn run(size: usize) -> () {
     let (m, d, inserts) = bench_insert_many(size);
     let n = num_cpus::get();
-    let insert = bench_insert(&d);
+    let insert = bench_insert(d.clone());
     let get_par = bench_get(m.clone(), d.clone(), n);
     let get = bench_get_seq(m.clone(), d.clone());
     let rm = bench_remove(m.clone(), d.clone());

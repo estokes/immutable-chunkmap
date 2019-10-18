@@ -3,7 +3,7 @@ use std::{
     borrow::Borrow,
     cmp::{Ord, Ordering},
     fmt::{self, Debug, Formatter},
-    any::TypeId,
+    any::{Any, TypeId},
     iter, slice,
 };
 use cached_arc::{Arc, Pool};
@@ -44,8 +44,8 @@ pub(crate) const SIZE: usize = 512;
 pub(crate) enum UpdateChunk<Q, K, V, D>
 where
     Q: Ord,
-    K: Ord + Clone + Borrow<Q> + 'static,
-    V: Clone + 'static
+    K: Ord + Clone + Borrow<Q> + Any,
+    V: Clone + Any,
 {
     UpdateLeft(Vec<(Q, D)>),
     UpdateRight(Vec<(Q, D)>),
@@ -66,8 +66,8 @@ where
 pub(crate) enum Update<Q, K, V, D>
 where
     Q: Ord,
-    K: Ord + Clone + Borrow<Q> + 'static,
-    V: Clone + 'static
+    K: Ord + Clone + Borrow<Q> + Any,
+    V: Clone + Any
 {
     UpdateLeft(Q, D),
     UpdateRight(Q, D),
@@ -79,15 +79,19 @@ where
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct Chunk<K, V> {
+pub(crate) struct Chunk<K, V>
+where
+    K: Ord + Clone + Any,
+    V: Clone + Any,
+{
     keys: ArrayVec<[K; SIZE]>,
     vals: ArrayVec<[V; SIZE]>,
 }
 
 impl<K, V> Debug for Chunk<K, V>
 where
-    K: Debug + Ord + Clone,
-    V: Debug + Clone,
+    K: Debug + Ord + Clone + Any,
+    V: Debug + Clone + Any,
 {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         f.debug_map().entries(self.into_iter()).finish()
@@ -96,8 +100,8 @@ where
 
 impl<K, V> Chunk<K, V>
 where
-    K: Ord + Clone,
-    V: Clone,
+    K: Ord + Clone + Any,
+    V: Clone + Any,
 {
     pub(crate) fn singleton(k: K, v: V) -> Arc<Self> {
         let mut t = Chunk::empty();
@@ -524,8 +528,8 @@ where
 
 impl<'a, K, V> IntoIterator for &'a Chunk<K, V>
 where
-    K: 'a + Ord + Clone,
-    V: 'a + Clone,
+    K: Ord + Clone + Any,
+    V: Clone + Any,
 {
     type Item = (&'a K, &'a V);
     type IntoIter = iter::Zip<slice::Iter<'a, K>, slice::Iter<'a, V>>;

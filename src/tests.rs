@@ -10,6 +10,7 @@ use std::{
     iter::{FromIterator, IntoIterator},
     ops::Bound::{Excluded, Included, Unbounded},
     vec::Vec,
+    any::Any,
 };
 
 const STRSIZE: usize = 10;
@@ -42,12 +43,12 @@ impl Rand for usize {
     }
 }
 
-fn random<T: Rand + 'static>() -> T {
+fn random<T: Rand>() -> T {
     let mut rng = rand::thread_rng();
     T::rand(&mut rng)
 }
 
-fn randvec<T: Rand + 'static>(len: usize) -> Vec<T> {
+fn randvec<T: Rand>(len: usize) -> Vec<T> {
     let mut v: Vec<T> = Vec::new();
     for _ in 0..len {
         v.push(random())
@@ -65,7 +66,7 @@ fn permutation<T: Clone>(v: &Vec<T>) -> Vec<T> {
 fn insert<I, T>(r: I) -> avl::Tree<T, T>
 where
     I: IntoIterator<Item = T>,
-    T: Ord + Clone + Debug + 'static,
+    T: Ord + Clone + Debug + Any,
 {
     let mut t = avl::Tree::new();
     for i in r {
@@ -102,7 +103,7 @@ fn test_insert_int_rand() {
     ()
 }
 
-fn test_get_rand<T: Ord + Clone + Debug + Rand + 'static>() {
+fn test_get_rand<T: Ord + Clone + Debug + Rand + Any>() {
     let v = randvec::<T>(SIZE);
     let t = insert(&v);
     for k in &v {
@@ -120,7 +121,7 @@ fn test_get_str_rand() {
     test_get_rand::<String>()
 }
 
-fn test_insert_remove_rand<T: Hash + Ord + Clone + Debug + Rand + 'static>() {
+fn test_insert_remove_rand<T: Hash + Ord + Clone + Debug + Rand + Any>() {
     let mut v = randvec::<T>(SIZE);
     dedup(&mut v);
     let mut t = avl::Tree::new();
@@ -176,7 +177,7 @@ fn test_insert_many_small() {
     }
 }
 
-fn dedup<T: Ord + Clone + Hash + 'static>(v: &mut Vec<T>) {
+fn dedup<T: Ord + Clone + Hash + Any>(v: &mut Vec<T>) {
     let mut seen = HashSet::new();
     let mut i = 0;
     while i < v.len() {
@@ -189,7 +190,7 @@ fn dedup<T: Ord + Clone + Hash + 'static>(v: &mut Vec<T>) {
     }
 }
 
-fn test_insert_many<T: Ord + Clone + Debug + Rand + Hash + 'static>() {
+fn test_insert_many<T: Ord + Clone + Debug + Rand + Hash + Any>() {
     let mut v = randvec::<T>(SIZE);
     dedup(&mut v);
     let mut t = avl::Tree::new().insert_many(v.iter().map(|k| (k.clone(), k.clone())));
@@ -255,7 +256,7 @@ fn test_str_insert_many() {
     test_insert_many::<String>()
 }
 
-fn test_map_rand<T: Ord + Clone + Debug + Rand + 'static>() {
+fn test_map_rand<T: Ord + Clone + Debug + Rand + Any>() {
     let v = randvec::<T>(SIZE);
     let mut t = Map::new();
     let mut i = 0;
@@ -294,7 +295,7 @@ fn test_str_map_rand() {
     test_map_rand::<String>()
 }
 
-fn test_map_iter<T: Borrow<T> + Ord + Clone + Debug + Rand + 'static>() {
+fn test_map_iter<T: Borrow<T> + Ord + Clone + Debug + Rand + Any>() {
     let mut v = randvec::<T>(SIZE);
     let t = Map::new().insert_many(v.iter().map(|k| (k.clone(), k.clone())));
     t.invariant();
@@ -401,7 +402,7 @@ fn test_map_range_small() {
     }
 }
 
-fn test_map_range<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash + 'static>() {
+fn test_map_range<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash + Any>() {
     let mut v = randvec::<T>(SIZE);
     let mut t: Map<T, T> = Map::new();
     t = t.insert_many(v.iter().map(|x| (x.clone(), x.clone())));
@@ -489,7 +490,7 @@ fn test_string_map_range() {
     test_map_range::<String>()
 }
 
-fn test_set<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash + 'static>() {
+fn test_set<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash + Any>() {
     let mut v = randvec::<T>(SIZE);
     dedup(&mut v);
     let mut t = Set::new();
@@ -565,7 +566,7 @@ fn test_ord() {
     assert_eq!(s0.cmp(&s3), Ordering::Greater);
 }
 
-fn test_union_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash + 'static>() {
+fn test_union_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash + Any>() {
     let mut v0 = randvec::<T>(SIZE);
     let mut v1 = randvec::<T>(SIZE);
     dedup(&mut v0);
@@ -596,7 +597,7 @@ fn test_union_int() {
     test_union_gen::<i32>()
 }
 
-fn test_intersect_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash + 'static>() {
+fn test_intersect_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash + Any>() {
     let mut v0 = randvec::<T>(SIZE);
     let mut v1 = randvec::<T>(SIZE);
     dedup(&mut v0);
@@ -641,7 +642,7 @@ fn test_intersect_int() {
     test_intersect_gen::<i32>();
 }
 
-fn test_diff_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash + 'static>() {
+fn test_diff_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash + Any>() {
     let mut v0 = randvec::<T>(SIZE);
     let mut v1 = randvec::<T>(SIZE);
     dedup(&mut v0);
