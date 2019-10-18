@@ -47,12 +47,12 @@ use std::{
 /// }
 /// ```
 #[derive(Clone)]
-pub struct Map<K: Ord + Clone, V: Clone>(Tree<K, V>);
+pub struct Map<K: Ord + Clone + 'static, V: Clone + 'static>(Tree<K, V>);
 
 impl<K, V> Hash for Map<K, V>
 where
-    K: Hash + Ord + Clone,
-    V: Hash + Clone,
+    K: Hash + Ord + Clone + 'static,
+    V: Hash + Clone + 'static,
 {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.hash(state)
@@ -61,8 +61,8 @@ where
 
 impl<K, V> Default for Map<K, V>
 where
-    K: Ord + Clone,
-    V: Clone,
+    K: Ord + Clone + 'static,
+    V: Clone + 'static,
 {
     fn default() -> Map<K, V> {
         Map::new()
@@ -71,8 +71,8 @@ where
 
 impl<K, V> PartialEq for Map<K, V>
 where
-    K: PartialEq + Ord + Clone,
-    V: PartialEq + Clone,
+    K: PartialEq + Ord + Clone + 'static,
+    V: PartialEq + Clone + 'static,
 {
     fn eq(&self, other: &Map<K, V>) -> bool {
         self.0 == other.0
@@ -81,15 +81,15 @@ where
 
 impl<K, V> Eq for Map<K, V>
 where
-    K: Eq + Ord + Clone,
-    V: Eq + Clone,
+    K: Eq + Ord + Clone + 'static,
+    V: Eq + Clone + 'static,
 {
 }
 
 impl<K, V> PartialOrd for Map<K, V>
 where
-    K: Ord + Clone,
-    V: PartialOrd + Clone,
+    K: Ord + Clone + 'static,
+    V: PartialOrd + Clone + 'static,
 {
     fn partial_cmp(&self, other: &Map<K, V>) -> Option<Ordering> {
         self.0.partial_cmp(&other.0)
@@ -98,8 +98,8 @@ where
 
 impl<K, V> Ord for Map<K, V>
 where
-    K: Ord + Clone,
-    V: Ord + Clone,
+    K: Ord + Clone + 'static,
+    V: Ord + Clone + 'static,
 {
     fn cmp(&self, other: &Map<K, V>) -> Ordering {
         self.0.cmp(&other.0)
@@ -108,8 +108,8 @@ where
 
 impl<K, V> Debug for Map<K, V>
 where
-    K: Debug + Ord + Clone,
-    V: Debug + Clone,
+    K: Debug + Ord + Clone + 'static,
+    V: Debug + Clone + 'static,
 {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         self.0.fmt(f)
@@ -119,8 +119,8 @@ where
 impl<'a, Q, K, V> Index<&'a Q> for Map<K, V>
 where
     Q: Ord,
-    K: Ord + Clone + Borrow<Q>,
-    V: Clone,
+    K: Ord + Clone + Borrow<Q> + 'static,
+    V: Clone + 'static,
 {
     type Output = V;
     fn index(&self, k: &Q) -> &V {
@@ -130,8 +130,8 @@ where
 
 impl<K, V> FromIterator<(K, V)> for Map<K, V>
 where
-    K: Ord + Clone,
-    V: Clone,
+    K: Ord + Clone + 'static,
+    V: Clone + 'static,
 {
     fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
         Map::new().insert_many(iter)
@@ -140,8 +140,8 @@ where
 
 impl<'a, K, V> IntoIterator for &'a Map<K, V>
 where
-    K: 'a + Borrow<K> + Ord + Clone,
-    V: 'a + Clone,
+    K: 'a + Borrow<K> + Ord + Clone + 'static,
+    V: 'a + Clone + 'static,
 {
     type Item = (&'a K, &'a V);
     type IntoIter = Iter<'a, K, K, V>;
@@ -152,8 +152,8 @@ where
 
 impl<K, V> Map<K, V>
 where
-    K: Ord + Clone,
-    V: Clone,
+    K: Ord + Clone + 'static,
+    V: Clone + 'static,
 {
     /// Create a new empty map
     pub fn new() -> Self {
@@ -438,8 +438,8 @@ where
 
 impl<K, V> Map<K, V>
 where
-    K: Ord + Clone + Debug,
-    V: Clone + Debug,
+    K: Ord + Clone + Debug + 'static,
+    V: Clone + Debug + 'static,
 {
     #[allow(dead_code)]
     pub fn invariant(&self) -> () {

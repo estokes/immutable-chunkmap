@@ -12,13 +12,14 @@ use std::{
     slice,
     sync::Arc,
 };
+use cached_arc::Arc as CachedArc;
 
 // until we get 128 bit machines with exabytes of memory
 const MAX_DEPTH: usize = 64;
 
 #[derive(Clone, Debug)]
-pub(crate) struct InnerNode<K: Ord + Clone, V: Clone> {
-    elts: Arc<Chunk<K, V>>,
+pub(crate) struct InnerNode<K: Ord + Clone + 'static, V: Clone + 'static> {
+    elts: CachedArc<Chunk<K, V>>,
     min_key: K,
     max_key: K,
     left: Tree<K, V>,
@@ -28,13 +29,13 @@ pub(crate) struct InnerNode<K: Ord + Clone, V: Clone> {
 }
 
 #[derive(Clone)]
-pub(crate) enum Node<K: Ord + Clone, V: Clone> {
-    Leaf(Arc<Chunk<K, V>>),
+pub(crate) enum Node<K: Ord + Clone + 'static, V: Clone + 'static> {
+    Leaf(CachedArc<Chunk<K, V>>),
     Inner(Arc<InnerNode<K, V>>),
 }
 
-impl<K: Ord + Clone, V: Clone> Node<K, V> {
-    fn elts(&self) -> &Arc<Chunk<K, V>> {
+impl<K: Ord + Clone + 'static, V: Clone + 'static> Node<K, V> {
+    fn elts(&self) -> &CachedArc<Chunk<K, V>> {
         match self {
             Node::Leaf(ref c) => c,
             Node::Inner(ref n) => &n.elts
@@ -85,7 +86,7 @@ impl<K: Ord + Clone, V: Clone> Node<K, V> {
 }
 
 #[derive(Clone)]
-pub(crate) enum Tree<K: Ord + Clone, V: Clone> {
+pub(crate) enum Tree<K: Ord + Clone + 'static, V: Clone + 'static> {
     Empty,
     Node(Node<K, V>),
 }
@@ -174,8 +175,8 @@ where
 pub struct Iter<'a, Q, K, V>
 where
     Q: Ord,
-    K: 'a + Borrow<Q> + Ord + Clone,
-    V: 'a + Clone,
+    K: 'a + Borrow<Q> + Ord + Clone + 'static,
+    V: 'a + Clone + 'static,
 {
     ubound: Bound<Q>,
     lbound: Bound<Q>,
@@ -190,8 +191,8 @@ where
 impl<'a, Q, K, V> Iter<'a, Q, K, V>
 where
     Q: Ord,
-    K: 'a + Borrow<Q> + Ord + Clone,
-    V: 'a + Clone,
+    K: 'a + Borrow<Q> + Ord + Clone + 'static,
+    V: 'a + Clone + 'static,
 {
     // is at least one element of the chunk in bounds
     fn any_elts_above_lbound(&self, n: &'a Node<K, V>) -> bool {
@@ -238,8 +239,8 @@ where
 impl<'a, Q, K, V> Iterator for Iter<'a, Q, K, V>
 where
     Q: Ord,
-    K: 'a + Borrow<Q> + Ord + Clone,
-    V: 'a + Clone,
+    K: 'a + Borrow<Q> + Ord + Clone + 'static,
+    V: 'a + Clone + 'static,
 {
     type Item = (&'a K, &'a V);
     fn next(&mut self) -> Option<Self::Item> {
@@ -302,8 +303,8 @@ where
 impl<'a, Q, K, V> DoubleEndedIterator for Iter<'a, Q, K, V>
 where
     Q: Ord,
-    K: 'a + Borrow<Q> + Ord + Clone,
-    V: 'a + Clone,
+    K: 'a + Borrow<Q> + Ord + Clone + 'static,
+    V: 'a + Clone + 'static,
 {
     fn next_back(&mut self) -> Option<Self::Item> {
         loop {
@@ -364,8 +365,8 @@ where
 
 impl<'a, K, V> IntoIterator for &'a Tree<K, V>
 where
-    K: 'a + Borrow<K> + Ord + Clone,
-    V: 'a + Clone,
+    K: 'a + Borrow<K> + Ord + Clone + 'static,
+    V: 'a + Clone + 'static,
 {
     type Item = (&'a K, &'a V);
     type IntoIter = Iter<'a, K, K, V>;
@@ -376,8 +377,8 @@ where
 
 impl<K, V> Tree<K, V>
 where
-    K: Ord + Clone,
-    V: Clone,
+    K: Ord + Clone + 'static,
+    V: Clone + 'static,
 {
     pub(crate) fn new() -> Self {
         Tree::Empty
@@ -423,7 +424,7 @@ where
         }
     }
 
-    fn add_min_elts(&self, elts: &Arc<Chunk<K, V>>) -> Self {
+    fn add_min_elts(&self, elts: &CachedArc<Chunk<K, V>>) -> Self {
         match self {
             Tree::Empty => Tree::create(&Tree::Empty, elts.clone(), &Tree::Empty),
             Tree::Node(ref n) =>
@@ -431,7 +432,7 @@ where
         }
     }
 
-    fn add_max_elts(&self, elts: &Arc<Chunk<K, V>>) -> Self {
+    fn add_max_elts(&self, elts: &CachedArc<Chunk<K, V>>) -> Self {
         match self {
             Tree::Empty => Tree::create(&Tree::Empty, elts.clone(), &Tree::Empty),
             Tree::Node(ref n) =>
@@ -442,7 +443,7 @@ where
     // This is the same as create except it makes no assumption about the tree
     // heights or tree balance, so you can pass it anything, and it will return
     // a balanced tree.
-    fn join(l: &Tree<K, V>, elts: &Arc<Chunk<K, V>>, r: &Tree<K, V>) -> Self {
+    fn join(l: &Tree<K, V>, elts: &CachedArc<Chunk<K, V>>, r: &Tree<K, V>) -> Self {
         match (l, r) {
             (Tree::Empty, _) => r.add_min_elts(elts),
             (_, Tree::Empty) => l.add_max_elts(elts),
@@ -463,7 +464,7 @@ where
     /// if there is a possible intersection return the intersecting
     /// chunk. In the case of an intersection there may also be an
     /// intersection at the left and/or right nodes.
-    fn split(&self, vmin: &K, vmax: &K) -> (Self, Option<Arc<Chunk<K, V>>>, Self) {
+    fn split(&self, vmin: &K, vmax: &K) -> (Self, Option<CachedArc<Chunk<K, V>>>, Self) {
         match self {
             Tree::Empty => (Tree::Empty, None, Tree::Empty),
             Tree::Node(ref n) => {
@@ -630,7 +631,7 @@ where
         }
     }
 
-    fn create(l: &Tree<K, V>, elts: Arc<Chunk<K, V>>, r: &Tree<K, V>) -> Self {
+    fn create(l: &Tree<K, V>, elts: CachedArc<Chunk<K, V>>, r: &Tree<K, V>) -> Self {
         match (l, r) {
             (Tree::Empty, Tree::Empty) => Tree::Node(Node::Leaf(elts)),
             (_, _) => {
@@ -649,7 +650,7 @@ where
         }
     }
 
-    fn bal(l: &Tree<K, V>, elts: &Arc<Chunk<K, V>>, r: &Tree<K, V>) -> Self {
+    fn bal(l: &Tree<K, V>, elts: &CachedArc<Chunk<K, V>>, r: &Tree<K, V>) -> Self {
         let (hl, hr) = (l.height(), r.height());
         if hl > hr + 1 {
             match *l {
@@ -881,7 +882,7 @@ where
         self.update(k, v, &mut |k, v, _| Some((k, v)))
     }
 
-    fn min_elts<'a>(&'a self) -> Option<&'a Arc<Chunk<K, V>>> {
+    fn min_elts<'a>(&'a self) -> Option<&'a CachedArc<Chunk<K, V>>> {
         match self {
             &Tree::Empty => None,
             &Tree::Node(ref tn) => match tn.left() {
@@ -1010,8 +1011,8 @@ where
 
 impl<K, V> Tree<K, V>
 where
-    K: Ord + Clone + Debug,
-    V: Clone + Debug,
+    K: Ord + Clone + Debug + 'static,
+    V: Clone + Debug + 'static,
 {
     #[allow(dead_code)]
     pub(crate) fn invariant(&self) -> () {
@@ -1021,8 +1022,8 @@ where
             elts: &Chunk<K, V>,
         ) -> bool
         where
-            K: Ord + Clone + Debug,
-            V: Clone + Debug,
+            K: Ord + Clone + Debug + 'static,
+            V: Clone + Debug + 'static,
         {
             (match lower {
                 None => true,
@@ -1039,8 +1040,8 @@ where
 
         fn sorted<K, V>(elts: &Chunk<K, V>) -> bool
         where
-            K: Ord + Clone + Debug,
-            V: Clone + Debug,
+            K: Ord + Clone + Debug + 'static,
+            V: Clone + Debug + 'static,
         {
             if elts.len() == 1 {
                 true

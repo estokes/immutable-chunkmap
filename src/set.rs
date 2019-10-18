@@ -30,11 +30,11 @@ use std::{
 /// for k in &m { println!("{}", k) }
 /// ```
 #[derive(Clone)]
-pub struct Set<K: Ord + Clone>(Tree<K, ()>);
+pub struct Set<K: Ord + Clone + 'static>(Tree<K, ()>);
 
 impl<K> Hash for Set<K>
 where
-    K: Hash + Ord + Clone,
+    K: Hash + Ord + Clone + 'static,
 {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.hash(state)
@@ -43,7 +43,7 @@ where
 
 impl<K> Default for Set<K>
 where
-    K: Ord + Clone,
+    K: Ord + Clone + 'static,
 {
     fn default() -> Set<K> {
         Set::new()
@@ -52,7 +52,7 @@ where
 
 impl<K> PartialEq for Set<K>
 where
-    K: Ord + Clone,
+    K: Ord + Clone + 'static,
 {
     fn eq(&self, other: &Set<K>) -> bool {
         self.0 == other.0
@@ -63,7 +63,7 @@ impl<K> Eq for Set<K> where K: Eq + Ord + Clone {}
 
 impl<K> PartialOrd for Set<K>
 where
-    K: Ord + Clone,
+    K: Ord + Clone + 'static,
 {
     fn partial_cmp(&self, other: &Set<K>) -> Option<Ordering> {
         self.0.partial_cmp(&other.0)
@@ -72,7 +72,7 @@ where
 
 impl<K> Ord for Set<K>
 where
-    K: Ord + Clone,
+    K: Ord + Clone + 'static,
 {
     fn cmp(&self, other: &Set<K>) -> Ordering {
         self.0.cmp(&other.0)
@@ -81,7 +81,7 @@ where
 
 impl<K> Debug for Set<K>
 where
-    K: Debug + Ord + Clone,
+    K: Debug + Ord + Clone + 'static,
 {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         f.debug_set().entries(self.into_iter()).finish()
@@ -90,19 +90,19 @@ where
 
 impl<K> FromIterator<K> for Set<K>
 where
-    K: Ord + Clone,
+    K: Ord + Clone + 'static,
 {
     fn from_iter<T: IntoIterator<Item = K>>(iter: T) -> Self {
         Set::new().insert_many(iter)
     }
 }
 
-pub struct SetIter<'a, Q: Ord, K: 'a + Clone + Ord + Borrow<Q>>(Iter<'a, Q, K, ()>);
+pub struct SetIter<'a, Q: Ord, K: Clone + Ord + Borrow<Q> + 'static>(Iter<'a, Q, K, ()>);
 
 impl<'a, Q, K> Iterator for SetIter<'a, Q, K>
 where
     Q: Ord,
-    K: 'a + Clone + Ord + Borrow<Q>,
+    K: 'a + Clone + Ord + Borrow<Q> + 'static,
 {
     type Item = &'a K;
     fn next(&mut self) -> Option<Self::Item> {
@@ -113,7 +113,7 @@ where
 impl<'a, Q, K> DoubleEndedIterator for SetIter<'a, Q, K>
 where
     Q: Ord,
-    K: 'a + Clone + Ord + Borrow<Q>,
+    K: 'a + Clone + Ord + Borrow<Q> + 'static,
 {
     fn next_back(&mut self) -> Option<Self::Item> {
         self.0.next_back().map(|(k, ())| k)
@@ -122,7 +122,7 @@ where
 
 impl<'a, K> IntoIterator for &'a Set<K>
 where
-    K: 'a + Borrow<K> + Ord + Clone,
+    K: 'a + Borrow<K> + Ord + Clone + 'static,
 {
     type Item = &'a K;
     type IntoIter = SetIter<'a, K, K>;
@@ -133,7 +133,7 @@ where
 
 impl<K> Set<K>
 where
-    K: Ord + Clone,
+    K: Ord + Clone + 'static,
 {
     /// Create a new empty set
     pub fn new() -> Self {
@@ -333,7 +333,7 @@ where
 
 impl<K> Set<K>
 where
-    K: Ord + Clone + Debug,
+    K: Ord + Clone + Debug + 'static,
 {
     #[allow(dead_code)]
     pub(crate) fn invariant(&self) -> () {

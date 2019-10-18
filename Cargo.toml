@@ -14,6 +14,7 @@ edition = "2018"
 [dependencies]
 arrayvec = "0.5"
 cached-arc = { path = "../cached-arc" }
+lazy_static = "1.4"
 
 [dev-dependencies]
 rand = ">= 0.3"
