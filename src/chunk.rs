@@ -26,7 +26,7 @@ time a key is added or removed
 -- increases the size of each allocation
 -- icreases the overall amount of memory allocated for each change to the tree
  */
-pub(crate) const SIZE: usize = 512;
+pub(crate) const SIZE: usize = 1024;
 
 pub(crate) enum UpdateChunk<Q, K, V, D>
 where
