@@ -3,10 +3,10 @@ use std::{
     borrow::Borrow,
     cmp::{Ord, Ordering},
     fmt::{self, Debug, Formatter},
-    any::{Any, TypeId},
+    any::Any,
     iter, slice,
 };
-use cached_arc::{Arc, Pool};
+use cached_arc::Arc;
 
 #[derive(PartialEq)]
 pub(crate) enum Loc {
@@ -14,19 +14,6 @@ pub(crate) enum Loc {
     InLeft,
     NotPresent(usize),
     Here(usize),
-}
-
-lazy_static! {
-    static ref POOL: Pool = {
-        let pool = Pool::new();
-        pool.with_limit(|l| {
-            l.insert(TypeId::of::<Chunk<String, String>>(), 10_000);
-            l.insert(TypeId::of::<Chunk<i32, i32>>(), 100_000);
-            l.insert(TypeId::of::<Chunk<i64, i64>>(), 100_000);
-            l.insert(TypeId::of::<Chunk<usize, usize>>(), 100_000);
-        });
-        pool
-    };
 }
 
 /*
@@ -112,13 +99,15 @@ where
     }
 
     pub(crate) fn empty() -> Arc<Self> {
-        let mut arc = POOL.take_or_else::<Chunk<K, V>, _>(|| Chunk {
+        let mut arc = Arc::new(|| Chunk {
             keys: ArrayVec::new(),
             vals: ArrayVec::new(),
         });
-        let arc_ref = Arc::get_mut(&mut arc).unwrap();
-        arc_ref.keys.clear();
-        arc_ref.vals.clear();
+        if arc.keys.len() > 0 {
+            let arc_ref = Arc::get_mut(&mut arc).unwrap();
+            arc_ref.keys.clear();
+            arc_ref.vals.clear();
+        }
         arc
     }
 
