@@ -11,14 +11,19 @@ use std::{
     ops::{Bound, Index},
     slice,
     sync::Arc,
+    any::Any,
 };
+use cached_arc::Arc as CArc;
 
 // until we get 128 bit machines with exabytes of memory
 const MAX_DEPTH: usize = 64;
 
 #[derive(Clone, Debug)]
-pub(crate) struct Node<K: Ord + Clone, V: Clone> {
-    elts: Arc<Chunk<K, V>>,
+pub(crate) struct Node<K, V>
+where K: Ord + Clone + Any,
+      V: Clone + Any,
+{
+    elts: CArc<Chunk<K, V>>,
     min_key: K,
     max_key: K,
     left: Tree<K, V>,
@@ -28,15 +33,18 @@ pub(crate) struct Node<K: Ord + Clone, V: Clone> {
 }
 
 #[derive(Clone)]
-pub(crate) enum Tree<K: Ord + Clone, V: Clone> {
+pub(crate) enum Tree<K, V>
+where K: Ord + Clone + Any,
+      V: Clone + Any
+{
     Empty,
     Node(Arc<Node<K, V>>),
 }
 
 impl<K, V> Hash for Tree<K, V>
 where
-    K: Hash + Ord + Clone,
-    V: Hash + Clone,
+    K: Hash + Ord + Clone + Any,
+    V: Hash + Clone + Any,
 {
     fn hash<H: Hasher>(&self, state: &mut H) {
         for elt in self {
@@ -47,8 +55,8 @@ where
 
 impl<K, V> Default for Tree<K, V>
 where
-    K: Ord + Clone,
-    V: Clone,
+    K: Ord + Clone + Any,
+    V: Clone + Any,
 {
     fn default() -> Tree<K, V> {
         Tree::Empty
@@ -57,8 +65,8 @@ where
 
 impl<K, V> PartialEq for Tree<K, V>
 where
-    K: PartialEq + Ord + Clone,
-    V: PartialEq + Clone,
+    K: PartialEq + Ord + Clone + Any,
+    V: PartialEq + Clone + Any,
 {
     fn eq(&self, other: &Tree<K, V>) -> bool {
         self.len() == other.len() && self.into_iter().zip(other).all(|(e0, e1)| e0 == e1)
@@ -67,15 +75,15 @@ where
 
 impl<K, V> Eq for Tree<K, V>
 where
-    K: Eq + Ord + Clone,
-    V: Eq + Clone,
+    K: Eq + Ord + Clone + Any,
+    V: Eq + Clone + Any,
 {
 }
 
 impl<K, V> PartialOrd for Tree<K, V>
 where
-    K: Ord + Clone,
-    V: PartialOrd + Clone,
+    K: Ord + Clone + Any,
+    V: PartialOrd + Clone + Any,
 {
     fn partial_cmp(&self, other: &Tree<K, V>) -> Option<Ordering> {
         self.into_iter().partial_cmp(other.into_iter())
@@ -84,8 +92,8 @@ where
 
 impl<K, V> Ord for Tree<K, V>
 where
-    K: Ord + Clone,
-    V: Ord + Clone,
+    K: Ord + Clone + Any,
+    V: Ord + Clone + Any,
 {
     fn cmp(&self, other: &Tree<K, V>) -> Ordering {
         self.into_iter().cmp(other.into_iter())
@@ -94,8 +102,8 @@ where
 
 impl<K, V> Debug for Tree<K, V>
 where
-    K: Debug + Ord + Clone,
-    V: Debug + Clone,
+    K: Debug + Ord + Clone + Any,
+    V: Debug + Clone + Any,
 {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         f.debug_map().entries(self.into_iter()).finish()
@@ -105,8 +113,8 @@ where
 impl<'a, Q, K, V> Index<&'a Q> for Tree<K, V>
 where
     Q: Ord,
-    K: Ord + Clone + Borrow<Q>,
-    V: Clone,
+    K: Ord + Clone + Borrow<Q> + Any,
+    V: Clone + Any,
 {
     type Output = V;
     fn index(&self, k: &Q) -> &V {
@@ -117,8 +125,8 @@ where
 pub struct Iter<'a, Q, K, V>
 where
     Q: Ord,
-    K: 'a + Borrow<Q> + Ord + Clone,
-    V: 'a + Clone,
+    K: Borrow<Q> + Ord + Clone + Any,
+    V: Clone + Any,
 {
     ubound: Bound<Q>,
     lbound: Bound<Q>,
@@ -133,8 +141,8 @@ where
 impl<'a, Q, K, V> Iter<'a, Q, K, V>
 where
     Q: Ord,
-    K: 'a + Borrow<Q> + Ord + Clone,
-    V: 'a + Clone,
+    K: Borrow<Q> + Ord + Clone + Any,
+    V: Clone + Any,
 {
     // is at least one element of the chunk in bounds
     fn any_elts_above_lbound(&self, n: &'a Node<K, V>) -> bool {
@@ -179,8 +187,8 @@ where
 impl<'a, Q, K, V> Iterator for Iter<'a, Q, K, V>
 where
     Q: Ord,
-    K: 'a + Borrow<Q> + Ord + Clone,
-    V: 'a + Clone,
+    K: Borrow<Q> + Ord + Clone + Any,
+    V: Clone + Any,
 {
     type Item = (&'a K, &'a V);
     fn next(&mut self) -> Option<Self::Item> {
@@ -243,8 +251,8 @@ where
 impl<'a, Q, K, V> DoubleEndedIterator for Iter<'a, Q, K, V>
 where
     Q: Ord,
-    K: 'a + Borrow<Q> + Ord + Clone,
-    V: 'a + Clone,
+    K: Borrow<Q> + Ord + Clone + Any,
+    V: Clone + Any,
 {
     fn next_back(&mut self) -> Option<Self::Item> {
         loop {
@@ -305,8 +313,8 @@ where
 
 impl<'a, K, V> IntoIterator for &'a Tree<K, V>
 where
-    K: 'a + Borrow<K> + Ord + Clone,
-    V: 'a + Clone,
+    K: Borrow<K> + Ord + Clone + Any,
+    V: Clone + Any,
 {
     type Item = (&'a K, &'a V);
     type IntoIter = Iter<'a, K, K, V>;
@@ -317,8 +325,8 @@ where
 
 impl<K, V> Tree<K, V>
 where
-    K: Ord + Clone,
-    V: Clone,
+    K: Ord + Clone + Any,
+    V: Clone + Any,
 {
     pub(crate) fn new() -> Self {
         Tree::Empty
@@ -364,14 +372,14 @@ where
         }
     }
 
-    fn add_min_elts(&self, elts: &Arc<Chunk<K, V>>) -> Self {
+    fn add_min_elts(&self, elts: &CArc<Chunk<K, V>>) -> Self {
         match self {
             Tree::Empty => Tree::create(&Tree::Empty, elts.clone(), &Tree::Empty),
             Tree::Node(ref n) => Tree::bal(&n.left.add_min_elts(elts), &n.elts, &n.right),
         }
     }
 
-    fn add_max_elts(&self, elts: &Arc<Chunk<K, V>>) -> Self {
+    fn add_max_elts(&self, elts: &CArc<Chunk<K, V>>) -> Self {
         match self {
             Tree::Empty => Tree::create(&Tree::Empty, elts.clone(), &Tree::Empty),
             Tree::Node(ref n) => Tree::bal(&n.left, &n.elts, &n.right.add_max_elts(elts)),
@@ -381,7 +389,7 @@ where
     // This is the same as create except it makes no assumption about the tree
     // heights or tree balance, so you can pass it anything, and it will return
     // a balanced tree.
-    fn join(l: &Tree<K, V>, elts: &Arc<Chunk<K, V>>, r: &Tree<K, V>) -> Self {
+    fn join(l: &Tree<K, V>, elts: &CArc<Chunk<K, V>>, r: &Tree<K, V>) -> Self {
         match (l, r) {
             (Tree::Empty, _) => r.add_min_elts(elts),
             (_, Tree::Empty) => l.add_max_elts(elts),
@@ -402,7 +410,7 @@ where
     /// if there is a possible intersection return the intersecting
     /// chunk. In the case of an intersection there may also be an
     /// intersection at the left and/or right nodes.
-    fn split(&self, vmin: &K, vmax: &K) -> (Self, Option<Arc<Chunk<K, V>>>, Self) {
+    fn split(&self, vmin: &K, vmax: &K) -> (Self, Option<CArc<Chunk<K, V>>>, Self) {
         match self {
             Tree::Empty => (Tree::Empty, None, Tree::Empty),
             Tree::Node(ref n) => {
@@ -569,7 +577,7 @@ where
         }
     }
 
-    fn create(l: &Tree<K, V>, elts: Arc<Chunk<K, V>>, r: &Tree<K, V>) -> Self {
+    fn create(l: &Tree<K, V>, elts: CArc<Chunk<K, V>>, r: &Tree<K, V>) -> Self {
         let (min_key, max_key) = elts.min_max_key().unwrap();
         let n = Node {
             elts: elts,
@@ -583,7 +591,7 @@ where
         Tree::Node(Arc::new(n))
     }
 
-    fn bal(l: &Tree<K, V>, elts: &Arc<Chunk<K, V>>, r: &Tree<K, V>) -> Self {
+    fn bal(l: &Tree<K, V>, elts: &CArc<Chunk<K, V>>, r: &Tree<K, V>) -> Self {
         let (hl, hr) = (l.height(), r.height());
         if hl > hr + 1 {
             match *l {
@@ -641,17 +649,8 @@ where
         }
         match self {
             &Tree::Empty => {
-                let elts = {
-                    let t = Chunk::empty();
-                    match t.update_chunk(chunk, true, f) {
-                        UpdateChunk::Created(elts) => elts,
-                        UpdateChunk::Removed { .. } => unreachable!(),
-                        UpdateChunk::Updated { .. } => unreachable!(),
-                        UpdateChunk::UpdateLeft(_) => unreachable!(),
-                        UpdateChunk::UpdateRight(_) => unreachable!(),
-                    }
-                };
-                Tree::create(&Tree::Empty, Arc::new(elts), &Tree::Empty)
+                let elts = Chunk::create_with(chunk, f);
+                Tree::create(&Tree::Empty, elts, &Tree::Empty)
             }
             &Tree::Node(ref tn) => {
                 let leaf = match (&tn.left, &tn.right) {
@@ -659,9 +658,6 @@ where
                     (_, _) => false,
                 };
                 match tn.elts.update_chunk(chunk, leaf, f) {
-                    UpdateChunk::Created(elts) => {
-                        Tree::create(&tn.left, Arc::new(elts), &tn.right)
-                    }
                     UpdateChunk::Updated {
                         elts,
                         update_left,
@@ -671,7 +667,7 @@ where
                         let l = tn.left.update_chunk(update_left, f);
                         let r = tn.right.insert_chunk(overflow_right);
                         let r = r.update_chunk(update_right, f);
-                        Tree::bal(&l, &Arc::new(elts), &r)
+                        Tree::bal(&l, &elts, &r)
                     }
                     UpdateChunk::Removed {
                         not_done,
@@ -765,7 +761,7 @@ where
                 Some((k, v)) => (
                     Tree::create(
                         &Tree::Empty,
-                        Arc::new(Chunk::singleton(k, v)),
+                        Chunk::singleton(k, v),
                         &Tree::Empty,
                     ),
                     None,
@@ -795,7 +791,7 @@ where
                                 (Tree::concat(&tn.left, &tn.right), previous)
                             } else {
                                 (
-                                    Tree::create(&tn.left, Arc::new(elts), &tn.right),
+                                    Tree::create(&tn.left, elts, &tn.right),
                                     previous,
                                 )
                             }
@@ -818,7 +814,7 @@ where
         self.update(k, v, &mut |k, v, _| Some((k, v)))
     }
 
-    fn min_elts<'a>(&'a self) -> Option<&'a Arc<Chunk<K, V>>> {
+    fn min_elts<'a>(&'a self) -> Option<&'a CArc<Chunk<K, V>>> {
         match self {
             &Tree::Empty => None,
             &Tree::Node(ref tn) => match tn.left {
@@ -865,7 +861,7 @@ where
                     if elts.len() == 0 {
                         (Tree::concat(&tn.left, &tn.right), Some(p))
                     } else {
-                        (Tree::create(&tn.left, Arc::new(elts), &tn.right), Some(p))
+                        (Tree::create(&tn.left, elts, &tn.right), Some(p))
                     }
                 }
                 Loc::InLeft => {
@@ -942,8 +938,8 @@ where
 
 impl<K, V> Tree<K, V>
 where
-    K: Ord + Clone + Debug,
-    V: Clone + Debug,
+    K: Ord + Clone + Debug + Any,
+    V: Clone + Debug + Any,
 {
     #[allow(dead_code)]
     pub(crate) fn invariant(&self) -> () {
@@ -953,8 +949,8 @@ where
             elts: &Chunk<K, V>,
         ) -> bool
         where
-            K: Ord + Clone + Debug,
-            V: Clone + Debug,
+            K: Ord + Clone + Debug + Any,
+            V: Clone + Debug + Any,
         {
             (match lower {
                 None => true,
@@ -971,8 +967,8 @@ where
 
         fn sorted<K, V>(elts: &Chunk<K, V>) -> bool
         where
-            K: Ord + Clone + Debug,
-            V: Clone + Debug,
+            K: Ord + Clone + Debug + Any,
+            V: Clone + Debug + Any,
         {
             if elts.len() == 1 {
                 true
@@ -995,8 +991,8 @@ where
             len: usize,
         ) -> (u16, usize)
         where
-            K: Ord + Clone + Debug,
-            V: Clone + Debug,
+            K: Ord + Clone + Debug + Any,
+            V: Clone + Debug + Any,
         {
             match *t {
                 Tree::Empty => (0, len),

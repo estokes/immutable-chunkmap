@@ -13,6 +13,7 @@ edition = "2018"
 
 [dependencies]
 arrayvec = "0.4"
+cached-arc = {path = "../cached-arc"}
 
 [dev-dependencies]
 rand = ">= 0.3"
