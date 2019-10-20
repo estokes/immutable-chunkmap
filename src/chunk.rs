@@ -87,8 +87,8 @@ where
 {
     fn with_empty<F: FnOnce(&mut Chunk<K, V>) -> ()>(f: F) -> Arc<Chunk<K, V>> {
         let mut arc = Arc::new(|| Chunk {
-            keys: Vec::with_capacity(SIZE),
-            vals: Vec::with_capacity(SIZE),
+            keys: Vec::new(),
+            vals: Vec::new(),
         });
         let r = Arc::get_mut(&mut arc).unwrap();
         if r.keys.len() > 0 {
