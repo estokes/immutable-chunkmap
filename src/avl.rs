@@ -18,11 +18,11 @@ use cached_arc::Arc as CachedArc;
 // until we get 128 bit machines with exabytes of memory
 const MAX_DEPTH: usize = 64;
 
-#[derive(Clone, Debug)]
-pub(crate) struct InnerNode<K, V>
-where
+#[derive(Clone)]
+pub(crate) struct Node<K, V>
+where    
     K: Ord + Clone + Any,
-    V: Clone + Any
+    V: Clone + Any,
 {
     elts: CachedArc<Chunk<K, V>>,
     min_key: K,
@@ -33,68 +33,44 @@ where
     height: u16,
 }
 
-#[derive(Clone)]
-pub(crate) enum Node<K, V>
-where    
-    K: Ord + Clone + Any,
-    V: Clone + Any
-{
-    Leaf(CachedArc<Chunk<K, V>>),
-    Inner(Arc<InnerNode<K, V>>),
-}
-
 impl<K, V> Node<K, V>
 where
     K: Ord + Clone + Any,
     V: Clone + Any
 {
+    #[inline(always)]
     fn elts(&self) -> &CachedArc<Chunk<K, V>> {
-        match self {
-            Node::Leaf(ref c) => c,
-            Node::Inner(ref n) => &n.elts
-        }
+        &self.elts
     }
 
+    #[inline(always)]
     fn left(&self) -> &Tree<K, V> {
-        match self {
-            Node::Leaf(_) => &Tree::Empty,
-            Node::Inner(ref n) => &n.left
-        }
+        &self.left
     }
 
+    #[inline(always)]
     fn right(&self) -> &Tree<K, V> {
-        match self {
-            Node::Leaf(_) => &Tree::Empty,
-            Node::Inner(ref n) => &n.right
-        }
+        &self.right
     }
 
+    #[inline(always)]
     fn height(&self) -> u16 {
-        match self {
-            Node::Leaf(_) => 1,
-            Node::Inner(ref n) => n.height,
-        }
+        self.height
     }
 
+    #[inline(always)]
     fn min_key(&self) -> &K {
-        match self {
-            Node::Inner(ref n) => &n.min_key,
-            Node::Leaf(ref c) => c.min_key_not_empty()
-        }
+        &self.min_key
     }
 
+    #[inline(always)]
     fn max_key(&self) -> &K {
-        match self {
-            Node::Inner(ref n) => &n.max_key,
-            Node::Leaf(ref c) => c.max_key_not_empty(),
-        }
+        &self.max_key
     }
 
+    #[inline(always)]
     fn size_of_children(&self) -> usize {
-        match self {
-            Node::Leaf(_) => 0,
-            Node::Inner(ref n) => n.size_of_children
-        }
+        self.size_of_children
     }
 }
 
@@ -105,7 +81,7 @@ where
     V: Clone + Any
 {
     Empty,
-    Node(Node<K, V>),
+    Node(Arc<Node<K, V>>),
 }
 
 impl<K, V> Hash for Tree<K, V>
@@ -649,22 +625,17 @@ where
     }
 
     fn create(l: &Tree<K, V>, elts: CachedArc<Chunk<K, V>>, r: &Tree<K, V>) -> Self {
-        match (l, r) {
-            (Tree::Empty, Tree::Empty) => Tree::Node(Node::Leaf(elts)),
-            (_, _) => {
-                let (min_key, max_key) = elts.min_max_key().unwrap();
-                let n = InnerNode {
-                    elts,
-                    min_key: min_key,
-                    max_key: max_key,
-                    left: l.clone(),
-                    right: r.clone(),
-                    size_of_children: l.len() + r.len(),
-                    height: 1 + max(l.height(), r.height()),
-                };
-                Tree::Node(Node::Inner(Arc::new(n)))
-            }
-        }
+        let (min_key, max_key) = elts.min_max_key().unwrap();
+        let n = Node {
+            elts,
+            min_key: min_key,
+            max_key: max_key,
+            left: l.clone(),
+            right: r.clone(),
+            size_of_children: l.len() + r.len(),
+            height: 1 + max(l.height(), r.height()),
+        };
+        Tree::Node(Arc::new(n))
     }
 
     fn bal(l: &Tree<K, V>, elts: &CachedArc<Chunk<K, V>>, r: &Tree<K, V>) -> Self {
@@ -971,22 +942,17 @@ where
     {
         match self {
             Tree::Empty => None,
-            Tree::Node(Node::Leaf(c)) => c.get_local(k).map(|i| f(c, i)),
-            Tree::Node(Node::Inner(n)) => {
+            Tree::Node(n) => {
                 let mut tn = n;
                 loop {
                     match (k.cmp(tn.min_key.borrow()), k.cmp(tn.max_key.borrow())) {
                         (Ordering::Less, _) => match tn.left {
                             Tree::Empty => break None,
-                            Tree::Node(Node::Inner(ref n)) => tn = n,
-                            Tree::Node(Node::Leaf(ref c)) =>
-                                break c.get_local(k).map(|i| f(c, i)),
+                            Tree::Node(ref n) => tn = n,
                         },
                         (_, Ordering::Greater) => match tn.right {
                             Tree::Empty => break None,
-                            Tree::Node(Node::Inner(ref n)) => tn = n,
-                            Tree::Node(Node::Leaf(ref c)) =>
-                                break c.get_local(k).map(|i| f(c, i)),
+                            Tree::Node(ref n) => tn = n,
                         },
                         (_, _) => {
                             let e = &tn.elts;
