@@ -1,5 +1,6 @@
-use arrayvec::ArrayVec;
 use crate::chunk::{Chunk, Loc, Update, UpdateChunk, SIZE};
+use arrayvec::ArrayVec;
+use packed_struct::prelude::*;
 use std::{
     borrow::Borrow,
     cmp::{max, min, Eq, Ord, Ordering, PartialEq, PartialOrd},
@@ -18,6 +19,15 @@ use cached_arc::Arc as CachedArc;
 // until we get 128 bit machines with exabytes of memory
 const MAX_DEPTH: usize = 64;
 
+#[derive(PackedStruct, Clone, Debug)]
+#[packed_struct(bit_numbering = "msb0", endian = "lsb")]
+pub struct HeightAndSize {
+    #[packed_field(bits = "0:7")]
+    height: Integer<u8, packed_bits::Bits6>,
+    #[packed_field(bits = "8:63")]
+    size_of_children: Integer<u64, packed_bits::Bits56>,
+}
+
 #[derive(Clone)]
 pub(crate) struct Node<K, V>
 where    
@@ -29,8 +39,18 @@ where
     max_key: K,
     left: Tree<K, V>,
     right: Tree<K, V>,
-    size_of_children: usize,
-    height: u16,
+    height_and_size: [u8; 8],
+}
+
+impl<K, V> Node<K, V>
+where
+    K: Ord + Clone,
+    V: Clone,
+{
+    fn height(&self) -> u8 {
+        let has = HeightAndSize::unpack(&self.height_and_size).unwrap();
+        *has.height
+    }
 }
 
 #[derive(Clone)]
@@ -400,9 +420,10 @@ where
             (Tree::Empty, _) => r.add_min_elts(elts),
             (_, Tree::Empty) => l.add_max_elts(elts),
             (Tree::Node(ref ln), Tree::Node(ref rn)) => {
-                if ln.height > rn.height + 2 {
+                let (ln_height, rn_height) = (ln.height(), rn.height());
+                if ln_height > rn_height + 2 {
                     Tree::bal(&ln.left, &ln.elts, &Tree::join(&ln.right, elts, r))
-                } else if rn.height > ln.height + 2 {
+                } else if rn_height > ln_height + 2 {
                     Tree::bal(&Tree::join(l, elts, &rn.left), &rn.elts, &rn.right)
                 } else {
                     Tree::create(l, elts.clone(), r)
@@ -447,7 +468,7 @@ where
                     None => Some((k0, v0)),
                     Some((_, v1)) => f(&k0, &v0, v1).map(|v| (k0, v)),
                 });
-                if n.height == 1 {
+                if n.height() == 1 {
                     (Tree::Empty, to)
                 } else {
                     match n.right {
@@ -475,7 +496,7 @@ where
             (Tree::Empty, t1) => t1.clone(),
             (t0, Tree::Empty) => t0.clone(),
             (Tree::Node(ref n0), Tree::Node(ref n1)) => {
-                if n0.height > n1.height {
+                if n0.height() > n1.height() {
                     match t1.split(&n0.min_key, &n0.max_key) {
                         (_, Some(_), _) => {
                             let (t0, t1) = Tree::merge_root_to(&t0, &t1, f);
@@ -572,27 +593,36 @@ where
     pub(crate) fn len(&self) -> usize {
         match self {
             Tree::Empty => 0,
-            Tree::Node(n) => n.elts.len() + n.size_of_children,
+            Tree::Node(n) => {
+                let has = HeightAndSize::unpack(&n.height_and_size).unwrap();
+                // on a 64 bit platform usize == u64, and on a 32 bit
+                // platform there can't be enough elements to overflow
+                // a u32
+                n.elts.len() + (*has.size_of_children as usize)
+            }
         }
     }
 
-    fn height(&self) -> u16 {
+    fn height(&self) -> u8 {
         match self {
-            &Tree::Empty => 0,
-            &Tree::Node(ref n) => n.height,
+            Tree::Empty => 0,
+            Tree::Node(ref n) => n.height(),
         }
     }
 
     fn create(l: &Tree<K, V>, elts: CachedArc<Chunk<K, V>>, r: &Tree<K, V>) -> Self {
         let (min_key, max_key) = elts.min_max_key().unwrap();
+        let has = HeightAndSize {
+            height: (1 + max(l.height(), r.height())).into(),
+            size_of_children: ((l.len() + r.len()) as u64).into(),
+        };
         let n = Node {
             elts,
             min_key: min_key,
             max_key: max_key,
             left: l.clone(),
             right: r.clone(),
-            size_of_children: l.len() + r.len(),
-            height: 1 + max(l.height(), r.height()),
+            height_and_size: has.pack(),
         };
         Tree::Node(Arc::new(n))
     }
@@ -602,40 +632,44 @@ where
         if hl > hr + 1 {
             match *l {
                 Tree::Empty => panic!("tree heights wrong"),
-                Tree::Node(ref ln) => if ln.left.height() >= ln.right.height() {
-                    Tree::create(
-                        &ln.left,
-                        ln.elts.clone(),
-                        &Tree::create(&ln.right, elts.clone(), r)
-                    )
-                } else {
-                    match ln.right {
-                        Tree::Empty => panic!("tree heights wrong"),
-                        Tree::Node(ref lrn) => Tree::create(
-                            &Tree::create(&ln.left, ln.elts.clone(), &lrn.left),
-                            lrn.elts.clone(),
-                            &Tree::create(&lrn.right, elts.clone(), r),
-                        ),
+                Tree::Node(ref ln) => {
+                    if ln.left.height() >= ln.right.height() {
+                        Tree::create(
+                            &ln.left,
+                            ln.elts.clone(),
+                            &Tree::create(&ln.right, elts.clone(), r),
+                        )
+                    } else {
+                        match ln.right {
+                            Tree::Empty => panic!("tree heights wrong"),
+                            Tree::Node(ref lrn) => Tree::create(
+                                &Tree::create(&ln.left, ln.elts.clone(), &lrn.left),
+                                lrn.elts.clone(),
+                                &Tree::create(&lrn.right, elts.clone(), r),
+                            ),
+                        }
                     }
                 }
             }
         } else if hr > hl + 1 {
             match *r {
                 Tree::Empty => panic!("tree heights are wrong"),
-                Tree::Node(ref rn) => if rn.right.height() >= rn.left.height() {
-                    Tree::create(
-                        &Tree::create(l, elts.clone(), &rn.left),
-                        rn.elts.clone(),
-                        &rn.right
-                    )
-                } else {
-                    match rn.left {
-                        Tree::Empty => panic!("tree heights are wrong"),
-                        Tree::Node(ref rln) => Tree::create(
-                            &Tree::create(l, elts.clone(), &rln.left),
-                            rln.elts.clone(),
-                            &Tree::create(&rln.right, rn.elts.clone(), &rn.right),
-                        ),
+                Tree::Node(ref rn) => {
+                    if rn.right.height() >= rn.left.height() {
+                        Tree::create(
+                            &Tree::create(l, elts.clone(), &rn.left),
+                            rn.elts.clone(),
+                            &rn.right,
+                        )
+                    } else {
+                        match rn.left {
+                            Tree::Empty => panic!("tree heights are wrong"),
+                            Tree::Node(ref rln) => Tree::create(
+                                &Tree::create(l, elts.clone(), &rln.left),
+                                rln.elts.clone(),
+                                &Tree::create(&rln.right, rn.elts.clone(), &rn.right),
+                            ),
+                        }
                     }
                 }
             }
@@ -654,10 +688,11 @@ where
             return self.clone();
         }
         match self {
-            &Tree::Empty => {
-                let elts = Chunk::create_with(chunk, f);
-                Tree::create(&Tree::Empty, elts, &Tree::Empty)
-            }
+            &Tree::Empty => Tree::create(
+                &Tree::Empty,
+                Arc::new(Chunk::create_with(chunk, f)),
+                &Tree::Empty,
+            ),
             &Tree::Node(ref tn) => {
                 let leaf = match (&tn.left, &tn.right) {
                     (Tree::Empty, Tree::Empty) => true,
@@ -906,7 +941,7 @@ where
                         },
                         (_, _) => {
                             let e = &tn.elts;
-                            break e.get_local(k).map(|i| f(e, i))
+                            break e.get_local(k).map(|i| f(e, i));
                         }
                     }
                 }
@@ -992,7 +1027,7 @@ where
             lower: Option<&K>,
             upper: Option<&K>,
             len: usize,
-        ) -> (u16, usize)
+        ) -> (u8, usize)
         where
             K: Ord + Clone + Any + Debug,
             V: Clone + Any + Debug,

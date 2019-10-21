@@ -11,6 +11,7 @@ use std::{
     ops::Bound::{Excluded, Included, Unbounded},
     vec::Vec,
     any::Any,
+    sync::Arc,
 };
 
 const STRSIZE: usize = 10;
@@ -21,13 +22,13 @@ trait Rand: Sized {
     fn rand<R: Rng>(r: &mut R) -> Self;
 }
 
-impl Rand for String {
+impl Rand for Arc<String> {
     fn rand<R: Rng>(r: &mut R) -> Self {
         let mut s = String::new();
         for _ in 0..STRSIZE {
             s.push(r.gen())
         }
-        s
+        Arc::new(s)
     }
 }
 
@@ -118,7 +119,7 @@ fn test_get_int_rand() {
 
 #[test]
 fn test_get_str_rand() {
-    test_get_rand::<String>()
+    test_get_rand::<Arc<String>>()
 }
 
 fn test_insert_remove_rand<T: Hash + Ord + Clone + Debug + Rand + Any>() {
@@ -147,7 +148,7 @@ fn test_int_insert_remove_rand() {
 
 #[test]
 fn test_str_insert_remove_rand() {
-    test_insert_remove_rand::<String>()
+    test_insert_remove_rand::<Arc<String>>()
 }
 
 #[test]
@@ -253,7 +254,7 @@ fn test_int_insert_many() {
 
 #[test]
 fn test_str_insert_many() {
-    test_insert_many::<String>()
+    test_insert_many::<Arc<String>>()
 }
 
 fn test_map_rand<T: Ord + Clone + Debug + Rand + Any>() {
@@ -292,7 +293,7 @@ fn test_int_map_rand() {
 
 #[test]
 fn test_str_map_rand() {
-    test_map_rand::<String>()
+    test_map_rand::<Arc<String>>()
 }
 
 fn test_map_iter<T: Borrow<T> + Ord + Clone + Debug + Rand + Any>() {
@@ -316,7 +317,7 @@ fn test_int_map_iter() {
 
 #[test]
 fn test_string_map_iter() {
-    test_map_iter::<String>()
+    test_map_iter::<Arc<String>>()
 }
 
 #[test]
@@ -487,7 +488,7 @@ fn test_int_map_range() {
 
 #[test]
 fn test_string_map_range() {
-    test_map_range::<String>()
+    test_map_range::<Arc<String>>()
 }
 
 fn test_set<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash + Any>() {
@@ -533,7 +534,7 @@ fn test_int_set() {
 
 #[test]
 fn test_string_set() {
-    test_set::<String>()
+    test_set::<Arc<String>>()
 }
 
 #[test]
@@ -589,7 +590,7 @@ fn test_union_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash + Any>() {
 
 #[test]
 fn test_union_string() {
-    test_union_gen::<String>()
+    test_union_gen::<Arc<String>>()
 }
 
 #[test]
@@ -634,7 +635,7 @@ fn test_intersect_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash + Any>() 
 
 #[test]
 fn test_intersect_string() {
-    test_intersect_gen::<String>();
+    test_intersect_gen::<Arc<String>>();
 }
 
 #[test]
@@ -668,7 +669,7 @@ fn test_diff_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash + Any>() {
 
 #[test]
 fn test_diff_string() {
-    test_diff_gen::<String>();
+    test_diff_gen::<Arc<String>>();
 }
 
 #[test]

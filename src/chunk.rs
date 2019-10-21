@@ -247,21 +247,21 @@ where
                                 }
                             }
                         }
-                        Loc::NotPresent(i) => {
-                            if elts.len() < SIZE {
-                                if let Some((k, v)) = f(q, d, None) {
-                                    elts.keys.insert(i, k);
-                                    elts.vals.insert(i, v);
-                                }
-                            } else {
-                                if let Some((k, v)) = f(q, d, None) {
-                                    overflow_right.push((
-                                        elts.keys.pop().unwrap(),
-                                        elts.vals.pop().unwrap(),
-                                    ));
-                                    elts.keys.insert(i, k);
-                                    elts.vals.insert(i, v);
-                                }
+                    }
+                    Loc::NotPresent(i) => {
+                        if elts.len() < SIZE {
+                            if let Some((k, v)) = f(q, d, None) {
+                                elts.keys.insert(i, k);
+                                elts.vals.insert(i, v);
+                            }
+                        } else {
+                            if let Some((k, v)) = f(q, d, None) {
+                                overflow_right.push((
+                                    elts.keys.pop().unwrap(),
+                                    elts.vals.pop().unwrap(),
+                                ));
+                                elts.keys.insert(i, k);
+                                elts.vals.insert(i, v);
                             }
                         }
                         Loc::InLeft => {
@@ -273,16 +273,18 @@ where
                             } else {
                                 update_left.push((q, d))
                             }
+                        } else {
+                            update_left.push((q, d))
                         }
-                        Loc::InRight => {
-                            if leaf && elts.len() < SIZE {
-                                if let Some((k, v)) = f(q, d, None) {
-                                    elts.keys.push(k);
-                                    elts.vals.push(v);
-                                }
-                            } else {
-                                update_right.push((q, d))
+                    }
+                    Loc::InRight => {
+                        if leaf && elts.len() < SIZE {
+                            if let Some((k, v)) = f(q, d, None) {
+                                elts.keys.push(k);
+                                elts.vals.push(v);
                             }
+                        } else {
+                            update_right.push((q, d))
                         }
                     }
                 }
