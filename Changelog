@@ -1,3 +1,9 @@
+0.5.6
+* packed the height and len into 1 word, which reduced the size of
+  nodes by 1 word, and gets us a 1-2% (depending on tree size)
+  improvement in lookup times. Tree length is now limited to 2^56
+  elements.
+
 0.5.5
 * small performance optimizations update operations
 
