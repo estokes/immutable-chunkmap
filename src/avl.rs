@@ -44,8 +44,8 @@ where
 
 impl<K, V> InnerNode<K, V>
 where
-    K: Ord + Clone,
-    V: Clone,
+    K: Ord + Clone + Any,
+    V: Clone + Any,
 {
     #[inline(always)]
     fn height(&self) -> u8 {
@@ -103,7 +103,7 @@ where
     fn height(&self) -> u8 {
         match self {
             Node::Leaf(_) => 1,
-            Node::Inner(ref n) => n.height,
+            Node::Inner(ref n) => n.height(),
         }
     }
 
@@ -127,7 +127,7 @@ where
     fn size_of_children(&self) -> usize {
         match self {
             Node::Leaf(_) => 0,
-            Node::Inner(ref n) => n.size_of_children
+            Node::Inner(ref n) => n.size_of_children()
         }
     }
 }
@@ -772,7 +772,7 @@ where
                     (&Tree::Empty, &Tree::Empty) => true,
                     (_, _) => false,
                 };
-                match tn.elts.update_chunk(chunk, leaf, f) {
+                match Chunk::update_chunk(tn.elts(), chunk, leaf, f) {
                     UpdateChunk::Updated {
                         elts,
                         update_left,
