@@ -1,3 +1,12 @@
+0.5.6
+* packed the height and length together, which reduced the size of
+  nodes by 1 word. That reduction gets us a 1-2% improvement in
+  lookup times (more benefit for larger trees). Tree length is now
+  limited to 2^56 elements instead of usize::MAX elements.
+
+* made the tests run faster by wrapping strings in Arcs, which is
+  closer to how you'd use them in a real program anyway.
+
 0.5.5
 * small performance optimizations update operations
 

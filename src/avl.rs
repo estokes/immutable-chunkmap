@@ -1,5 +1,6 @@
-use arrayvec::ArrayVec;
 use crate::chunk::{Chunk, Loc, Update, UpdateChunk, SIZE};
+use arrayvec::ArrayVec;
+use packed_struct::prelude::*;
 use std::{
     borrow::Borrow,
     cmp::{max, min, Eq, Ord, Ordering, PartialEq, PartialOrd},
@@ -18,6 +19,15 @@ use cached_arc::Arc as CachedArc;
 // until we get 128 bit machines with exabytes of memory
 const MAX_DEPTH: usize = 64;
 
+#[derive(PackedStruct, Clone, Debug)]
+#[packed_struct(bit_numbering = "msb0", endian = "lsb")]
+pub struct HeightAndSize {
+    #[packed_field(bits = "0:7")]
+    height: Integer<u8, packed_bits::Bits6>,
+    #[packed_field(bits = "8:63")]
+    size_of_children: Integer<u64, packed_bits::Bits56>,
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct InnerNode<K, V>
 where
@@ -29,8 +39,25 @@ where
     max_key: K,
     left: Tree<K, V>,
     right: Tree<K, V>,
-    size_of_children: usize,
-    height: u16,
+    height_and_size: [u8; 8],
+}
+
+impl<K, V> InnerNode<K, V>
+where
+    K: Ord + Clone,
+    V: Clone,
+{
+    #[inline(always)]
+    fn height(&self) -> u8 {
+        let has = HeightAndSize::unpack(&self.height_and_size).unwrap();
+        *has.height
+    }
+
+    #[inline(always)]
+    fn size_of_children(&self) -> usize {
+        let has = HeightAndSize::unpack(&self.height_and_size).unwrap();
+        *has.size_of_children as usize
+    }
 }
 
 #[derive(Clone)]
@@ -48,6 +75,7 @@ where
     K: Ord + Clone + Any,
     V: Clone + Any
 {
+    #[inline(always)]
     fn elts(&self) -> &CachedArc<Chunk<K, V>> {
         match self {
             Node::Leaf(ref c) => c,
@@ -55,6 +83,7 @@ where
         }
     }
 
+    #[inline(always)]
     fn left(&self) -> &Tree<K, V> {
         match self {
             Node::Leaf(_) => &Tree::Empty,
@@ -62,6 +91,7 @@ where
         }
     }
 
+    #[inline(always)]
     fn right(&self) -> &Tree<K, V> {
         match self {
             Node::Leaf(_) => &Tree::Empty,
@@ -69,13 +99,15 @@ where
         }
     }
 
-    fn height(&self) -> u16 {
+    #[inline(always)]
+    fn height(&self) -> u8 {
         match self {
             Node::Leaf(_) => 1,
             Node::Inner(ref n) => n.height,
         }
     }
 
+    #[inline(always)]
     fn min_key(&self) -> &K {
         match self {
             Node::Inner(ref n) => &n.min_key,
@@ -83,6 +115,7 @@ where
         }
     }
 
+    #[inline(always)]
     fn max_key(&self) -> &K {
         match self {
             Node::Inner(ref n) => &n.max_key,
@@ -90,6 +123,7 @@ where
         }
     }
 
+    #[inline(always)]
     fn size_of_children(&self) -> usize {
         match self {
             Node::Leaf(_) => 0,
@@ -465,9 +499,10 @@ where
             (Tree::Empty, _) => r.add_min_elts(elts),
             (_, Tree::Empty) => l.add_max_elts(elts),
             (Tree::Node(ref ln), Tree::Node(ref rn)) => {
-                if ln.height() > rn.height() + 2 {
+                let (ln_height, rn_height) = (ln.height(), rn.height());
+                if ln_height > rn_height + 2 {
                     Tree::bal(ln.left(), ln.elts(), &Tree::join(ln.right(), elts, r))
-                } else if rn.height() > ln.height() + 2 {
+                } else if rn_height > ln_height + 2 {
                     Tree::bal(&Tree::join(l, elts, rn.left()), rn.elts(), rn.right())
                 } else {
                     Tree::create(l, elts.clone(), r)
@@ -641,7 +676,7 @@ where
         }
     }
 
-    fn height(&self) -> u16 {
+    fn height(&self) -> u8 {
         match self {
             &Tree::Empty => 0,
             &Tree::Node(ref n) => n.height(),
@@ -653,14 +688,17 @@ where
             (Tree::Empty, Tree::Empty) => Tree::Node(Node::Leaf(elts)),
             (_, _) => {
                 let (min_key, max_key) = elts.min_max_key().unwrap();
+                let has = HeightAndSize {
+                    height: (1 + max(l.height(), r.height())).into(),
+                    size_of_children: ((l.len() + r.len()) as u64).into(),
+                };
                 let n = InnerNode {
                     elts,
                     min_key: min_key,
                     max_key: max_key,
                     left: l.clone(),
                     right: r.clone(),
-                    size_of_children: l.len() + r.len(),
-                    height: 1 + max(l.height(), r.height()),
+                    height_and_size: has.pack(),
                 };
                 Tree::Node(Node::Inner(Arc::new(n)))
             }
@@ -724,25 +762,17 @@ where
             return self.clone();
         }
         match self {
-            &Tree::Empty => {
-                let elts = match Chunk::update_chunk(None, chunk, true, f) {
-                    UpdateChunk::Created(elts) => elts,
-                    UpdateChunk::Removed { .. } => unreachable!(),
-                    UpdateChunk::Updated { .. } => unreachable!(),
-                    UpdateChunk::UpdateLeft(_) => unreachable!(),
-                    UpdateChunk::UpdateRight(_) => unreachable!(),
-                };
-                Tree::create(&Tree::Empty, elts, &Tree::Empty)
-            }
+            &Tree::Empty => Tree::create(
+                &Tree::Empty,
+                Chunk::create_with(chunk, f),
+                &Tree::Empty,
+            ),
             &Tree::Node(ref tn) => {
                 let leaf = match (tn.left(), tn.right()) {
                     (&Tree::Empty, &Tree::Empty) => true,
                     (_, _) => false,
                 };
-                match Chunk::update_chunk(Some(tn.elts()), chunk, leaf, f) {
-                    UpdateChunk::Created(elts) => {
-                        Tree::create(tn.left(), elts, tn.right())
-                    }
+                match tn.elts.update_chunk(chunk, leaf, f) {
                     UpdateChunk::Updated {
                         elts,
                         update_left,
@@ -990,7 +1020,7 @@ where
                         },
                         (_, _) => {
                             let e = &tn.elts;
-                            break e.get_local(k).map(|i| f(e, i))
+                            break e.get_local(k).map(|i| f(e, i));
                         }
                     }
                 }
@@ -1076,7 +1106,7 @@ where
             lower: Option<&K>,
             upper: Option<&K>,
             len: usize,
-        ) -> (u16, usize)
+        ) -> (u8, usize)
         where
             K: Ord + Clone + Any + Debug,
             V: Clone + Any + Debug,
