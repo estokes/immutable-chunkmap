@@ -44,8 +44,8 @@ where
 
 impl<K, V> Node<K, V>
 where
-    K: Ord + Clone,
-    V: Clone,
+    K: Ord + Clone + Any,
+    V: Clone + Any,
 {
     fn height(&self) -> u8 {
         let has = HeightAndSize::unpack(&self.height_and_size).unwrap();
@@ -690,7 +690,7 @@ where
         match self {
             &Tree::Empty => Tree::create(
                 &Tree::Empty,
-                Arc::new(Chunk::create_with(chunk, f)),
+                Chunk::create_with(chunk, f),
                 &Tree::Empty,
             ),
             &Tree::Node(ref tn) => {

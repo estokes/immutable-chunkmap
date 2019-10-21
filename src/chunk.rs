@@ -169,8 +169,8 @@ where
     ) -> UpdateChunk<Q, K, V, D>
     where
         Q: Ord,
-        K: Borrow<Q>,
-        F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
+    K: Borrow<Q>,
+    F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
     {
         assert!(chunk.len() <= SIZE && chunk.len() > 0 && t.len() > 0);
         let full = !leaf || t.len() >= SIZE;
@@ -247,21 +247,21 @@ where
                                 }
                             }
                         }
-                    }
-                    Loc::NotPresent(i) => {
-                        if elts.len() < SIZE {
-                            if let Some((k, v)) = f(q, d, None) {
-                                elts.keys.insert(i, k);
-                                elts.vals.insert(i, v);
-                            }
-                        } else {
-                            if let Some((k, v)) = f(q, d, None) {
-                                overflow_right.push((
-                                    elts.keys.pop().unwrap(),
-                                    elts.vals.pop().unwrap(),
-                                ));
-                                elts.keys.insert(i, k);
-                                elts.vals.insert(i, v);
+                        Loc::NotPresent(i) => {
+                            if elts.len() < SIZE {
+                                if let Some((k, v)) = f(q, d, None) {
+                                    elts.keys.insert(i, k);
+                                    elts.vals.insert(i, v);
+                                }
+                            } else {
+                                if let Some((k, v)) = f(q, d, None) {
+                                    overflow_right.push((
+                                        elts.keys.pop().unwrap(),
+                                        elts.vals.pop().unwrap(),
+                                    ));
+                                    elts.keys.insert(i, k);
+                                    elts.vals.insert(i, v);
+                                }
                             }
                         }
                         Loc::InLeft => {
@@ -273,18 +273,16 @@ where
                             } else {
                                 update_left.push((q, d))
                             }
-                        } else {
-                            update_left.push((q, d))
                         }
-                    }
-                    Loc::InRight => {
-                        if leaf && elts.len() < SIZE {
-                            if let Some((k, v)) = f(q, d, None) {
-                                elts.keys.push(k);
-                                elts.vals.push(v);
+                        Loc::InRight => {
+                            if leaf && elts.len() < SIZE {
+                                if let Some((k, v)) = f(q, d, None) {
+                                    elts.keys.push(k);
+                                    elts.vals.push(v);
+                                }
+                            } else {
+                                update_right.push((q, d))
                             }
-                        } else {
-                            update_right.push((q, d))
                         }
                     }
                 }
