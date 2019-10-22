@@ -90,12 +90,21 @@ thread_local! {
         RefCell::new(HashMap::new());
 }
 
+// Why This is Safe.
+//
+// 1. We clear the chunks when they are inserted into the cache.
+//    a. so we drop all user supplied data exactly when it would
+//       be dropped in the absence of caching.
+//    b. and we don't hold onto any references which might become
+//       invalid while the element is cached.
+// 2. We use discriminants to guarantee that chunks we get from
+//    the cache are isomorphic to the requested Chunk<K, V> type.
+//    a. The key determinant of isomorphism between different Chunk
+//       types is the size of the K and V types.
+//       Any two Chunk<A, B> and Chunk<X, Y>
+//       where size_of(A) == size_of(X) && size_of(B) == size_of(Y)
+//       are isomorphic provided they are empty.
 unsafe impl<K: Ord + Clone, V: Clone> Cacheable for Chunk<K, V> {
-    // The key determinant of compatibility between different Chunk
-    // types is the size of the K and V types.
-    // Any two Chunk<A, B> and Chunk<X, Y>
-    // where size_of(A) == size_of(X) && size_of(B) == size_of(Y)
-    // are entirely interchangable provided they are both empty.
     fn type_id() -> Discriminant {
         DISCRIMINANT_TABLE.with(|dtbl| {
             let mut dtbl = dtbl.borrow_mut();
@@ -126,10 +135,6 @@ where
             vals: ArrayVec::new(),
         });
         let arc_ref = Arc::get_mut(&mut arc).unwrap();
-        if arc_ref.keys.len() > 0 {
-            arc_ref.keys.clear();
-            arc_ref.vals.clear();
-        }
         f(arc_ref);
         arc
     }
