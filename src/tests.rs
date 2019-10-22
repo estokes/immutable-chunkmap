@@ -419,10 +419,14 @@ fn test_map_range_small() {
     }
 }
 
-fn test_map_range<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
-    let mut v = randvec::<T>(SIZE);
-    let mut t: Map<T, T> = Map::new();
-    t = t.insert_many(v.iter().map(|x| (x.clone(), x.clone())));
+fn test_map_range_gen<K, V>()
+where
+    K: Ord + Clone + Debug + Rand + Hash,
+    V: Ord + Clone + Debug + Rand + Hash,
+{
+    let mut v = randvec::<(K, V)>(SIZE);
+    let mut t: Map<K, V> = Map::new();
+    t = t.insert_many(v.iter().map(|(k, v)| (k.clone(), v.clone())));
     t.invariant();
     v.sort_unstable();
     v.dedup();
@@ -448,11 +452,12 @@ fn test_map_range<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
     );
     {
         let mut i = start;
-        let lbound = Included(v[i].clone());
-        let ubound = Excluded(v[end].clone());
-        for (k0, k1) in t.range(lbound, ubound) {
-            assert_eq!(k0, k1);
-            assert_eq!(k0, &v[i]);
+        let lbound = Included(v[i].0.clone());
+        let ubound = Excluded(v[end].0.clone());
+        for (k, v) in t.range(lbound, ubound) {
+            let (k_, v_) = v[i].as_ref();
+            assert_eq!(k, k_);
+            assert_eq!(v, v_);
             assert!(i < end);
             i += 1;
         }
@@ -460,11 +465,12 @@ fn test_map_range<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
     }
     {
         let mut i = start;
-        let lbound = Excluded(v[i].clone());
-        let ubound = Included(v[end].clone());
-        for (k0, k1) in t.range(lbound, ubound) {
-            assert_eq!(k0, k1);
-            assert_eq!(k0, &v[i + 1]);
+        let lbound = Excluded(v[i].0.clone());
+        let ubound = Included(v[end].0.clone());
+        for (k, v) in t.range(lbound, ubound) {
+            let (k_, v_) = v[i].as_ref();
+            assert_eq!(k, k_);
+            assert_eq!(v, v_);
             assert!(i < end);
             i += 1;
         }
@@ -473,10 +479,11 @@ fn test_map_range<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
     {
         let mut i = 0;
         let lbound = Unbounded;
-        let ubound = Excluded(v[end].clone());
-        for (k0, k1) in t.range(lbound, ubound) {
-            assert_eq!(k0, k1);
-            assert_eq!(k0, &v[i]);
+        let ubound = Excluded(v[end].0.clone());
+        for (k, v) in t.range(lbound, ubound) {
+            let (k_, v_) = v[i].as_ref();
+            assert_eq!(k, k_);
+            assert_eq!(v, v_);
             assert!(i < end);
             i += 1;
         }
@@ -484,12 +491,13 @@ fn test_map_range<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
     }
     {
         let mut i = end - 1;
-        let lbound = Included(v[start].clone());
-        let ubound = Excluded(v[end].clone());
+        let lbound = Included(v[start].0.clone());
+        let ubound = Excluded(v[end].0.clone());
         let mut r = t.range(lbound, ubound);
-        while let Some((k0, k1)) = r.next_back() {
-            assert_eq!(k0, k1);
-            assert_eq!(k0, &v[i]);
+        while let Some((k, v)) = r.next_back() {
+            let (k_, v_) = v[i].as_ref();
+            assert_eq!(k, k_);
+            assert_eq!(v, v_);
             assert!(i >= start);
             i -= 1;
         }
@@ -498,31 +506,11 @@ fn test_map_range<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
 }
 
 #[test]
-fn test_int_map_range() {
-    test_map_range::<i32>()
+fn test_map_range() {
+    make_tests!(test_map_range_gen);
 }
 
-#[test]
-fn test_string_map_range() {
-    test_map_range::<Arc<String>>()
-}
-
-#[test]
-fn test_string_pair_map_range() {
-    test_map_range::<(Arc<String>, Arc<String>)>()
-}
-
-#[test]
-fn test_i32_string_pair_map_range() {
-    test_map_range::<(i32, Arc<String>)>()
-}
-
-#[test]
-fn test_usize_pair_map_range() {
-    test_map_range::<(usize, usize)>()
-}
-
-fn test_set<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
+fn test_set_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
     let mut v = randvec::<T>(SIZE);
     dedup(&mut v);
     let mut t = Set::new();
@@ -559,28 +547,12 @@ fn test_set<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
 }
 
 #[test]
-fn test_int_set() {
-    test_set::<i32>()
-}
-
-#[test]
-fn test_string_set() {
-    test_set::<Arc<String>>()
-}
-
-#[test]
-fn test_string_pair_set() {
-    test_set::<(Arc<String>, Arc<String>)>()
-}
-
-#[test]
-fn test_i32_string_pair_set() {
-    test_set::<(i32, Arc<String>)>()
-}
-
-#[test]
-fn test_usize_pair_set() {
-    test_set::<(usize, usize)>()
+fn test_set() {
+    test_set_gen::<i32>();
+    test_set_gen::<usize>();
+    test_set_gen::<Arc<String>>();
+    test_set_gen::<(i32, Arc<String>)>();
+    test_set_gen::<(usize, usize)>();
 }
 
 #[test]
