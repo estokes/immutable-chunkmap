@@ -223,7 +223,7 @@ where
     }
     {
         let mut i = 0;
-        for (k, v) in &v {
+        for (k, _) in &v {
             if i % CHECK == 0 {
                 t = t.remove(k).0;
                 t.invariant();
@@ -279,15 +279,15 @@ where
     K: Ord + Clone + Debug + Rand + Hash,
     V: Ord + Clone + Debug + Rand + Hash,
 {
-    let v = randvec::<(K, V)>(SIZE);
+    let vals = randvec::<(K, V)>(SIZE);
     let mut t = Map::new();
     let mut i = 0;
-    for (k, v) in &v {
+    for (k, v) in &vals {
         t = t.insert(k.clone(), v.clone()).0;
         assert_eq!(t.get(k).unwrap(), v);
         if i % CHECK == 0 {
             t.invariant();
-            for (k, v) in &v[0..i] {
+            for (k, v) in &vals[0..i] {
                 assert_eq!(t.get(k).unwrap(), v);
             }
         }
@@ -295,11 +295,11 @@ where
     }
 
     i = 0;
-    for (k, v) in &v {
+    for (k, _) in &vals {
         t = t.remove(k).0;
         if i % CHECK == 0 {
             t.invariant();
-            for (k, _) in &v[0..i] {
+            for (k, _) in &vals[0..i] {
                 assert_eq!(t.get(k), Option::None);
             }
         }
@@ -317,14 +317,14 @@ where
     K: Ord + Clone + Debug + Rand + Hash,
     V: Ord + Clone + Debug + Rand + Hash,
 {
-    let mut v = randvec::<(K, V)>(SIZE);
-    let t = Map::new().insert_many(v.iter().cloned());
+    let mut vals = randvec::<(K, V)>(SIZE);
+    let t = Map::new().insert_many(vals.iter().cloned());
     t.invariant();
-    v.sort_unstable();
-    v.dedup();
+    vals.sort_unstable();
+    vals.dedup();
     let mut i = 0;
     for (k, v) in &t {
-        let (k_, v_) = v[i].as_ref();
+        let (k_, v_) = (&vals[i].0, &vals[i].1);
         assert_eq!(k, k_);
         assert_eq!(v, v_);
         i = i + 1;
@@ -424,12 +424,12 @@ where
     K: Ord + Clone + Debug + Rand + Hash,
     V: Ord + Clone + Debug + Rand + Hash,
 {
-    let mut v = randvec::<(K, V)>(SIZE);
+    let mut vals = randvec::<(K, V)>(SIZE);
     let mut t: Map<K, V> = Map::new();
-    t = t.insert_many(v.iter().map(|(k, v)| (k.clone(), v.clone())));
+    t = t.insert_many(vals.iter().map(|(k, v)| (k.clone(), v.clone())));
     t.invariant();
-    v.sort_unstable();
-    v.dedup();
+    vals.sort_unstable();
+    vals.dedup();
     let (start, end) = loop {
         let mut r = rand::thread_rng();
         let i = r.gen_range(0, SIZE - 1);
@@ -445,17 +445,17 @@ where
     println!(
         "start: {:?}:{:?} end {:?}:{:?} len {:?}",
         start,
-        v[start],
+        vals[start],
         end,
-        v[end],
-        v.len()
+        vals[end],
+        vals.len()
     );
     {
         let mut i = start;
-        let lbound = Included(v[i].0.clone());
-        let ubound = Excluded(v[end].0.clone());
+        let lbound = Included(vals[i].0.clone());
+        let ubound = Excluded(vals[end].0.clone());
         for (k, v) in t.range(lbound, ubound) {
-            let (k_, v_) = v[i].as_ref();
+            let (k_, v_) = (&vals[i].0, &vals[i].1);
             assert_eq!(k, k_);
             assert_eq!(v, v_);
             assert!(i < end);
@@ -465,10 +465,10 @@ where
     }
     {
         let mut i = start;
-        let lbound = Excluded(v[i].0.clone());
-        let ubound = Included(v[end].0.clone());
+        let lbound = Excluded(vals[i].0.clone());
+        let ubound = Included(vals[end].0.clone());
         for (k, v) in t.range(lbound, ubound) {
-            let (k_, v_) = v[i].as_ref();
+            let (k_, v_) = (&vals[i].0, &vals[i].1);
             assert_eq!(k, k_);
             assert_eq!(v, v_);
             assert!(i < end);
@@ -479,9 +479,9 @@ where
     {
         let mut i = 0;
         let lbound = Unbounded;
-        let ubound = Excluded(v[end].0.clone());
+        let ubound = Excluded(vals[end].0.clone());
         for (k, v) in t.range(lbound, ubound) {
-            let (k_, v_) = v[i].as_ref();
+            let (k_, v_) = (&vals[i].0, &vals[i].1);
             assert_eq!(k, k_);
             assert_eq!(v, v_);
             assert!(i < end);
@@ -491,11 +491,11 @@ where
     }
     {
         let mut i = end - 1;
-        let lbound = Included(v[start].0.clone());
-        let ubound = Excluded(v[end].0.clone());
+        let lbound = Included(vals[start].0.clone());
+        let ubound = Excluded(vals[end].0.clone());
         let mut r = t.range(lbound, ubound);
         while let Some((k, v)) = r.next_back() {
-            let (k_, v_) = v[i].as_ref();
+            let (k_, v_) = (&vals[i].0, &vals[i].1);
             assert_eq!(k, k_);
             assert_eq!(v, v_);
             assert!(i >= start);
