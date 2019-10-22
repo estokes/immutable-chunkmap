@@ -12,7 +12,6 @@ use std::{
     ops::{Bound, Index},
     slice,
     sync::Arc,
-    any::Any,
 };
 use cached_arc::Arc as CachedArc;
 
@@ -31,8 +30,8 @@ pub struct HeightAndSize {
 #[derive(Clone)]
 pub(crate) struct Node<K, V>
 where    
-    K: Ord + Clone + Any,
-    V: Clone + Any,
+    K: Ord + Clone,
+    V: Clone,
 {
     elts: CachedArc<Chunk<K, V>>,
     min_key: K,
@@ -44,8 +43,8 @@ where
 
 impl<K, V> Node<K, V>
 where
-    K: Ord + Clone + Any,
-    V: Clone + Any,
+    K: Ord + Clone,
+    V: Clone,
 {
     fn height(&self) -> u8 {
         let has = HeightAndSize::unpack(&self.height_and_size).unwrap();
@@ -56,8 +55,8 @@ where
 #[derive(Clone)]
 pub(crate) enum Tree<K, V>
 where
-    K: Ord + Clone + Any,
-    V: Clone + Any
+    K: Ord + Clone,
+    V: Clone
 {
     Empty,
     Node(Arc<Node<K, V>>),
@@ -65,8 +64,8 @@ where
 
 impl<K, V> Hash for Tree<K, V>
 where
-    K: Hash + Ord + Clone + Any,
-    V: Hash + Clone + Any,
+    K: Hash + Ord + Clone,
+    V: Hash + Clone,
 {
     fn hash<H: Hasher>(&self, state: &mut H) {
         for elt in self {
@@ -77,8 +76,8 @@ where
 
 impl<K, V> Default for Tree<K, V>
 where
-    K: Ord + Clone + Any,
-    V: Clone + Any,
+    K: Ord + Clone,
+    V: Clone,
 {
     fn default() -> Tree<K, V> {
         Tree::Empty
@@ -87,8 +86,8 @@ where
 
 impl<K, V> PartialEq for Tree<K, V>
 where
-    K: PartialEq + Ord + Clone + Any,
-    V: PartialEq + Clone + Any,
+    K: PartialEq + Ord + Clone,
+    V: PartialEq + Clone,
 {
     fn eq(&self, other: &Tree<K, V>) -> bool {
         self.len() == other.len() && self.into_iter().zip(other).all(|(e0, e1)| e0 == e1)
@@ -97,15 +96,15 @@ where
 
 impl<K, V> Eq for Tree<K, V>
 where
-    K: Eq + Ord + Clone + Any,
-    V: Eq + Clone + Any,
+    K: Eq + Ord + Clone,
+    V: Eq + Clone,
 {
 }
 
 impl<K, V> PartialOrd for Tree<K, V>
 where
-    K: Ord + Clone + Any,
-    V: PartialOrd + Clone + Any,
+    K: Ord + Clone,
+    V: PartialOrd + Clone,
 {
     fn partial_cmp(&self, other: &Tree<K, V>) -> Option<Ordering> {
         self.into_iter().partial_cmp(other.into_iter())
@@ -114,8 +113,8 @@ where
 
 impl<K, V> Ord for Tree<K, V>
 where
-    K: Ord + Clone + Any,
-    V: Ord + Clone + Any,
+    K: Ord + Clone,
+    V: Ord + Clone,
 {
     fn cmp(&self, other: &Tree<K, V>) -> Ordering {
         self.into_iter().cmp(other.into_iter())
@@ -124,8 +123,8 @@ where
 
 impl<K, V> Debug for Tree<K, V>
 where
-    K: Debug + Ord + Clone + Any,
-    V: Debug + Clone + Any,
+    K: Debug + Ord + Clone,
+    V: Debug + Clone,
 {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         f.debug_map().entries(self.into_iter()).finish()
@@ -135,8 +134,8 @@ where
 impl<'a, Q, K, V> Index<&'a Q> for Tree<K, V>
 where
     Q: Ord,
-    K: Ord + Clone + Borrow<Q> + Any,
-    V: Clone + Any,
+    K: Ord + Clone + Borrow<Q>,
+    V: Clone,
 {
     type Output = V;
     fn index(&self, k: &Q) -> &V {
@@ -147,8 +146,8 @@ where
 pub struct Iter<'a, Q, K, V>
 where
     Q: Ord,
-    K: Borrow<Q> + Ord + Clone + Any,
-    V: Clone + Any,
+    K: Borrow<Q> + Ord + Clone,
+    V: Clone,
 {
     ubound: Bound<Q>,
     lbound: Bound<Q>,
@@ -163,8 +162,8 @@ where
 impl<'a, Q, K, V> Iter<'a, Q, K, V>
 where
     Q: Ord,
-    K: Borrow<Q> + Ord + Clone + Any,
-    V: Clone + Any,
+    K: Borrow<Q> + Ord + Clone,
+    V: Clone,
 {
     // is at least one element of the chunk in bounds
     fn any_elts_above_lbound(&self, n: &'a Node<K, V>) -> bool {
@@ -211,8 +210,8 @@ where
 impl<'a, Q, K, V> Iterator for Iter<'a, Q, K, V>
 where
     Q: Ord,
-    K: Borrow<Q> + Ord + Clone + Any,
-    V: Clone + Any,
+    K: Borrow<Q> + Ord + Clone,
+    V: Clone,
 {
     type Item = (&'a K, &'a V);
     fn next(&mut self) -> Option<Self::Item> {
@@ -275,8 +274,8 @@ where
 impl<'a, Q, K, V> DoubleEndedIterator for Iter<'a, Q, K, V>
 where
     Q: Ord,
-    K: Borrow<Q> + Ord + Clone + Any,
-    V: Clone + Any,
+    K: Borrow<Q> + Ord + Clone,
+    V: Clone,
 {
     fn next_back(&mut self) -> Option<Self::Item> {
         loop {
@@ -337,8 +336,8 @@ where
 
 impl<'a, K, V> IntoIterator for &'a Tree<K, V>
 where
-    K: Borrow<K> + Ord + Clone + Any,
-    V: Clone + Any,
+    K: Borrow<K> + Ord + Clone,
+    V: Clone,
 {
     type Item = (&'a K, &'a V);
     type IntoIter = Iter<'a, K, K, V>;
@@ -349,8 +348,8 @@ where
 
 impl<K, V> Tree<K, V>
 where
-    K: Ord + Clone + Any,
-    V: Clone + Any,
+    K: Ord + Clone,
+    V: Clone,
 {
     pub(crate) fn new() -> Self {
         Tree::Empty
@@ -976,8 +975,8 @@ where
 
 impl<K, V> Tree<K, V>
 where
-    K: Ord + Clone + Any + Debug,
-    V: Clone + Any + Debug,
+    K: Ord + Clone + Debug,
+    V: Clone + Debug,
 {
     #[allow(dead_code)]
     pub(crate) fn invariant(&self) -> () {
@@ -987,8 +986,8 @@ where
             elts: &Chunk<K, V>,
         ) -> bool
         where
-            K: Ord + Clone + Any + Debug,
-            V: Clone + Any + Debug,
+            K: Ord + Clone + Debug,
+            V: Clone + Debug,
         {
             (match lower {
                 None => true,
@@ -1005,8 +1004,8 @@ where
 
         fn sorted<K, V>(elts: &Chunk<K, V>) -> bool
         where
-            K: Ord + Clone + Any + Debug,
-            V: Clone + Any + Debug,
+            K: Ord + Clone + Debug,
+            V: Clone + Debug,
         {
             if elts.len() == 1 {
                 true
@@ -1029,8 +1028,8 @@ where
             len: usize,
         ) -> (u8, usize)
         where
-            K: Ord + Clone + Any + Debug,
-            V: Clone + Any + Debug,
+            K: Ord + Clone + Debug,
+            V: Clone + Debug,
         {
             match *t {
                 Tree::Empty => (0, len),

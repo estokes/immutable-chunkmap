@@ -7,7 +7,6 @@ use std::{
     hash::{Hash, Hasher},
     iter::FromIterator,
     ops::Bound,
-    any::Any,
 };
 /// This set uses a similar strategy to BTreeSet to ensure cache
 /// efficient performance on modern hardware while still providing
@@ -31,11 +30,11 @@ use std::{
 /// for k in &m { println!("{}", k) }
 /// ```
 #[derive(Clone)]
-pub struct Set<K: Ord + Clone + Any>(Tree<K, ()>);
+pub struct Set<K: Ord + Clone>(Tree<K, ()>);
 
 impl<K> Hash for Set<K>
 where
-    K: Hash + Ord + Clone + Any,
+    K: Hash + Ord + Clone,
 {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.hash(state)
@@ -44,7 +43,7 @@ where
 
 impl<K> Default for Set<K>
 where
-    K: Ord + Clone + Any,
+    K: Ord + Clone,
 {
     fn default() -> Set<K> {
         Set::new()
@@ -53,18 +52,18 @@ where
 
 impl<K> PartialEq for Set<K>
 where
-    K: Ord + Clone + Any,
+    K: Ord + Clone,
 {
     fn eq(&self, other: &Set<K>) -> bool {
         self.0 == other.0
     }
 }
 
-impl<K> Eq for Set<K> where K: Eq + Ord + Clone + Any {}
+impl<K> Eq for Set<K> where K: Eq + Ord + Clone {}
 
 impl<K> PartialOrd for Set<K>
 where
-    K: Ord + Clone + Any,
+    K: Ord + Clone,
 {
     fn partial_cmp(&self, other: &Set<K>) -> Option<Ordering> {
         self.0.partial_cmp(&other.0)
@@ -73,7 +72,7 @@ where
 
 impl<K> Ord for Set<K>
 where
-    K: Ord + Clone + Any,
+    K: Ord + Clone,
 {
     fn cmp(&self, other: &Set<K>) -> Ordering {
         self.0.cmp(&other.0)
@@ -82,7 +81,7 @@ where
 
 impl<K> Debug for Set<K>
 where
-    K: Debug + Ord + Clone + Any,
+    K: Debug + Ord + Clone,
 {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         f.debug_set().entries(self.into_iter()).finish()
@@ -91,19 +90,19 @@ where
 
 impl<K> FromIterator<K> for Set<K>
 where
-    K: Ord + Clone + Any,
+    K: Ord + Clone,
 {
     fn from_iter<T: IntoIterator<Item = K>>(iter: T) -> Self {
         Set::new().insert_many(iter)
     }
 }
 
-pub struct SetIter<'a, Q: Ord, K: Clone + Ord + Borrow<Q> + Any>(Iter<'a, Q, K, ()>);
+pub struct SetIter<'a, Q: Ord, K: Clone + Ord + Borrow<Q>>(Iter<'a, Q, K, ()>);
 
 impl<'a, Q, K> Iterator for SetIter<'a, Q, K>
 where
     Q: Ord,
-    K: Clone + Ord + Borrow<Q> + Any,
+    K: Clone + Ord + Borrow<Q>,
 {
     type Item = &'a K;
     fn next(&mut self) -> Option<Self::Item> {
@@ -114,7 +113,7 @@ where
 impl<'a, Q, K> DoubleEndedIterator for SetIter<'a, Q, K>
 where
     Q: Ord,
-    K: Clone + Ord + Borrow<Q> + Any,
+    K: Clone + Ord + Borrow<Q>,
 {
     fn next_back(&mut self) -> Option<Self::Item> {
         self.0.next_back().map(|(k, ())| k)
@@ -123,7 +122,7 @@ where
 
 impl<'a, K> IntoIterator for &'a Set<K>
 where
-    K: Borrow<K> + Ord + Clone + Any,
+    K: Borrow<K> + Ord + Clone,
 {
     type Item = &'a K;
     type IntoIter = SetIter<'a, K, K>;
@@ -134,7 +133,7 @@ where
 
 impl<K> Set<K>
 where
-    K: Ord + Clone + Any,
+    K: Ord + Clone,
 {
     /// Create a new empty set
     pub fn new() -> Self {
@@ -334,7 +333,7 @@ where
 
 impl<K> Set<K>
 where
-    K: Ord + Clone + Debug + Any,
+    K: Ord + Clone + Debug,
 {
     #[allow(dead_code)]
     pub(crate) fn invariant(&self) -> () {

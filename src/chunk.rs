@@ -1,12 +1,13 @@
 use arrayvec::ArrayVec;
+use cached_arc::{self, Arc, Cacheable, Discriminant};
 use std::{
     borrow::Borrow,
     cmp::{Ord, Ordering},
     fmt::{self, Debug, Formatter},
-    any::Any,
-    iter, slice,
+    cell::RefCell,
+    collections::HashMap,
+    iter, slice, mem,
 };
-use cached_arc::Arc;
 
 #[derive(PartialEq)]
 pub(crate) enum Loc {
@@ -31,8 +32,8 @@ pub(crate) const SIZE: usize = 512;
 pub(crate) enum UpdateChunk<Q, K, V, D>
 where
     Q: Ord,
-    K: Ord + Clone + Borrow<Q> + Any,
-    V: Clone + Any,
+    K: Ord + Clone + Borrow<Q>,
+    V: Clone,
 {
     UpdateLeft(Vec<(Q, D)>),
     UpdateRight(Vec<(Q, D)>),
@@ -52,8 +53,8 @@ where
 pub(crate) enum Update<Q, K, V, D>
 where
     Q: Ord,
-    K: Ord + Clone + Borrow<Q> + Any,
-    V: Clone + Any
+    K: Ord + Clone + Borrow<Q>,
+    V: Clone,
 {
     UpdateLeft(Q, D),
     UpdateRight(Q, D),
@@ -67,8 +68,8 @@ where
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct Chunk<K, V>
 where
-    K: Ord + Clone + Any,
-    V: Clone + Any,
+    K: Ord + Clone,
+    V: Clone,
 {
     keys: ArrayVec<[K; SIZE]>,
     vals: ArrayVec<[V; SIZE]>,
@@ -76,18 +77,43 @@ where
 
 impl<K, V> Debug for Chunk<K, V>
 where
-    K: Debug + Ord + Clone + Any,
-    V: Debug + Clone + Any,
+    K: Debug + Ord + Clone,
+    V: Debug + Clone,
 {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         f.debug_map().entries(self.into_iter()).finish()
     }
 }
 
+thread_local! {
+    static DISCRIMINANT_TABLE: RefCell<HashMap<(usize, usize), Discriminant>> =
+        RefCell::new(HashMap::new());
+}
+
+unsafe impl<K: Ord + Clone, V: Clone> Cacheable for Chunk<K, V> {
+    fn type_id() -> Discriminant {
+        DISCRIMINANT_TABLE.with(|dtbl| {
+            let mut dtbl = dtbl.borrow_mut();
+            *dtbl.entry((mem::size_of::<K>(), mem::size_of::<V>())).or_insert_with(|| {
+                cached_arc::new_discriminant()
+            })
+        })
+    }
+
+    fn limit() -> usize {
+        1_000_000 / SIZE
+    }
+
+    fn reinit(&mut self) {
+        self.keys.clear();
+        self.vals.clear();
+    }
+}
+
 impl<K, V> Chunk<K, V>
 where
-    K: Ord + Clone + Any,
-    V: Clone + Any,
+    K: Ord + Clone,
+    V: Clone,
 {
     pub(crate) fn with_empty<F: FnOnce(&mut Chunk<K, V>) -> ()>(f: F) -> Arc<Self> {
         let mut arc = Arc::new(|| Chunk {
@@ -129,7 +155,11 @@ where
     where
         K: Borrow<Q>,
     {
-        match self.keys.as_slice().binary_search_by_key(&k, |k| k.borrow()) {
+        match self
+            .keys
+            .as_slice()
+            .binary_search_by_key(&k, |k| k.borrow())
+        {
             Ok(i) => Some(i),
             Err(_) => None,
         }
@@ -151,7 +181,11 @@ where
                 (Ordering::Less, _) => Loc::InLeft,
                 (_, Ordering::Greater) => Loc::InRight,
                 (Ordering::Greater, Ordering::Less) => {
-                    match self.keys.as_slice().binary_search_by_key(&k, |k| k.borrow()) {
+                    match self
+                        .keys
+                        .as_slice()
+                        .binary_search_by_key(&k, |k| k.borrow())
+                    {
                         Result::Ok(i) => Loc::Here(i),
                         Result::Err(i) => Loc::NotPresent(i),
                     }
@@ -169,8 +203,8 @@ where
     ) -> UpdateChunk<Q, K, V, D>
     where
         Q: Ord,
-    K: Borrow<Q>,
-    F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
+        K: Borrow<Q>,
+        F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
     {
         assert!(chunk.len() <= SIZE && chunk.len() > 0 && t.len() > 0);
         let full = !leaf || t.len() >= SIZE;
@@ -207,10 +241,8 @@ where
                                 elts.keys.push(t.keys[i].clone());
                                 elts.vals.push(t.vals[i].clone());
                             } else {
-                                overflow_right.push((
-                                    t.keys[i].clone(),
-                                    t.vals[i].clone()
-                                ));
+                                overflow_right
+                                    .push((t.keys[i].clone(), t.vals[i].clone()));
                             }
                         }
                     })
@@ -359,10 +391,8 @@ where
                     } else {
                         elts.keys.extend(self.keys[i..len - 1].into_iter().cloned());
                         elts.vals.extend(self.vals[i..len - 1].into_iter().cloned());
-                        overflow = Some((
-                            self.keys[len - 1].clone(),
-                            self.vals[len - 1].clone()
-                        ))
+                        overflow =
+                            Some((self.keys[len - 1].clone(), self.vals[len - 1].clone()))
                     }
                 });
                 Update::Updated {
@@ -379,26 +409,24 @@ where
                         Loc::Here(..) | Loc::NotPresent(..) => unreachable!(),
                     }
                 } else {
-                    let elts = Chunk::with_empty(|elts| {
-                        match loc {
-                            Loc::InLeft => {
-                                if let Some((k, v)) = f(q, d, None) {
-                                    elts.keys.push(k);
-                                    elts.vals.push(v);
-                                }
-                                elts.keys.extend(self.keys[0..len].into_iter().cloned());
-                                elts.vals.extend(self.vals[0..len].into_iter().cloned());
+                    let elts = Chunk::with_empty(|elts| match loc {
+                        Loc::InLeft => {
+                            if let Some((k, v)) = f(q, d, None) {
+                                elts.keys.push(k);
+                                elts.vals.push(v);
                             }
-                            Loc::InRight => {
-                                elts.keys.extend(self.keys[0..len].into_iter().cloned());
-                                elts.vals.extend(self.vals[0..len].into_iter().cloned());
-                                if let Some((k, v)) = f(q, d, None) {
-                                    elts.keys.push(k);
-                                    elts.vals.push(v);
-                                }
-                            }
-                            _ => unreachable!("bug"),
+                            elts.keys.extend(self.keys[0..len].into_iter().cloned());
+                            elts.vals.extend(self.vals[0..len].into_iter().cloned());
                         }
+                        Loc::InRight => {
+                            elts.keys.extend(self.keys[0..len].into_iter().cloned());
+                            elts.vals.extend(self.vals[0..len].into_iter().cloned());
+                            if let Some((k, v)) = f(q, d, None) {
+                                elts.keys.push(k);
+                                elts.vals.push(v);
+                            }
+                        }
+                        _ => unreachable!("bug"),
                     });
                     Update::Updated {
                         elts,
@@ -505,8 +533,8 @@ where
 
 impl<'a, K, V> IntoIterator for &'a Chunk<K, V>
 where
-    K: Ord + Clone + Any,
-    V: Clone + Any,
+    K: Ord + Clone,
+    V: Clone,
 {
     type Item = (&'a K, &'a V);
     type IntoIter = iter::Zip<slice::Iter<'a, K>, slice::Iter<'a, V>>;
