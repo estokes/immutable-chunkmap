@@ -91,6 +91,11 @@ thread_local! {
 }
 
 unsafe impl<K: Ord + Clone, V: Clone> Cacheable for Chunk<K, V> {
+    // The key determinant of compatibility between different Chunk
+    // types is the size of the K and V types.
+    // Any two Chunk<A, B> and Chunk<X, Y>
+    // where size_of(A) == size_of(X) && size_of(B) == size_of(Y)
+    // are entirely interchangable provided they are both empty.
     fn type_id() -> Discriminant {
         DISCRIMINANT_TABLE.with(|dtbl| {
             let mut dtbl = dtbl.borrow_mut();
