@@ -22,6 +22,12 @@ trait Rand: Sized {
     fn rand<R: Rng>(r: &mut R) -> Self;
 }
 
+impl<T: Rand> Rand for (T, T) {
+    fn rand<R: Rng>(r: &mut R) -> Self {
+        (T::rand(r), T::rand(r))
+    }
+}
+
 impl Rand for Arc<String> {
     fn rand<R: Rng>(r: &mut R) -> Self {
         let mut s = String::new();
@@ -152,6 +158,16 @@ fn test_str_insert_remove_rand() {
 }
 
 #[test]
+fn test_str_pair_insert_remove_rand() {
+    test_insert_remove_rand::<(Arc<String>, Arc<String>)>()
+}
+
+#[test]
+fn test_usize_pair_insert_remove_rand() {
+    test_insert_remove_rand::<(usize, usize)>()
+}
+
+#[test]
 fn test_insert_many_small() {
     let v: Vec<i32> = vec![
         1, 9, 16, 11, 7, 12, 8, 12, 12, 11, 9, 12, 9, 7, 16, 9, 1, 9, 1, 1, 22, 112,
@@ -257,6 +273,16 @@ fn test_str_insert_many() {
     test_insert_many::<Arc<String>>()
 }
 
+#[test]
+fn test_str_pair_insert_many() {
+    test_insert_many::<(Arc<String>, Arc<String>)>()
+}
+
+#[test]
+fn test_usize_pair_insert_many() {
+    test_insert_many::<(usize, usize)>()
+}
+
 fn test_map_rand<T: Ord + Clone + Debug + Rand + Any>() {
     let v = randvec::<T>(SIZE);
     let mut t = Map::new();
@@ -296,6 +322,17 @@ fn test_str_map_rand() {
     test_map_rand::<Arc<String>>()
 }
 
+#[test]
+fn test_str_pair_map_rand() {
+    test_map_rand::<(Arc<String>, Arc<String>)>()
+}
+
+#[test]
+fn test_usize_pair_map_rand() {
+    test_map_rand::<(usize, usize)>()
+}
+
+
 fn test_map_iter<T: Borrow<T> + Ord + Clone + Debug + Rand + Any>() {
     let mut v = randvec::<T>(SIZE);
     let t = Map::new().insert_many(v.iter().map(|k| (k.clone(), k.clone())));
@@ -318,6 +355,16 @@ fn test_int_map_iter() {
 #[test]
 fn test_string_map_iter() {
     test_map_iter::<Arc<String>>()
+}
+
+#[test]
+fn test_string_pair_map_iter() {
+    test_map_iter::<(Arc<String>, Arc<String>)>()
+}
+
+#[test]
+fn test_usize_pair_map_iter() {
+    test_map_iter::<(usize, usize)>()
 }
 
 #[test]
@@ -491,6 +538,16 @@ fn test_string_map_range() {
     test_map_range::<Arc<String>>()
 }
 
+#[test]
+fn test_string_pair_map_range() {
+    test_map_range::<(Arc<String>, Arc<String>)>()
+}
+
+#[test]
+fn test_usize_pair_map_range() {
+    test_map_range::<(usize, usize)>()
+}
+
 fn test_set<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash + Any>() {
     let mut v = randvec::<T>(SIZE);
     dedup(&mut v);
@@ -535,6 +592,16 @@ fn test_int_set() {
 #[test]
 fn test_string_set() {
     test_set::<Arc<String>>()
+}
+
+#[test]
+fn test_string_pair_set() {
+    test_set::<(Arc<String>, Arc<String>)>()
+}
+
+#[test]
+fn test_usize_pair_set() {
+    test_set::<(usize, usize)>()
 }
 
 #[test]
@@ -598,6 +665,16 @@ fn test_union_int() {
     test_union_gen::<i32>()
 }
 
+#[test]
+fn test_union_string_pair() {
+    test_union_gen::<(Arc<String>, Arc<String>)>()
+}
+
+#[test]
+fn test_union_usize_pair() {
+    test_union_gen::<(usize, usize)>()
+}
+
 fn test_intersect_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash + Any>() {
     let mut v0 = randvec::<T>(SIZE);
     let mut v1 = randvec::<T>(SIZE);
@@ -643,6 +720,16 @@ fn test_intersect_int() {
     test_intersect_gen::<i32>();
 }
 
+#[test]
+fn test_intersect_string_pair() {
+    test_intersect_gen::<(Arc<String>, Arc<String>)>();
+}
+
+#[test]
+fn test_intersect_usize_pair() {
+    test_intersect_gen::<(usize, usize)>();
+}
+
 fn test_diff_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash + Any>() {
     let mut v0 = randvec::<T>(SIZE);
     let mut v1 = randvec::<T>(SIZE);
@@ -675,4 +762,14 @@ fn test_diff_string() {
 #[test]
 fn test_diff_int() {
     test_diff_gen::<i32>();
+}
+
+#[test]
+fn test_diff_string_pair() {
+    test_diff_gen::<(Arc<String>, Arc<String>)>();
+}
+
+#[test]
+fn test_diff_usize_pair() {
+    test_diff_gen::<(usize, usize)>();
 }
