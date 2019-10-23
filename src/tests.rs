@@ -509,7 +509,7 @@ where
         let lbound = Excluded(vals[i].0.clone());
         let ubound = Included(vals[end].0.clone());
         for (k, v) in t.range(lbound, ubound) {
-            let (k_, v_) = (&vals[i].0, &vals[i].1);
+            let (k_, v_) = (&vals[i + 1].0, &vals[i + 1].1);
             assert_eq!(k, k_);
             assert_eq!(v, v_);
             assert!(i < end);
