@@ -115,7 +115,7 @@ unsafe impl<K: Ord + Clone, V: Clone> Cacheable for Chunk<K, V> {
     }
 
     fn limit() -> usize {
-        10
+        100
     }
 
     fn reinit(&mut self) {
