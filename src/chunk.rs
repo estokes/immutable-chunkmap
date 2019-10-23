@@ -1,12 +1,13 @@
 use arrayvec::ArrayVec;
 use cached_arc::{self, Arc, Cacheable, Discriminant};
 use std::{
+    alloc::Layout,
     borrow::Borrow,
     cmp::{Ord, Ordering},
     fmt::{self, Debug, Formatter},
     cell::RefCell,
     collections::HashMap,
-    iter, slice, mem,
+    iter, slice,
 };
 
 #[derive(PartialEq)]
@@ -86,7 +87,8 @@ where
 }
 
 thread_local! {
-    static DISCRIMINANT_TABLE: RefCell<HashMap<(usize, usize), Discriminant>> =
+    static DISCRIMINANT_TABLE:
+    RefCell<HashMap<(usize, usize, usize, usize), Discriminant>> =
         RefCell::new(HashMap::new());
 }
 
@@ -106,9 +108,15 @@ thread_local! {
 //       are isomorphic provided they are empty.
 unsafe impl<K: Ord + Clone, V: Clone> Cacheable for Chunk<K, V> {
     fn type_id() -> Discriminant {
+        fn sa<T>() -> (usize, usize) {
+            let layout = Layout::new::<T>();
+            (layout.size(), layout.align())
+        }
         DISCRIMINANT_TABLE.with(|dtbl| {
             let mut dtbl = dtbl.borrow_mut();
-            *dtbl.entry((mem::size_of::<K>(), mem::size_of::<V>()))
+            let (k_size, k_align) = sa::<K>();
+            let (v_size, v_align) = sa::<V>();
+            *dtbl.entry((k_size, k_align, v_size, v_align))
                 .or_insert_with(cached_arc::new_discriminant)
         })
     }
