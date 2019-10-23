@@ -19,14 +19,61 @@ const CHECK: usize = 50000;
 
 macro_rules! make_tests {
     ($name:ident) => {
-        $name::<i32, i32>();
-        $name::<i32, usize>();
-        $name::<usize, i32>();
-        $name::<usize, usize>();
-        $name::<i32, Arc<String>>();
-        $name::<Arc<String>, i32>();
-        $name::<usize, (Arc<String>, Arc<String>)>();
-        $name::<(Arc<String>, Arc<String>), usize>();
+        paste::item! {
+            #[test]
+            fn [<$name _i32_i32>]() {
+                $name::<i32, i32>();
+            }
+        }
+        
+        paste::item! {
+            #[test]
+            fn [<$name _i32_usize>]() {
+                $name::<i32, usize>();
+            }
+        }
+
+        paste::item! {
+            #[test]
+            fn [<$name _usize_i32>]() {
+                $name::<usize, i32>();
+            }
+        }
+
+        paste::item! {
+            #[test]
+            fn [<$name _usize_usize>]() {
+                $name::<usize, usize>();
+            }
+        }
+
+        paste::item! {
+            #[test]
+            fn [<$name _i32_string>]() {
+                $name::<i32, Arc<String>>();
+            }
+        }
+
+        paste::item! {
+            #[test]
+            fn [<$name _string_i32>]() {
+                $name::<Arc<String>, i32>();
+            }
+        }
+
+        paste::item! {
+            #[test]
+            fn [<$name _usize_string_pair>]() {
+                $name::<usize, (Arc<String>, Arc<String>)>();
+            }
+        }
+
+        paste::item! {
+            #[test]
+            fn [<$name _usize_string_pair_usize>]() {
+                $name::<(Arc<String>, Arc<String>), usize>();
+            }
+        }
     }
 }
 
@@ -126,20 +173,18 @@ fn test_insert_int_rand() {
 
 fn test_get_rand_gen<K, V>()
 where
-    K: Ord + Clone + Debug + Rand,
-    V: Ord + Clone + Debug + Rand,
+    K: Ord + Clone + Debug + Hash + Rand,
+    V: Ord + Clone + Debug + Hash + Rand,
 {
-    let v = randvec::<(K, V)>(SIZE);
-    let t = insert(v.iter().cloned());
-    for (k, v) in &v {
+    let mut vals = randvec::<(K, V)>(SIZE);
+    dedup_with(&mut vals, |(ref k, _)| k);
+    let t = insert(vals.iter().cloned());
+    for (k, v) in &vals {
         assert_eq!(t.get(k).unwrap(), v);
     }
 }
 
-#[test]
-fn test_get_rand() {
-    make_tests!(test_get_rand_gen);
-}
+make_tests!(test_get_rand_gen);
 
 fn test_insert_remove_rand_gen<K, V>()
 where
@@ -164,10 +209,7 @@ where
     }
 }
 
-#[test]
-fn test_insert_remove_rand() {   
-    make_tests!(test_insert_remove_rand_gen);
-}
+make_tests!(test_insert_remove_rand_gen);
 
 #[test]
 fn test_insert_many_small() {
@@ -272,10 +314,7 @@ where
     }
 }
 
-#[test]
-fn test_insert_many() {
-    make_tests!(test_insert_many_gen);
-}
+make_tests!(test_insert_many_gen);
 
 fn test_map_rand_gen<K, V>()
 where
@@ -311,10 +350,7 @@ where
     }
 }
 
-#[test]
-fn test_map_rand() {
-    make_tests!(test_map_rand_gen);
-}
+make_tests!(test_map_rand_gen);
 
 fn test_map_iter_gen<K, V>()
 where
@@ -335,10 +371,7 @@ where
     }
 }
 
-#[test]
-fn test_map_iter() {
-    make_tests!(test_map_iter_gen);
-}
+make_tests!(test_map_iter_gen);
 
 #[test]
 fn test_map_range_small() {
@@ -509,10 +542,7 @@ where
     }
 }
 
-#[test]
-fn test_map_range() {
-    make_tests!(test_map_range_gen);
-}
+make_tests!(test_map_range_gen);
 
 fn test_set_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
     let mut v = randvec::<T>(SIZE);

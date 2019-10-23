@@ -108,9 +108,8 @@ unsafe impl<K: Ord + Clone, V: Clone> Cacheable for Chunk<K, V> {
     fn type_id() -> Discriminant {
         DISCRIMINANT_TABLE.with(|dtbl| {
             let mut dtbl = dtbl.borrow_mut();
-            *dtbl.entry((mem::size_of::<K>(), mem::size_of::<V>())).or_insert_with(|| {
-                cached_arc::new_discriminant()
-            })
+            *dtbl.entry((mem::size_of::<K>(), mem::size_of::<V>()))
+                .or_insert_with(cached_arc::new_discriminant)
         })
     }
 
@@ -135,6 +134,8 @@ where
             vals: ArrayVec::new(),
         });
         let arc_ref = Arc::get_mut(&mut arc).unwrap();
+        assert_eq!(arc_ref.keys.len(), 0);
+        assert_eq!(arc_ref.vals.len(), 0);
         f(arc_ref);
         arc
     }
