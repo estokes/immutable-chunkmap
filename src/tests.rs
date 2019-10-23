@@ -285,8 +285,12 @@ where
             i = i + 1;
         }
     };
-    let mut v2 = randvec::<(K, V)>(SIZE);
-    dedup_with(&mut v2, |(ref k, _)| k);
+    let v2 = {
+        let len = v.len();
+        v.append(&mut randvec::<(K, V)>(SIZE));
+        dedup_with(&mut v, |(ref k, _)| k);
+        v.split_off(len)
+    };
     t = t.insert_many(v2.iter().map(|(k, v)| (k.clone(), v.clone())));
     t.invariant();
     {
