@@ -70,7 +70,7 @@ macro_rules! make_tests {
 
         paste::item! {
             #[test]
-            fn [<$name _usize_string_pair_usize>]() {
+            fn [<$name _string_pair_usize>]() {
                 $name::<(Arc<String>, Arc<String>), usize>();
             }
         }
