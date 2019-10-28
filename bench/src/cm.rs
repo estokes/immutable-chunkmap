@@ -1,5 +1,5 @@
 use immutable_chunkmap::map::Map;
-use std::cmp::{min, max};
+use std::cmp::{max, min};
 use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -11,31 +11,25 @@ const MIN_ITER: usize = 1000000;
 fn bench_insert_many(len: usize) -> (Arc<Map<i32, i32>>, Arc<Vec<i32>>, Duration) {
     let mut m = Map::new();
     let data = utils::randvec::<i32>(len);
-    let nchunks = 100;
-    let elapsed = {
-        let mut i = 0;
-        let mut chunks = Vec::new();
-        for _ in 0..nchunks {
-            chunks.push(Vec::new());
+    let csize = max(1, len / 100);
+    let mut chunks = vec![];
+    let mut i = 0;
+    while i < data.len() {
+        let mut cur = vec![];
+        while i < data.len() && cur.len() < csize {
+            cur.push((data[i], data[i]));
+            i += 1;
         }
-        for c in 0..nchunks {
-            for _ in 0..(len / nchunks) {
-                if i < len {
-                    chunks[c].push(data[i]);
-                }
-                i += 1
-            }
-        }
-        let begin = Instant::now();
-        for chunk in chunks {
-            m = m.insert_many(chunk.iter().map(|k| (*k, *k)));
-        }
-        begin.elapsed()
-    };
-    (Arc::new(m), Arc::new(data), elapsed)
+        chunks.push(cur);
+    }
+    let begin = Instant::now();
+    for chunk in chunks.drain(0..) {
+        m = m.insert_many(chunk);
+    }
+    (Arc::new(m), Arc::new(data), begin.elapsed())
 }
 
-fn bench_insert(data: &Arc<Vec<i32>>) -> Duration {
+fn bench_insert(data: Arc<Vec<i32>>) -> Duration {
     let mut m = Map::new();
     let begin = Instant::now();
     for k in data.iter() {
@@ -45,26 +39,22 @@ fn bench_insert(data: &Arc<Vec<i32>>) -> Duration {
 }
 
 fn bench_get(m: Arc<Map<i32, i32>>, d: Arc<Vec<i32>>, n: usize) -> Duration {
-    let chunk = d.len() / n;
-    let mut threads = Vec::new();
     let begin = Instant::now();
-    for i in 0..n {
+    let n = min(d.len() / 2, n);
+    (0..n).into_iter().map(|_| {
         let (m, d) = (m.clone(), d.clone());
-        let th = thread::spawn(move || {
+        thread::spawn(move || {
             let mut r = 0;
-            let p = i * chunk;
-            while r < MIN_ITER {
-                for j in p..min(d.len() - 1, p + chunk) {
-                    r += 1;
+            while r < (MIN_ITER / n) {
+                let mut j = n;
+                while j < d.len() && r < (MIN_ITER / n) {
                     m.get(&d[j]).unwrap();
+                    j += n;
+                    r += 1;
                 }
             }
-        });
-        threads.push(th);
-    }
-    for th in threads {
-        th.join().unwrap();
-    }
+        })
+    }).for_each(|th| th.join().unwrap());
     begin.elapsed()
 }
 
@@ -92,14 +82,14 @@ fn bench_remove(m: Arc<Map<i32, i32>>, d: Arc<Vec<i32>>) -> Duration {
 pub(crate) fn run(size: usize) -> () {
     let (m, d, inserts) = bench_insert_many(size);
     let n = num_cpus::get();
-    let insert = bench_insert(&d);
+    let insert = bench_insert(d.clone());
     let get_par = bench_get(m.clone(), d.clone(), n);
     let get = bench_get_seq(m.clone(), d.clone());
     let rm = bench_remove(m.clone(), d.clone());
     let iter = max(MIN_ITER, size);
     let iterp = max(MIN_ITER * n, size);
     println!(
-        "{},{:.1},{:.1},{:.1},{:.1},{:.1}",
+        "{},{:.0},{:.0},{:.0},{:.0},{:.0}",
         size,
         utils::to_ns_per(insert, size),
         utils::to_ns_per(inserts, size),
