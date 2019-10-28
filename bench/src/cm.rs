@@ -40,8 +40,7 @@ fn bench_insert(data: Arc<Vec<i32>>) -> Duration {
 
 fn bench_get(m: Arc<Map<i32, i32>>, d: Arc<Vec<i32>>, n: usize) -> Duration {
     let begin = Instant::now();
-    let n = min(d.len() / 2, n);
-    let iter = max(MIN_ITER, d.len()) / n;
+    let iter = max(MIN_ITER, d.len());
     let mut threads = vec![];
     for n in 0..n {
         let (m, d) = (m.clone(), d.clone());
@@ -88,18 +87,20 @@ fn bench_remove(m: Arc<Map<i32, i32>>, d: Arc<Vec<i32>>) -> Duration {
 pub(crate) fn run(size: usize) -> () {
     let (m, d, inserts) = bench_insert_many(size);
     let n = num_cpus::get();
+    let n = min(d.len() / 2, n);
     let insert = bench_insert(d.clone());
     let get_par = bench_get(m.clone(), d.clone(), n);
     let get = bench_get_seq(m.clone(), d.clone());
     let rm = bench_remove(m.clone(), d.clone());
     let iter = max(MIN_ITER, size);
+    let iterp = max(MIN_ITER * n, size * n);
     println!(
         "{},{:.0},{:.0},{:.0},{:.2},{:.0}",
         size,
         utils::to_ns_per(insert, size),
         utils::to_ns_per(inserts, size),
         utils::to_ns_per(get, iter),
-        utils::to_ns_per(get_par, iter),
+        utils::to_ns_per(get_par, iterp),
         utils::to_ns_per(rm, size)
     );
 }
