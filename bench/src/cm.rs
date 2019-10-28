@@ -11,7 +11,7 @@ const MIN_ITER: usize = 1000000;
 fn bench_insert_many(len: usize) -> (Arc<Map<i32, i32>>, Arc<Vec<i32>>, Duration) {
     let mut m = Map::new();
     let data = utils::randvec::<i32>(len);
-    let csize = max(1, len / 10);
+    let csize = max(1, len / 100);
     let mut chunks = vec![];
     let mut i = 0;
     while i < data.len() {
@@ -47,7 +47,7 @@ fn bench_get(m: Arc<Map<i32, i32>>, d: Arc<Vec<i32>>, n: usize) -> Duration {
             let mut r = 0;
             while r < (MIN_ITER / n) {
                 let mut j = n;
-                while j < d.len() {
+                while j < d.len() && r < (MIN_ITER / n) {
                     m.get(&d[j]).unwrap();
                     j += n;
                     r += 1;
