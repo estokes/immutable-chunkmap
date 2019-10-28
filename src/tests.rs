@@ -204,9 +204,9 @@ where
             assert_eq!(p.as_ref(), Some(v));
             t = tn;
             assert_eq!(t.get(k), Option::None);
-            t.invariant();
         }
     }
+    t.invariant();
 }
 
 make_tests!(test_insert_remove_rand_gen);
@@ -332,26 +332,22 @@ where
     for (k, v) in &vals {
         t = t.insert(k.clone(), v.clone()).0;
         assert_eq!(t.get(k).unwrap(), v);
-        if i % CHECK == 0 {
-            t.invariant();
-            for (k, v) in &vals[0..i] {
-                assert_eq!(t.get(k).unwrap(), v);
-            }
-        }
         i = i + 1;
     }
+    for (k, v) in &vals {
+        assert_eq!(t.get(k).unwrap(), v);
+    }
+    t.invariant();
 
     i = 0;
     for (k, _) in &vals {
         t = t.remove(k).0;
-        if i % CHECK == 0 {
-            t.invariant();
-            for (k, _) in &vals[0..i] {
-                assert_eq!(t.get(k), Option::None);
-            }
-        }
         i = i + 1;
     }
+    for (k, _) in &vals {
+        assert_eq!(t.get(k), Option::None);
+    }
+    t.invariant();
 }
 
 make_tests!(test_map_rand_gen);
@@ -362,10 +358,11 @@ where
     V: Ord + Clone + Debug + Rand + Hash,
 {
     let mut vals = randvec::<(K, V)>(SIZE);
-    vals.sort_unstable_by(|t0, t1| t0.0.cmp(&t1.0));
     dedup_with(&mut vals, |(ref k, _)| k);
     let t = Map::new().insert_many(vals.iter().cloned());
     t.invariant();
+    assert_eq!(vals.len(), t.len());
+    vals.sort_unstable_by(|t0, t1| t0.0.cmp(&t1.0));
     let mut i = 0;
     for (k, v) in &t {
         let (k_, v_) = (&vals[i].0, &vals[i].1);

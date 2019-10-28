@@ -11,8 +11,21 @@ const MIN_ITER: usize = 1000000;
 fn bench_insert_many(len: usize) -> (Arc<Map<i32, i32>>, Arc<Vec<i32>>, Duration) {
     let mut m = Map::new();
     let data = utils::randvec::<i32>(len);
+    let csize = max(1, len / 10);
+    let mut chunks = vec![];
+    let mut i = 0;
+    while i < data.len() {
+        let mut cur = vec![];
+        while i < data.len() && cur.len() < csize {
+            cur.push((data[i], data[i]));
+            i += 1;
+        }
+        chunks.push(cur);
+    }
     let begin = Instant::now();
-    m = m.insert_many(data.iter().map(|k| (*k, *k)));    
+    for chunk in chunks.drain(0..) {
+        m = m.insert_many(chunk);
+    }
     (Arc::new(m), Arc::new(data), begin.elapsed())
 }
 
@@ -76,7 +89,7 @@ pub(crate) fn run(size: usize) -> () {
     let iter = max(MIN_ITER, size);
     let iterp = max(MIN_ITER * n, size);
     println!(
-        "{},{:.1},{:.1},{:.1},{:.1},{:.1}",
+        "{},{:.0},{:.0},{:.0},{:.0},{:.0}",
         size,
         utils::to_ns_per(insert, size),
         utils::to_ns_per(inserts, size),

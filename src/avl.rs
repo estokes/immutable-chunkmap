@@ -7,11 +7,9 @@ use std::{
     default::Default,
     fmt::{self, Debug, Formatter},
     hash::{Hash, Hasher},
-    iter,
-    mem::swap,
     ops::{Bound, Index},
-    slice,
     sync::Arc,
+    iter, mem, slice,
 };
 use cached_arc::Arc as CachedArc;
 
@@ -687,12 +685,12 @@ where
             return self.clone();
         }
         match self {
-            &Tree::Empty => Tree::create(
+            Tree::Empty => Tree::create(
                 &Tree::Empty,
                 Chunk::create_with(chunk, f),
                 &Tree::Empty,
             ),
-            &Tree::Node(ref tn) => {
+            Tree::Node(ref tn) => {
                 let leaf = match (&tn.left, &tn.right) {
                     (Tree::Empty, Tree::Empty) => true,
                     (_, _) => false,
@@ -736,23 +734,6 @@ where
         self.update_chunk(chunk, &mut |k, v, _| Some((k, v)))
     }
 
-    fn do_chunk<Q, D, F>(&mut self, chunk: &mut Vec<(Q, D)>, f: &mut F)
-    where
-        Q: Ord,
-        K: Borrow<Q>,
-        F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
-    {
-        if chunk.len() < 6 {
-            for (q, d) in chunk.drain(0..) {
-                *self = self.update(q, d, f).0;
-            }
-        } else {
-            let mut new_chunk = Vec::new();
-            swap(&mut new_chunk, chunk);
-            *self = self.update_chunk(new_chunk, f);
-        }
-    }
-
     pub(crate) fn update_many<Q, D, E, F>(&self, elts: E, f: &mut F) -> Self
     where
         E: IntoIterator<Item = (Q, D)>,
@@ -760,29 +741,33 @@ where
         K: Borrow<Q>,
         F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
     {
-        let mut t = self.clone();
-        let mut chunk: Vec<(Q, D)> = Vec::new();
-        for (q, d) in elts {
-            match chunk.last().map(|p| p.0.cmp(&q)) {
-                None => chunk.push((q, d)),
-                Some(Ordering::Equal) => {
-                    let l = chunk.len();
-                    chunk[l - 1] = (q, d)
-                }
-                Some(Ordering::Less) => {
-                    chunk.push((q, d));
-                    if chunk.len() >= SIZE {
-                        t.do_chunk(&mut chunk, f);
-                    }
-                }
-                Some(Ordering::Greater) => {
-                    t.do_chunk(&mut chunk, f);
-                    chunk.push((q, d))
+        let mut elts = {
+            let mut v = elts.into_iter().collect::<Vec<(Q, D)>>();
+            let mut i = 0;
+            v.sort_by(|(ref k0, _), (ref k1, _)| k0.cmp(k1));
+            while v.len() > 1 && i < v.len() - 1 {
+                if v[i].0 == v[i + 1].0 {
+                    v.remove(i);
+                } else {
+                    i += 1;
                 }
             }
+            v
+        };
+        let mut chunk: Vec<(Q, D)> = Vec::with_capacity(SIZE);
+        let t = elts.drain(0..).fold(self.clone(), |t, (q, d)| {
+            chunk.push((q, d));
+            if chunk.len() < SIZE {
+                t
+            } else {
+                t.update_chunk(mem::replace(&mut chunk, Vec::with_capacity(SIZE)), f)
+            }
+        });
+        if chunk.len() == 0 {
+            t
+        } else {
+            t.update_chunk(chunk, f)
         }
-        t.do_chunk(&mut chunk, f);
-        t
     }
 
     pub(crate) fn insert_many<E: IntoIterator<Item = (K, V)>>(&self, elts: E) -> Self {
