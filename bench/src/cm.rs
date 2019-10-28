@@ -41,13 +41,14 @@ fn bench_insert(data: Arc<Vec<i32>>) -> Duration {
 fn bench_get(m: Arc<Map<i32, i32>>, d: Arc<Vec<i32>>, n: usize) -> Duration {
     let begin = Instant::now();
     let n = min(d.len() / 2, n);
+    let iter = max(MIN_ITER, d.len()) / n;
     (0..n).into_iter().map(|_| {
         let (m, d) = (m.clone(), d.clone());
         thread::spawn(move || {
             let mut r = 0;
-            while r < (MIN_ITER / n) {
+            while r < iter {
                 let mut j = n;
-                while j < d.len() && r < (MIN_ITER / n) {
+                while j < d.len() && r < iter {
                     m.get(&d[j]).unwrap();
                     j += n;
                     r += 1;
@@ -61,7 +62,8 @@ fn bench_get(m: Arc<Map<i32, i32>>, d: Arc<Vec<i32>>, n: usize) -> Duration {
 fn bench_get_seq(m: Arc<Map<i32, i32>>, d: Arc<Vec<i32>>) -> Duration {
     let begin = Instant::now();
     let mut i = 0;
-    while i < MIN_ITER {
+    let iter = max(MIN_ITER, d.len()); 
+    while i < iter {
         for k in d.iter() {
             i = i + 1;
             m.get(k).unwrap();
