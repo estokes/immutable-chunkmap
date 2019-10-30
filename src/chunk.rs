@@ -206,10 +206,10 @@ where
         }
     }
 
-    // chunk must be sorted
+    // chunk must be sorted and deduped
     pub(crate) fn update_chunk<Q, D, F>(
         t: &Chunk<K, V>,
-        mut chunk: Vec<(Q, D)>,
+        chunk: Vec<(Q, D)>,
         leaf: bool,
         f: &mut F,
     ) -> UpdateChunk<Q, K, V, D>
@@ -227,7 +227,7 @@ where
         } else if full && in_right {
             UpdateChunk::UpdateRight(chunk)
         } else if leaf && (in_left || in_right) {
-            let iter = chunk.drain(0..).filter_map(|(q, d)| f(q, d, None));
+            let iter = chunk.into_iter().filter_map(|(q, d)| f(q, d, None));
             let mut overflow_right = Vec::new();
             let elts = {
                 if in_right {
@@ -273,59 +273,68 @@ where
             let mut overflow_right = Vec::new();
             let elts = Chunk::with_empty(|elts| {
                 elts.clone_from(t);
-                for (q, d) in chunk.drain(0..) {
+                let mut chunk = chunk.into_iter();
+                loop {
                     if elts.len() == 0 {
-                        not_done.push((q, d));
-                        continue;
+                        not_done.extend(chunk);
+                        break;
                     }
-                    match elts.get(&q) {
-                        Loc::Here(i) => {
-                            match f(q, d, Some((&elts.keys[i], &elts.vals[i]))) {
-                                None => {
-                                    elts.keys.remove(i);
-                                    elts.vals.remove(i);
+                    match chunk.next() {
+                        None => break,
+                        Some((q, d)) => {
+                            match elts.get(&q) {
+                                Loc::Here(i) => {
+                                    match f(q, d, Some((&elts.keys[i], &elts.vals[i]))) {
+                                        None => {
+                                            elts.keys.remove(i);
+                                            elts.vals.remove(i);
+                                        }
+                                        Some((k, v)) => {
+                                            elts.keys[i] = k;
+                                            elts.vals[i] = v;
+                                        }
+                                    }
                                 }
-                                Some((k, v)) => {
-                                    elts.keys[i] = k;
-                                    elts.vals[i] = v;
+                                Loc::NotPresent(i) => {
+                                    if let Some((k, v)) = f(q, d, None) {
+                                        if elts.len() == SIZE {
+                                            overflow_right.push((
+                                                elts.keys.pop().unwrap(),
+                                                elts.vals.pop().unwrap(),
+                                            ));
+                                        }
+                                        elts.keys.insert(i, k);
+                                        elts.vals.insert(i, v);
+                                    }
                                 }
-                            }
-                        }
-                        Loc::NotPresent(i) => {
-                            if elts.len() < SIZE {
-                                if let Some((k, v)) = f(q, d, None) {
-                                    elts.keys.insert(i, k);
-                                    elts.vals.insert(i, v);
+                                Loc::InLeft => {
+                                    if leaf && elts.len() < SIZE {
+                                        if let Some((k, v)) = f(q, d, None) {
+                                            elts.keys.insert(0, k);
+                                            elts.vals.insert(0, v);
+                                        }
+                                    } else {
+                                        update_left.push((q, d))
+                                    }
                                 }
-                            } else {
-                                if let Some((k, v)) = f(q, d, None) {
-                                    overflow_right.push((
-                                        elts.keys.pop().unwrap(),
-                                        elts.vals.pop().unwrap(),
-                                    ));
-                                    elts.keys.insert(i, k);
-                                    elts.vals.insert(i, v);
+                                Loc::InRight => {
+                                    if leaf && elts.len() < SIZE {
+                                        for (q, d) in iter::once((q, d)).chain(chunk) {
+                                            if elts.len() < SIZE {
+                                                if let Some((k, v)) = f(q, d, None) {
+                                                    elts.keys.push(k);
+                                                    elts.vals.push(v);
+                                                }
+                                            } else {
+                                                update_right.push((q, d))
+                                            }
+                                        }
+                                    } else {
+                                        update_right.push((q, d));
+                                        update_right.extend(chunk);
+                                    }
+                                    break;
                                 }
-                            }
-                        }
-                        Loc::InLeft => {
-                            if leaf && elts.len() < SIZE {
-                                if let Some((k, v)) = f(q, d, None) {
-                                    elts.keys.insert(0, k);
-                                    elts.vals.insert(0, v);
-                                }
-                            } else {
-                                update_left.push((q, d))
-                            }
-                        }
-                        Loc::InRight => {
-                            if leaf && elts.len() < SIZE {
-                                if let Some((k, v)) = f(q, d, None) {
-                                    elts.keys.push(k);
-                                    elts.vals.push(v);
-                                }
-                            } else {
-                                update_right.push((q, d))
                             }
                         }
                     }

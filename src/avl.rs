@@ -997,7 +997,10 @@ where
             } else {
                 for i in 0..(elts.len() - 1) {
                     match elts.key(i).cmp(&elts.key(i + 1)) {
-                        Ordering::Greater => return false,
+                        Ordering::Greater => {
+                            dbg!(&elts.key(i), &elts.key(i + 1));
+                            return false
+                        },
                         Ordering::Less => (),
                         Ordering::Equal => panic!("duplicates found: {:#?}", elts),
                     }
