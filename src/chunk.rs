@@ -206,16 +206,17 @@ where
         }
     }
 
-    // chunk must be sorted and deduped
-    pub(crate) fn update_chunk<Q, D, F>(
-        t: &Chunk<K, V>,
+    // invariant: chunk is sorted and deduped
+    pub(crate) fn update_chunk<'a, Q, D, F>(
+        t: &'a Chunk<K, V>,
         chunk: Vec<(Q, D)>,
         leaf: bool,
         f: &mut F,
     ) -> UpdateChunk<Q, K, V, D>
     where
         Q: Ord,
-        K: Borrow<Q>,
+        K: Borrow<Q> + 'a,
+        V: 'a,
         F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
     {
         assert!(chunk.len() <= SIZE && chunk.len() > 0 && t.len() > 0);
@@ -267,57 +268,85 @@ where
                 overflow_right,
             }
         } else {
+            #[inline(always)]
+            fn copy_up_to<K, V>(
+                t: &Chunk<K, V>,
+                elts: &mut Chunk<K, V>,
+                overflow_right: &mut Vec<(K, V)>,
+                m: &mut usize,
+                i: usize
+            ) where K: Ord + Clone, V: Clone {
+                while *m < i && elts.len() < SIZE {
+                    elts.keys.push(t.keys[*m].clone());
+                    elts.vals.push(t.vals[*m].clone());
+                    *m += 1;
+                }
+                if *m < i {
+                    overflow_right.extend(
+                        t.keys.as_slice()[*m..i].iter().cloned()
+                            .zip(t.vals.as_slice()[*m..i].iter().cloned())
+                    );
+                    *m = i;
+                }
+            }
+            // invariant: don't cross the streams.
             let mut not_done = Vec::new();
             let mut update_left = Vec::new();
             let mut update_right = Vec::new();
             let mut overflow_right = Vec::new();
+            let mut m = 0;
             let elts = Chunk::with_empty(|elts| {
-                elts.clone_from(t);
                 let mut chunk = chunk.into_iter();
                 loop {
-                    if elts.len() == 0 {
+                    if m == t.len() && elts.len() == 0 {
                         not_done.extend(chunk);
                         break;
                     }
                     match chunk.next() {
-                        None => break,
+                        None => {
+                            copy_up_to(t, elts, &mut overflow_right, &mut m, t.len());
+                            break;
+                        }
                         Some((q, d)) => {
-                            match elts.get(&q) {
+                            match t.get(&q) {
                                 Loc::Here(i) => {
-                                    match f(q, d, Some((&elts.keys[i], &elts.vals[i]))) {
-                                        None => {
-                                            elts.keys.remove(i);
-                                            elts.vals.remove(i);
-                                        }
-                                        Some((k, v)) => {
-                                            elts.keys[i] = k;
-                                            elts.vals[i] = v;
+                                    copy_up_to(t, elts, &mut overflow_right, &mut m, i);
+                                    let r = f(q, d, Some((&t.keys[i], &t.vals[i])));
+                                    if let Some((k, v)) = r {
+                                        if elts.len() < SIZE {
+                                            elts.keys.push(k);
+                                            elts.vals.push(v);
+                                        } else {
+                                            overflow_right.push((k, v))
                                         }
                                     }
+                                    // self[i] was replaced or deleted, skip it
+                                    m += 1;
                                 }
                                 Loc::NotPresent(i) => {
+                                    copy_up_to(t, elts, &mut overflow_right, &mut m, i);
                                     if let Some((k, v)) = f(q, d, None) {
-                                        if elts.len() == SIZE {
-                                            overflow_right.push((
-                                                elts.keys.pop().unwrap(),
-                                                elts.vals.pop().unwrap(),
-                                            ));
+                                        if elts.len() < SIZE {
+                                            elts.keys.push(k);
+                                            elts.vals.push(v);
+                                        } else {
+                                            overflow_right.push((k, v));
                                         }
-                                        elts.keys.insert(i, k);
-                                        elts.vals.insert(i, v);
                                     }
                                 }
                                 Loc::InLeft => {
                                     if leaf && elts.len() < SIZE {
                                         if let Some((k, v)) = f(q, d, None) {
-                                            elts.keys.insert(0, k);
-                                            elts.vals.insert(0, v);
+                                            elts.keys.push(k);
+                                            elts.vals.push(v);
                                         }
                                     } else {
                                         update_left.push((q, d))
                                     }
                                 }
                                 Loc::InRight => {
+                                    let len = t.len();
+                                    copy_up_to(t, elts, &mut overflow_right, &mut m, len);
                                     if leaf && elts.len() < SIZE {
                                         for (q, d) in iter::once((q, d)).chain(chunk) {
                                             if elts.len() < SIZE {
@@ -340,7 +369,6 @@ where
                     }
                 }
             });
-            overflow_right.reverse();
             if elts.len() > 0 {
                 assert_eq!(not_done.len(), 0);
                 UpdateChunk::Updated {
