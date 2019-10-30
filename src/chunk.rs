@@ -177,28 +177,6 @@ where
         }
     }
 
-    fn get_narrowed_nonempty<Q: ?Sized + Ord>(&self, i: usize, k: &Q) -> Loc
-    where
-        K: Borrow<Q>,
-    {
-        match self
-            .keys
-            .as_slice()[i..]
-            .binary_search_by_key(&k, |k| k.borrow())
-        {
-            Result::Ok(j) => Loc::Here(i + j),
-            Result::Err(j) => {
-                if i + j == self.len() {
-                    Loc::InRight
-                } else if i == 0 && j == 0 {
-                    Loc::InLeft
-                } else {
-                    Loc::NotPresent(i + j)
-                }
-            }
-        }
-    }
-
     pub(crate) fn get<Q: ?Sized + Ord>(&self, k: &Q) -> Loc
     where
         K: Borrow<Q>,
@@ -293,7 +271,6 @@ where
             let mut update_left = Vec::new();
             let mut update_right = Vec::new();
             let mut overflow_right = Vec::new();
-            let mut narrowed = 0;
             let elts = Chunk::with_empty(|elts| {
                 elts.clone_from(t);
                 let mut chunk = chunk.into_iter();
@@ -305,9 +282,8 @@ where
                     match chunk.next() {
                         None => break,
                         Some((q, d)) => {
-                            match elts.get_narrowed_nonempty(narrowed, &q) {
+                            match elts.get(&q) {
                                 Loc::Here(i) => {
-                                    narrowed = i;
                                     match f(q, d, Some((&elts.keys[i], &elts.vals[i]))) {
                                         None => {
                                             elts.keys.remove(i);
@@ -320,7 +296,6 @@ where
                                     }
                                 }
                                 Loc::NotPresent(i) => {
-                                    narrowed = i;
                                     if let Some((k, v)) = f(q, d, None) {
                                         if elts.len() == SIZE {
                                             overflow_right.push((
