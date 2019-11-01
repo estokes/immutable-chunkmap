@@ -4,7 +4,7 @@ use std::{
     fmt::{self, Debug, Formatter},
     cell::RefCell,
     collections::HashMap,
-    iter, slice, mem,
+    iter, slice, mem, ptr,
 };
 use cached_arc::{self, Cacheable, Discriminant, Arc};
 
@@ -139,8 +139,8 @@ where
         let capacity = self.keys.capacity();
         if capacity < to_size {
             let needed = to_size - capacity;
-            self.keys.reserve_exact(needed);
-            self.vals.reserve_exact(needed);
+            self.keys.reserve(needed);
+            self.vals.reserve(needed);
         }
     }
     
@@ -225,8 +225,10 @@ where
                         elts.clone_from(self);
                         for (k, v) in iter {
                             if elts.len() < SIZE {
-                                elts.keys.push(k);
-                                elts.vals.push(v);
+                                unsafe {
+                                    push_unchecked(&mut elts.keys, k);
+                                    push_unchecked(&mut elts.vals, v);
+                                }
                             } else {
                                 overflow_right.push((k, v));
                             }
@@ -236,16 +238,19 @@ where
                     Chunk::with_empty(|elts| {
                         elts.maybe_expand_to(min(SIZE, self.len() + chunk_len));
                         for (k, v) in iter {
-                            elts.keys.push(k);
-                            elts.vals.push(v);
+                            unsafe {
+                                push_unchecked(&mut elts.keys, k);
+                                push_unchecked(&mut elts.vals, v);
+                            }
                         }
-                        for i in 0..self.len() {
+                        for (k, v) in self.into_iter() {
                             if elts.len() < SIZE {
-                                elts.keys.push(self.keys[i].clone());
-                                elts.vals.push(self.vals[i].clone());
+                                unsafe {
+                                    push_unchecked(&mut elts.keys, k.clone());
+                                    push_unchecked(&mut elts.vals, v.clone());
+                                }
                             } else {
-                                overflow_right
-                                    .push((self.keys[i].clone(), self.vals[i].clone()));
+                                overflow_right.push((k.clone(), v.clone()));
                             }
                         }
                     })
@@ -267,8 +272,10 @@ where
                 i: usize
             ) where K: Ord + Clone, V: Clone {
                 while *m < i && elts.len() < SIZE {
-                    elts.keys.push(t.keys[*m].clone());
-                    elts.vals.push(t.vals[*m].clone());
+                    unsafe {
+                        push_unchecked(&mut elts.keys, t.keys[*m].clone());
+                        push_unchecked(&mut elts.vals, t.vals[*m].clone());
+                    }
                     *m += 1;
                 }
                 if *m < i {
@@ -286,6 +293,7 @@ where
             let mut overflow_right = Vec::new();
             let mut m = 0;
             let elts = Chunk::with_empty(|elts| {
+                elts.maybe_expand_to(min(SIZE, self.len() + chunk.len()));
                 let mut chunk = chunk.into_iter();
                 loop {
                     if m == self.len() && elts.len() == 0 {
@@ -308,8 +316,10 @@ where
                                     let r = f(q, d, Some((&self.keys[i], &self.vals[i])));
                                     if let Some((k, v)) = r {
                                         if elts.len() < SIZE {
-                                            elts.keys.push(k);
-                                            elts.vals.push(v);
+                                            unsafe {
+                                                push_unchecked(&mut elts.keys, k);
+                                                push_unchecked(&mut elts.vals, v);
+                                            }
                                         } else {
                                             overflow_right.push((k, v))
                                         }
@@ -323,8 +333,10 @@ where
                                     );
                                     if let Some((k, v)) = f(q, d, None) {
                                         if elts.len() < SIZE {
-                                            elts.keys.push(k);
-                                            elts.vals.push(v);
+                                            unsafe {
+                                                push_unchecked(&mut elts.keys, k);
+                                                push_unchecked(&mut elts.vals, v);
+                                            }
                                         } else {
                                             overflow_right.push((k, v));
                                         }
@@ -333,8 +345,10 @@ where
                                 Loc::InLeft => {
                                     if leaf && elts.len() < SIZE {
                                         if let Some((k, v)) = f(q, d, None) {
-                                            elts.keys.push(k);
-                                            elts.vals.push(v);
+                                            unsafe {
+                                                push_unchecked(&mut elts.keys, k);
+                                                push_unchecked(&mut elts.vals, v);
+                                            }
                                         }
                                     } else {
                                         update_left.push((q, d))
@@ -349,8 +363,10 @@ where
                                         for (q, d) in iter::once((q, d)).chain(chunk) {
                                             if elts.len() < SIZE {
                                                 if let Some((k, v)) = f(q, d, None) {
-                                                    elts.keys.push(k);
-                                                    elts.vals.push(v);
+                                                    unsafe {
+                                                        push_unchecked(&mut elts.keys, k);
+                                                        push_unchecked(&mut elts.vals, v);
+                                                    }
                                                 }
                                             } else {
                                                 update_right.push((q, d))
@@ -402,15 +418,18 @@ where
         match self.get(&q) {
             Loc::Here(i) => {
                 let elts = Chunk::with_empty(|elts| {
-                    elts.keys.extend(self.keys[0..i].into_iter().cloned());
-                    elts.vals.extend(self.vals[0..i].into_iter().cloned());
+                    elts.maybe_expand_to(min(SIZE, len));
+                    elts.keys.extend_from_slice(&self.keys[0..i]);
+                    elts.vals.extend_from_slice(&self.vals[0..i]);
                     if let Some((k, v)) = f(q, d, Some((&self.keys[i], &self.vals[i]))) {
-                        elts.keys.push(k);
-                        elts.vals.push(v);
+                        unsafe {
+                            push_unchecked(&mut elts.keys, k);
+                            push_unchecked(&mut elts.vals, v);
+                        }
                     }
                     if i + 1 < len {
-                        elts.keys.extend(self.keys[i + 1..len].into_iter().cloned());
-                        elts.vals.extend(self.vals[i + 1..len].into_iter().cloned());
+                        elts.keys.extend_from_slice(&self.keys[i + 1..len]);
+                        elts.vals.extend_from_slice(&self.vals[i + 1..len]);
                     }
                 });
                 Update::Updated {
@@ -422,22 +441,25 @@ where
             Loc::NotPresent(i) => {
                 let mut overflow = None;
                 let elts = Chunk::with_empty(|elts| {
-                    elts.keys.extend(self.keys[0..i].into_iter().cloned());
-                    elts.vals.extend(self.vals[0..i].into_iter().cloned());
+                    elts.maybe_expand_to(min(SIZE, len + 1));
+                    elts.keys.extend_from_slice(&self.keys[0..i]);
+                    elts.vals.extend_from_slice(&self.vals[0..i]);
                     if let Some((k, v)) = f(q, d, None) {
                         if elts.len() < SIZE {
-                            elts.keys.push(k);
-                            elts.vals.push(v);
+                            unsafe {
+                                push_unchecked(&mut elts.keys, k);
+                                push_unchecked(&mut elts.vals, v);
+                            }
                         } else {
                             overflow = Some((k, v))
                         }
                     }
                     if elts.len() + len - i <= SIZE {
-                        elts.keys.extend(self.keys[i..len].into_iter().cloned());
-                        elts.vals.extend(self.vals[i..len].into_iter().cloned());
+                        elts.keys.extend_from_slice(&self.keys[i..len]);
+                        elts.vals.extend_from_slice(&self.vals[i..len]);
                     } else {
-                        elts.keys.extend(self.keys[i..len - 1].into_iter().cloned());
-                        elts.vals.extend(self.vals[i..len - 1].into_iter().cloned());
+                        elts.keys.extend_from_slice(&self.keys[i..len - 1]);
+                        elts.vals.extend_from_slice(&self.vals[i..len - 1]);
                         overflow =
                             Some((self.keys[len - 1].clone(), self.vals[len - 1].clone()))
                     }
@@ -456,24 +478,31 @@ where
                         Loc::Here(..) | Loc::NotPresent(..) => unreachable!(),
                     }
                 } else {
-                    let elts = Chunk::with_empty(|elts| match loc {
-                        Loc::InLeft => {
-                            if let Some((k, v)) = f(q, d, None) {
-                                elts.keys.push(k);
-                                elts.vals.push(v);
+                    let elts = Chunk::with_empty(|elts| {
+                        elts.maybe_expand_to(min(SIZE, len + 1));
+                        match loc {
+                            Loc::InLeft => {
+                                if let Some((k, v)) = f(q, d, None) {
+                                    unsafe {
+                                        push_unchecked(&mut elts.keys, k);
+                                        push_unchecked(&mut elts.vals, v);
+                                    }
+                                }
+                                elts.keys.extend_from_slice(&self.keys[0..len]);
+                                elts.vals.extend_from_slice(&self.vals[0..len]);
                             }
-                            elts.keys.extend(self.keys[0..len].into_iter().cloned());
-                            elts.vals.extend(self.vals[0..len].into_iter().cloned());
-                        }
-                        Loc::InRight => {
-                            elts.keys.extend(self.keys[0..len].into_iter().cloned());
-                            elts.vals.extend(self.vals[0..len].into_iter().cloned());
-                            if let Some((k, v)) = f(q, d, None) {
-                                elts.keys.push(k);
-                                elts.vals.push(v);
+                            Loc::InRight => {
+                                elts.keys.extend_from_slice(&self.keys[0..len]);
+                                elts.vals.extend_from_slice(&self.vals[0..len]);
+                                if let Some((k, v)) = f(q, d, None) {
+                                    unsafe {
+                                        push_unchecked(&mut elts.keys, k);
+                                        push_unchecked(&mut elts.vals, v);
+                                    }
+                                }
                             }
+                            _ => unreachable!("bug"),
                         }
-                        _ => unreachable!("bug"),
                     });
                     Update::Updated {
                         elts,
@@ -516,16 +545,16 @@ where
             } else if len == 1 {
                 assert_eq!(i, 0);
             } else if i == 0 {
-                elts.keys.extend(self.keys[1..len].into_iter().cloned());
-                elts.vals.extend(self.vals[1..len].into_iter().cloned());
+                elts.keys.extend_from_slice(&self.keys[1..len]);
+                elts.vals.extend_from_slice(&self.vals[1..len]);
             } else if i == len - 1 {
-                elts.keys.extend(self.keys[0..len - 1].into_iter().cloned());
-                elts.vals.extend(self.vals[0..len - 1].into_iter().cloned());
+                elts.keys.extend_from_slice(&self.keys[0..len - 1]);
+                elts.vals.extend_from_slice(&self.vals[0..len - 1]);
             } else {
-                elts.keys.extend(self.keys[0..i].into_iter().cloned());
-                elts.keys.extend(self.keys[i + 1..len].into_iter().cloned());
-                elts.vals.extend(self.vals[0..i].into_iter().cloned());
-                elts.vals.extend(self.vals[i + 1..len].into_iter().cloned());
+                elts.keys.extend_from_slice(&self.keys[0..i]);
+                elts.keys.extend_from_slice(&self.keys[i + 1..len]);
+                elts.vals.extend_from_slice(&self.vals[0..i]);
+                elts.vals.extend_from_slice(&self.vals[i + 1..len]);
             }
         })
     }
@@ -589,3 +618,10 @@ where
         (&self.keys).into_iter().zip(&self.vals)
     }
 }
+
+unsafe fn push_unchecked<T>(v: &mut Vec<T>, t: T) {
+    let len = v.len();
+    let end = v.as_mut_ptr().add(len);
+    ptr::write(end, t);
+    v.set_len(len + 1);
+ }
