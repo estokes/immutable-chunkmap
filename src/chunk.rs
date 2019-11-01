@@ -1,10 +1,10 @@
 use std::{
     borrow::Borrow,
-    cmp::{Ord, Ordering, min},
+    cmp::{Ord, Ordering},
     fmt::{self, Debug, Formatter},
     cell::RefCell,
     collections::HashMap,
-    iter, slice, mem, ptr,
+    iter, slice, mem,
 };
 use cached_arc::{self, Cacheable, Discriminant, Arc};
 
@@ -120,8 +120,8 @@ where
 {
     pub(crate) fn with_empty<F: FnOnce(&mut Chunk<K, V>) -> ()>(f: F) -> Arc<Self> {
         let mut arc = Arc::new(|| Chunk {
-            keys: Vec::new(),
-            vals: Vec::new(),
+            keys: Vec::with_capacity(SIZE),
+            vals: Vec::with_capacity(SIZE),
         });
         let arc_ref = Arc::get_mut(&mut arc).unwrap();
         f(arc_ref);
@@ -130,20 +130,13 @@ where
 
     pub(crate) fn singleton(k: K, v: V) -> Arc<Self> {
         Chunk::with_empty(move |t_ref| {
-            t_ref.keys.push(k);
-            t_ref.vals.push(v);
+            unsafe {
+                push_unchecked(&mut t_ref.keys, k);
+                push_unchecked(&mut t_ref.vals, v);
+            }
         })
     }
 
-    fn maybe_expand_to(&mut self, to_size: usize) {
-        let capacity = self.keys.capacity();
-        if capacity < to_size {
-            let needed = to_size - capacity;
-            self.keys.reserve(needed);
-            self.vals.reserve(needed);
-        }
-    }
-    
     pub(crate) fn create_with<Q, D, F>(chunk: Vec<(Q, D)>, f: &mut F) -> Arc<Self>
     where
         Q: Ord,
@@ -151,10 +144,11 @@ where
         F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
     {
         Chunk::with_empty(|elts| {
-            elts.maybe_expand_to(chunk.len());
             for (k, v) in chunk.into_iter().filter_map(|(q, d)| f(q, d, None)) {
-                elts.keys.push(k);
-                elts.vals.push(v);
+                unsafe {
+                    push_unchecked(&mut elts.keys, k);
+                    push_unchecked(&mut elts.vals, v);
+                }
             }
         })
     }
@@ -215,14 +209,13 @@ where
         } else if full && in_right {
             UpdateChunk::UpdateRight(chunk)
         } else if leaf && (in_left || in_right) {
-            let chunk_len = chunk.len();
             let iter = chunk.into_iter().filter_map(|(q, d)| f(q, d, None));
             let mut overflow_right = Vec::new();
             let elts = {
                 if in_right {
                     Chunk::with_empty(|elts| {
-                        elts.maybe_expand_to(min(SIZE, self.len() + chunk_len));
-                        elts.clone_from(self);
+                        elts.keys.extend_from_slice(&self.keys);
+                        elts.vals.extend_from_slice(&self.vals);
                         for (k, v) in iter {
                             if elts.len() < SIZE {
                                 unsafe {
@@ -236,7 +229,6 @@ where
                     })
                 } else {
                     Chunk::with_empty(|elts| {
-                        elts.maybe_expand_to(min(SIZE, self.len() + chunk_len));
                         for (k, v) in iter {
                             unsafe {
                                 push_unchecked(&mut elts.keys, k);
@@ -293,7 +285,6 @@ where
             let mut overflow_right = Vec::new();
             let mut m = 0;
             let elts = Chunk::with_empty(|elts| {
-                elts.maybe_expand_to(min(SIZE, self.len() + chunk.len()));
                 let mut chunk = chunk.into_iter();
                 loop {
                     if m == self.len() && elts.len() == 0 {
@@ -418,7 +409,6 @@ where
         match self.get(&q) {
             Loc::Here(i) => {
                 let elts = Chunk::with_empty(|elts| {
-                    elts.maybe_expand_to(min(SIZE, len));
                     elts.keys.extend_from_slice(&self.keys[0..i]);
                     elts.vals.extend_from_slice(&self.vals[0..i]);
                     if let Some((k, v)) = f(q, d, Some((&self.keys[i], &self.vals[i]))) {
@@ -441,7 +431,6 @@ where
             Loc::NotPresent(i) => {
                 let mut overflow = None;
                 let elts = Chunk::with_empty(|elts| {
-                    elts.maybe_expand_to(min(SIZE, len + 1));
                     elts.keys.extend_from_slice(&self.keys[0..i]);
                     elts.vals.extend_from_slice(&self.vals[0..i]);
                     if let Some((k, v)) = f(q, d, None) {
@@ -479,7 +468,6 @@ where
                     }
                 } else {
                     let elts = Chunk::with_empty(|elts| {
-                        elts.maybe_expand_to(min(SIZE, len + 1));
                         match loc {
                             Loc::InLeft => {
                                 if let Some((k, v)) = f(q, d, None) {
@@ -621,7 +609,8 @@ where
 
 unsafe fn push_unchecked<T>(v: &mut Vec<T>, t: T) {
     let len = v.len();
+    assert!(dbg!(len + 1) <= dbg!(v.capacity()));
     let end = v.as_mut_ptr().add(len);
-    ptr::write(end, t);
+    *end = t;
     v.set_len(len + 1);
  }
