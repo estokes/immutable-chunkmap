@@ -609,8 +609,7 @@ where
 
 unsafe fn push_unchecked<T>(v: &mut Vec<T>, t: T) {
     let len = v.len();
-    assert!(dbg!(len + 1) <= dbg!(v.capacity()));
     let end = v.as_mut_ptr().add(len);
     *end = t;
     v.set_len(len + 1);
- }
+}
