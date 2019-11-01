@@ -1,6 +1,6 @@
 use std::{
     borrow::Borrow,
-    cmp::{Ord, Ordering},
+    cmp::{Ord, Ordering, min},
     fmt::{self, Debug, Formatter},
     cell::RefCell,
     collections::HashMap,
@@ -135,11 +135,12 @@ where
         })
     }
 
-    fn maybe_expand(&mut self, to_size: usize) {
-        let needed = to_size - self.keys.capacity();
-        if needed > 0 {
-            self.keys.reserve(needed);
-            self.vals.reserve(needed);
+    fn maybe_expand_to(&mut self, to_size: usize) {
+        let capacity = self.keys.capacity();
+        if capacity < to_size {
+            let needed = to_size - capacity;
+            self.keys.reserve_exact(needed);
+            self.vals.reserve_exact(needed);
         }
     }
     
@@ -150,7 +151,7 @@ where
         F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
     {
         Chunk::with_empty(|elts| {
-            elts.maybe_expand(chunk.len());
+            elts.maybe_expand_to(chunk.len());
             for (k, v) in chunk.into_iter().filter_map(|(q, d)| f(q, d, None)) {
                 elts.keys.push(k);
                 elts.vals.push(v);
@@ -214,11 +215,13 @@ where
         } else if full && in_right {
             UpdateChunk::UpdateRight(chunk)
         } else if leaf && (in_left || in_right) {
+            let chunk_len = chunk.len();
             let iter = chunk.into_iter().filter_map(|(q, d)| f(q, d, None));
             let mut overflow_right = Vec::new();
             let elts = {
                 if in_right {
                     Chunk::with_empty(|elts| {
+                        elts.maybe_expand_to(min(SIZE, self.len() + chunk_len));
                         elts.clone_from(self);
                         for (k, v) in iter {
                             if elts.len() < SIZE {
@@ -231,6 +234,7 @@ where
                     })
                 } else {
                     Chunk::with_empty(|elts| {
+                        elts.maybe_expand_to(min(SIZE, self.len() + chunk_len));
                         for (k, v) in iter {
                             elts.keys.push(k);
                             elts.vals.push(v);
