@@ -18,4 +18,5 @@ packed_struct_codegen = "0.3"
 cached-arc = {path = "../cached-arc"}
 
 [dev-dependencies]
+paste = "0.1"
 rand = ">= 0.3"
