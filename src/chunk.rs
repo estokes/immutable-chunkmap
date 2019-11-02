@@ -120,11 +120,15 @@ where
     K: Ord + Clone,
     V: Clone,
 {
-    pub(crate) fn with_empty<F: FnOnce(&mut Chunk<K, V>) -> ()>(f: F) -> Arc<Self> {
-        let mut arc = Arc::new(|| Chunk {
+    pub(crate) fn empty() -> Arc<Self> {
+        Arc::new(|| Chunk {
             keys: Vec::new(),
             vals: Vec::new(),
-        });
+        })
+    }
+
+    pub(crate) fn with_empty<F: FnOnce(&mut Chunk<K, V>) -> ()>(f: F) -> Arc<Self> {
+        let mut arc = Chunk::empty();
         let arc_ref = Arc::get_mut(&mut arc).unwrap();
         f(arc_ref);
         arc

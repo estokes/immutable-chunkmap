@@ -1,4 +1,4 @@
-use immutable_chunkmap::map::Map;
+use immutable_chunkmap::cached_map::Map;
 use std::cmp::{max, min};
 use std::sync::Arc;
 use std::thread;
