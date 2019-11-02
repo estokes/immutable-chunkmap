@@ -26,7 +26,7 @@ time a key is added or removed
 -- increases the size of each allocation
 -- icreases the overall amount of memory allocated for each change to the tree
  */
-pub(crate) const SIZE: usize = 512;
+pub(crate) const SIZE: usize = 8124;
 
 pub(crate) enum UpdateChunk<Q: Ord, K: Ord + Clone + Borrow<Q>, V: Clone, D> {
     UpdateLeft(Vec<(Q, D)>),
@@ -108,11 +108,16 @@ where
     }
 
     fn reinit(&mut self) -> bool {
+        self.keys.clear();
+        self.vals.clear();
+        true
+        /*
         min(self.keys.capacity(), self.vals.capacity()) > (SIZE >> 1) && {
             self.keys.clear();
             self.vals.clear();
             true
         }
+        */
     }
 }
 
@@ -385,7 +390,6 @@ where
         K: Borrow<Q>,
         F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
     {
-        let len = self.len();
         match self.get(&q) {
             Loc::Here(i) => {
                 let elts = Chunk::with_empty(|elts| {
@@ -395,9 +399,9 @@ where
                         elts.keys.push(k);
                         elts.vals.push(v);
                     }
-                    if i + 1 < len {
-                        elts.keys.extend_from_slice(&self.keys[i + 1..len]);
-                        elts.vals.extend_from_slice(&self.vals[i + 1..len]);
+                    if i + 1 < self.len() {
+                        elts.keys.extend_from_slice(&self.keys[i + 1..self.len()]);
+                        elts.vals.extend_from_slice(&self.vals[i + 1..self.len()]);
                     }
                 });
                 Update::Updated {
@@ -412,21 +416,15 @@ where
                     elts.keys.extend_from_slice(&self.keys[0..i]);
                     elts.vals.extend_from_slice(&self.vals[0..i]);
                     if let Some((k, v)) = f(q, d, None) {
-                        if elts.len() < SIZE {
-                            elts.keys.push(k);
-                            elts.vals.push(v);
-                        } else {
-                            overflow = Some((k, v))
-                        }
+                        elts.keys.push(k);
+                        elts.vals.push(v);
                     }
-                    if elts.len() + len - i <= SIZE {
-                        elts.keys.extend_from_slice(&self.keys[i..len]);
-                        elts.vals.extend_from_slice(&self.vals[i..len]);
-                    } else {
-                        elts.keys.extend_from_slice(&self.keys[i..len - 1]);
-                        elts.vals.extend_from_slice(&self.vals[i..len - 1]);
-                        overflow =
-                            Some((self.keys[len - 1].clone(), self.vals[len - 1].clone()))
+                    elts.keys.extend_from_slice(&self.keys[i..self.len()]);
+                    elts.vals.extend_from_slice(&self.vals[i..self.len()]);
+                    if elts.len() > SIZE {
+                        overflow = elts.keys
+                            .pop()
+                            .and_then(|k| elts.vals.pop().map(move |v| (k, v)))
                     }
                 });
                 Update::Updated {
@@ -436,7 +434,7 @@ where
                 }
             }
             loc @ Loc::InLeft | loc @ Loc::InRight => {
-                if !leaf || len == SIZE {
+                if !leaf || self.len() == SIZE {
                     match loc {
                         Loc::InLeft => Update::UpdateLeft(q, d),
                         Loc::InRight => Update::UpdateRight(q, d),
@@ -450,12 +448,12 @@ where
                                     elts.keys.push(k);
                                     elts.vals.push(v);
                                 }
-                                elts.keys.extend_from_slice(&self.keys[0..len]);
-                                elts.vals.extend_from_slice(&self.vals[0..len]);
+                                elts.keys.extend_from_slice(&self.keys[0..self.len()]);
+                                elts.vals.extend_from_slice(&self.vals[0..self.len()]);
                             }
                             Loc::InRight => {
-                                elts.keys.extend_from_slice(&self.keys[0..len]);
-                                elts.vals.extend_from_slice(&self.vals[0..len]);
+                                elts.keys.extend_from_slice(&self.keys[0..self.len()]);
+                                elts.vals.extend_from_slice(&self.vals[0..self.len()]);
                                 if let Some((k, v)) = f(q, d, None) {
                                     elts.keys.push(k);
                                     elts.vals.push(v);
