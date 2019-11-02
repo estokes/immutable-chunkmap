@@ -742,6 +742,7 @@ where
             }
             v
         };
+        // CR estokes: this can be improved to avoid the push
         let mut chunk: Vec<(Q, D)> = Vec::with_capacity(SIZE);
         let t = elts.drain(0..).fold(self.clone(), |t, (q, d)| {
             chunk.push((q, d));

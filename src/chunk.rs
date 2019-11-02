@@ -103,6 +103,7 @@ where
         })
     }
 
+    // CR estokes: need to compute the hit rate
     fn limit() -> usize {
         1000
     }
@@ -111,13 +112,6 @@ where
         self.keys.clear();
         self.vals.clear();
         true
-        /*
-        min(self.keys.capacity(), self.vals.capacity()) > (SIZE >> 1) && {
-            self.keys.clear();
-            self.vals.clear();
-            true
-        }
-        */
     }
 }
 
