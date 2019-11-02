@@ -187,6 +187,16 @@ where
         }
     }
 
+    fn overflow_to(&mut self, to: &mut Vec<(K, V)>) {
+        if self.len() > SIZE {
+            to.extend(
+                self.keys.split_off(SIZE).into_iter().zip(
+                    self.vals.split_off(SIZE).into_iter()
+                )
+            )
+        }
+    }
+    
     // invariant: chunk is sorted and deduped
     pub(crate) fn update_chunk<Q, D, F>(
         &self,
@@ -208,36 +218,25 @@ where
         } else if full && in_right {
             UpdateChunk::UpdateRight(chunk)
         } else if leaf && (in_left || in_right) {
-            let iter = chunk.into_iter().filter_map(|(q, d)| f(q, d, None));
+            let (mut keys, mut vals): (Vec<K>, Vec<V>) =
+                chunk.into_iter().filter_map(|(q, d)| f(q, d, None)).unzip();
             let mut overflow_right = Vec::new();
             let elts = {
                 if in_right {
                     Chunk::with_empty(|elts| {
                         elts.keys.extend_from_slice(&self.keys);
                         elts.vals.extend_from_slice(&self.vals);
-                        for (k, v) in iter {
-                            if elts.len() < SIZE {
-                                elts.keys.push(k);
-                                elts.vals.push(v);
-                            } else {
-                                overflow_right.push((k, v));
-                            }
-                        }
+                        elts.keys.append(&mut keys);
+                        elts.vals.append(&mut vals);
+                        elts.overflow_to(&mut overflow_right);
                     })
                 } else {
                     Chunk::with_empty(|elts| {
-                        for (k, v) in iter {
-                            elts.keys.push(k);
-                            elts.vals.push(v);
-                        }
-                        for (k, v) in self.into_iter() {
-                            if elts.len() < SIZE {
-                                elts.keys.push(k.clone());
-                                elts.vals.push(v.clone());
-                            } else {
-                                overflow_right.push((k.clone(), v.clone()));
-                            }
-                        }
+                        elts.keys.append(&mut keys);
+                        elts.vals.append(&mut vals);
+                        elts.keys.extend_from_slice(&self.keys);
+                        elts.vals.extend_from_slice(&self.vals);
+                        elts.overflow_to(&mut overflow_right);
                     })
                 }
             };
@@ -337,16 +336,13 @@ where
                                         self, elts, &mut overflow_right, &mut m, len
                                     );
                                     if leaf && elts.len() < SIZE {
-                                        for (q, d) in iter::once((q, d)).chain(chunk) {
-                                            if elts.len() < SIZE {
-                                                if let Some((k, v)) = f(q, d, None) {
-                                                    elts.keys.push(k);
-                                                    elts.vals.push(v);
-                                                }
-                                            } else {
-                                                update_right.push((q, d))
-                                            }
-                                        }
+                                        let (mut keys, mut vals): (Vec<K>, Vec<V>) =
+                                            iter::once((q, d)).chain(chunk)
+                                            .filter_map(|(q, d)| f(q, d, None))
+                                            .unzip();
+                                        elts.keys.append(&mut keys);
+                                        elts.vals.append(&mut vals);
+                                        elts.overflow_to(&mut overflow_right);
                                     } else {
                                         update_right.push((q, d));
                                         update_right.extend(chunk);
