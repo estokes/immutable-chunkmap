@@ -124,7 +124,9 @@ where
             vals: Vec::with_capacity(SIZE),
         });
         let arc_ref = Arc::get_mut(&mut arc).unwrap();
-        assert!(arc_ref.keys.capacity() == SIZE && arc_ref.vals.capacity() == SIZE);
+        debug_assert!(
+            arc_ref.keys.capacity() >= SIZE && arc_ref.vals.capacity() >= SIZE
+        );
         f(arc_ref);
         arc
     }
@@ -610,9 +612,9 @@ where
 
 unsafe fn push_unchecked<T>(v: &mut Vec<T>, t: T) {
     let len = v.len();
-    assert!(v.capacity() == SIZE);
-    assert!(len < v.capacity());
+    debug_assert!(v.capacity() >= SIZE);
+    debug_assert!(len < v.capacity());
     let end = v.as_mut_ptr().add(len);
     ptr::write(end, t);
     v.set_len(len + 1);
- }
+}
