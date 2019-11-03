@@ -6,6 +6,8 @@ use std::thread;
 use std::cmp::min;
 use crate::utils;
 
+const MIN_ITER: usize = 1000000;
+
 fn bench_insert(len: usize) -> (Arc<RwLock<HashMap<i64, i64>>>, Arc<Vec<i64>>, Duration) {
     let mut m = HashMap::new();
     let data = utils::randvec::<i64>(len);
@@ -26,30 +28,40 @@ fn bench_insert_sorted(
 }
 
 fn bench_get(m: &Arc<RwLock<HashMap<i64, i64>>>, d: &Arc<Vec<i64>>) -> Duration {
-    let n = num_cpus::get();
-    let chunk = d.len() / n;
-    let mut threads = Vec::new();
     let begin = Instant::now();
-    for i in 0 .. n {
+    let iter = max(MIN_ITER, d.len());
+    let mut threads = vec![];
+    for n in 0..n {
         let (m, d) = (m.clone(), d.clone());
-        let th =
-            thread::spawn(move || {
-                let m = m.read().unwrap();
-                let p = i * chunk;
-                for j in p .. min(d.len() - 1, p + chunk) {
+        threads.push(thread::spawn(move || {
+            let m = m.read().unwrap();
+            let mut r = 0;
+            while r < iter {
+                let mut j = n;
+                while j < d.len() && r < iter {
                     m.get(&d[j]).unwrap();
+                    j += n;
+                    r += 1;
                 }
-            });
-        threads.push(th);
+            }
+        }))
     }
-    for th in threads { th.join().unwrap(); }
+    for th in threads {
+        th.join().unwrap();
+    }
     begin.elapsed()
 }
 
 fn bench_get_seq(m: &Arc<RwLock<HashMap<i64, i64>>>, d: &Vec<i64>) -> Duration {
     let begin = Instant::now();
     let m = m.read().unwrap();
-    for k in d { m.get(k).unwrap(); }
+    let mut i = 0;
+    while i < MIN_ITER {
+        for k in d {
+            i += 1;
+            m.get(k).unwrap();
+        }
+    }
     begin.elapsed()
 }
 
@@ -66,11 +78,13 @@ pub(crate) fn run(size: usize) -> () {
     let get_par = bench_get(&m, &d);
     let get = bench_get_seq(&m, &d);
     let rm = bench_remove(&mut m, &d);
+    let iter = max(MIN_ITER, size);
+    let iterp = max(MIN_ITER * n, size * n);
     println!("{:.0},{:.0},{:.0},{:.0},{:.2},{:.0}",
              size,
              utils::to_ns_per(insert, size),
              utils::to_ns_per(inserts, size),
-             utils::to_ns_per(get, size),
-             utils::to_ns_per(get_par, size),
+             utils::to_ns_per(get, iter),
+             utils::to_ns_per(get_par, iterp),
              utils::to_ns_per(rm, size));
 }

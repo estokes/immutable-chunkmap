@@ -65,7 +65,7 @@ fn bench_get(m: Arc<Map<i64, i64>>, d: Arc<Vec<i64>>, n: usize) -> Duration {
 fn bench_get_seq(m: Arc<Map<i64, i64>>, d: Arc<Vec<i64>>) -> Duration {
     let begin = Instant::now();
     let mut i = 0;
-    let iter = max(MIN_ITER, d.len()); 
+    let iter = max(MIN_ITER, d.len());
     while i < iter {
         for k in d.iter() {
             i = i + 1;

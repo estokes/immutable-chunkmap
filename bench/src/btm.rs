@@ -34,23 +34,23 @@ fn bench_insert_sorted(
 }
 
 fn bench_get(m: &Arc<RwLock<BTreeMap<i64, i64>>>, d: &Arc<Vec<i64>>, n: usize) -> Duration {
-    let chunk = d.len() / n;
-    let mut threads = Vec::new();
     let begin = Instant::now();
-    for i in 0..n {
+    let iter = max(MIN_ITER, d.len());
+    let mut threads = vec![];
+    for n in 0..n {
         let (m, d) = (m.clone(), d.clone());
-        let th = thread::spawn(move || {
+        threads.push(thread::spawn(move || {
             let m = m.read().unwrap();
-            let p = i * chunk;
             let mut r = 0;
-            while r < MIN_ITER {
-                for j in p..min(d.len() - 1, p + chunk) {
-                    r += 1;
+            while r < iter {
+                let mut j = n;
+                while j < d.len() && r < iter {
                     m.get(&d[j]).unwrap();
+                    j += n;
+                    r += 1;
                 }
             }
-        });
-        threads.push(th);
+        }))
     }
     for th in threads {
         th.join().unwrap();
@@ -88,7 +88,7 @@ pub(crate) fn run(size: usize) -> () {
     let get = bench_get_seq(&m, &d);
     let rm = bench_remove(&mut m, &d);
     let iter = max(MIN_ITER, size);
-    let iterp = max(MIN_ITER * n, size);
+    let iterp = max(MIN_ITER * n, size * n);
     println!(
         "{},{:.0},{:.0},{:.0},{:.2},{:.0}",
         size,
