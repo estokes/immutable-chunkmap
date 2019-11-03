@@ -5,16 +5,56 @@ use rand::{
 };
 use std::time::Duration;
 
-pub(crate) fn randvec<T>(len: usize) -> Vec<T>
-    where Standard: Distribution<T>
-{
-    // so we get repeatable results
-    let mut rng = StdRng::from_seed([0; 32]);
+pub(crate) trait Rand: Sized {
+    fn rand<R: Rng>(r: &mut R) -> Self;
+}
+
+impl<T: Rand, U: Rand> Rand for (T, U) {
+    fn rand<R: Rng>(r: &mut R) -> Self {
+        (T::rand(r), U::rand(r))
+    }
+}
+
+impl Rand for Arc<String> {
+    fn rand<R: Rng>(r: &mut R) -> Self {
+        let mut s = String::new();
+        for _ in 0..STRSIZE {
+            s.push(r.gen())
+        }
+        Arc::new(s)
+    }
+}
+
+impl Rand for i32 {
+    fn rand<R: Rng>(r: &mut R) -> Self {
+        r.gen()
+    }
+}
+
+impl Rand for usize {
+    fn rand<R: Rng>(r: &mut R) -> Self {
+        r.gen()
+    }
+}
+
+pub(crate) fn random<T: Rand>() -> T {
+    let mut rng = rand::thread_rng();
+    T::rand(&mut rng)
+}
+
+pub(crate) fn randvec<T: Rand>(len: usize) -> Vec<T> {
     let mut v: Vec<T> = Vec::new();
     for _ in 0..len {
-        v.push(rng.gen())
+        v.push(random())
     }
     v
+}
+
+pub(crate) fn permutation<T: Clone>(v: &Vec<T>) -> Vec<T> {
+    let p = randvec::<usize>(v.len());
+    let mut p = p.iter().zip(v).collect::<Vec<_>>();
+    p.sort_by(|(k0, _), (k1, _)| k0.cmp(k1));
+    p.into_iter().map(|(_, v)| v.clone()).collect::<Vec<T>>()
 }
 
 #[allow(dead_code)]
