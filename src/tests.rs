@@ -1,4 +1,4 @@
-use crate::{map::Map, set::Set, avl};
+use crate::{avl, map::Map, set::Set};
 use rand::Rng;
 use std::{
     borrow::Borrow,
@@ -9,24 +9,91 @@ use std::{
     i32,
     iter::{FromIterator, IntoIterator},
     ops::Bound::{Excluded, Included, Unbounded},
+    sync::Arc,
     vec::Vec,
 };
 
 const STRSIZE: usize = 10;
 const SIZE: usize = 500000;
-const CHECK: usize = 10000;
+const CHECK: usize = 50000;
+
+macro_rules! make_tests {
+    ($name:ident) => {
+        paste::item! {
+            #[test]
+            fn [<$name _i32_i32>]() {
+                $name::<i32, i32>();
+            }
+        }
+        
+        paste::item! {
+            #[test]
+            fn [<$name _i32_usize>]() {
+                $name::<i32, usize>();
+            }
+        }
+
+        paste::item! {
+            #[test]
+            fn [<$name _usize_i32>]() {
+                $name::<usize, i32>();
+            }
+        }
+
+        paste::item! {
+            #[test]
+            fn [<$name _usize_usize>]() {
+                $name::<usize, usize>();
+            }
+        }
+
+        paste::item! {
+            #[test]
+            fn [<$name _i32_string>]() {
+                $name::<i32, Arc<String>>();
+            }
+        }
+
+        paste::item! {
+            #[test]
+            fn [<$name _string_i32>]() {
+                $name::<Arc<String>, i32>();
+            }
+        }
+
+        paste::item! {
+            #[test]
+            fn [<$name _usize_string_pair>]() {
+                $name::<usize, (Arc<String>, Arc<String>)>();
+            }
+        }
+
+        paste::item! {
+            #[test]
+            fn [<$name _string_pair_usize>]() {
+                $name::<(Arc<String>, Arc<String>), usize>();
+            }
+        }
+    }
+}
 
 trait Rand: Sized {
     fn rand<R: Rng>(r: &mut R) -> Self;
 }
 
-impl Rand for String {
+impl<T: Rand, U: Rand> Rand for (T, U) {
+    fn rand<R: Rng>(r: &mut R) -> Self {
+        (T::rand(r), U::rand(r))
+    }
+}
+
+impl Rand for Arc<String> {
     fn rand<R: Rng>(r: &mut R) -> Self {
         let mut s = String::new();
         for _ in 0..STRSIZE {
             s.push(r.gen())
         }
-        s
+        Arc::new(s)
     }
 }
 
@@ -62,14 +129,15 @@ fn permutation<T: Clone>(v: &Vec<T>) -> Vec<T> {
     p.into_iter().map(|(_, v)| v.clone()).collect::<Vec<T>>()
 }
 
-fn insert<I, T>(r: I) -> avl::Tree<T, T>
+fn insert<I, K, V>(r: I) -> avl::Tree<K, V>
 where
-    I: IntoIterator<Item = T>,
-    T: Ord + Clone + Debug,
+    I: IntoIterator<Item = (K, V)>,
+    K: Ord + Clone + Debug,
+    V: Clone + Debug,
 {
     let mut t = avl::Tree::new();
-    for i in r {
-        t = t.insert(i.clone(), i.clone()).0;
+    for (k, v) in r {
+        t = t.insert(k.clone(), v.clone()).0;
         if t.len() % CHECK == 0 {
             t.invariant();
         }
@@ -78,9 +146,10 @@ where
     t
 }
 
+
 #[test]
 fn test_insert_int_seq_asc() {
-    let t = insert(0..SIZE);
+    let t = insert((0..SIZE).into_iter().map(|i| (i, i)));
     let len = t.len();
     if len != SIZE {
         panic!("length is wrong expected 10000 got {}", len)
@@ -89,7 +158,7 @@ fn test_insert_int_seq_asc() {
 
 #[test]
 fn test_insert_int_seq_dec() {
-    let t = insert((0..SIZE).rev());
+    let t = insert(((0..SIZE).into_iter().map(|i| (i, i))).rev());
     let len = t.len();
     if len != SIZE {
         panic!("length is wrong expected 10000 got {}", len)
@@ -98,56 +167,49 @@ fn test_insert_int_seq_dec() {
 
 #[test]
 fn test_insert_int_rand() {
-    insert(randvec::<i32>(SIZE));
+    insert(randvec::<i32>(SIZE).iter().map(|i| (*i, *i)));
     ()
 }
 
-fn test_get_rand<T: Ord + Clone + Debug + Rand>() {
-    let v = randvec::<T>(SIZE);
-    let t = insert(&v);
-    for k in &v {
-        assert_eq!(*t.get(&k).unwrap(), k);
+fn test_get_rand_gen<K, V>()
+where
+    K: Ord + Clone + Debug + Hash + Rand,
+    V: Ord + Clone + Debug + Hash + Rand,
+{
+    let mut vals = randvec::<(K, V)>(SIZE);
+    dedup_with(&mut vals, |(ref k, _)| k);
+    let t = insert(vals.iter().cloned());
+    for (k, v) in &vals {
+        assert_eq!(t.get(k).unwrap(), v);
     }
 }
 
-#[test]
-fn test_get_int_rand() {
-    test_get_rand::<i32>()
-}
+make_tests!(test_get_rand_gen);
 
-#[test]
-fn test_get_str_rand() {
-    test_get_rand::<String>()
-}
-
-fn test_insert_remove_rand<T: Hash + Ord + Clone + Debug + Rand>() {
-    let mut v = randvec::<T>(SIZE);
-    dedup(&mut v);
+fn test_insert_remove_rand_gen<K, V>()
+where
+    K: Ord + Clone + Debug + Rand + Hash,
+    V: Ord + Clone + Debug + Rand + Hash,
+{
+    let mut v = randvec::<(K, V)>(SIZE);
+    dedup_with(&mut v, |(ref k, _)| k);
     let mut t = avl::Tree::new();
-    for k in &v {
-        let (tn, p) = t.insert(k, k);
+    for (k, v) in &v {
+        let (tn, p) = t.insert(k.clone(), v.clone());
         assert_eq!(p, None);
         t = tn;
-        assert_eq!(*t.get(&k).unwrap(), k);
+        assert_eq!(t.get(k).unwrap(), v);
         if t.len() % CHECK == 0 {
-            let (tn, p) = t.remove(&k);
-            assert_eq!(p, Some(k));
+            let (tn, p) = t.remove(k);
+            assert_eq!(p.as_ref(), Some(v));
             t = tn;
-            assert_eq!(t.get(&k), Option::None);
-            t.invariant();
+            assert_eq!(t.get(k), Option::None);
         }
     }
+    t.invariant();
 }
 
-#[test]
-fn test_int_insert_remove_rand() {
-    test_insert_remove_rand::<i32>()
-}
-
-#[test]
-fn test_str_insert_remove_rand() {
-    test_insert_remove_rand::<String>()
-}
+make_tests!(test_insert_remove_rand_gen);
 
 #[test]
 fn test_insert_many_small() {
@@ -157,166 +219,160 @@ fn test_insert_many_small() {
     let mut t = avl::Tree::new().insert_many(v.iter().map(|k| (*k, *k)));
     t.invariant();
     for k in &v {
-        assert_eq!(t.get(&k).unwrap(), k)
+        assert_eq!(t.get(k).unwrap(), k)
     }
     t = t.remove(&22i32).0;
     t = t.remove(&112i32).0;
     t.invariant();
     for k in &v {
         if *k == 22i32 || *k == 112i32 {
-            assert_eq!(t.get(&k), Option::None);
+            assert_eq!(t.get(k), Option::None);
         } else {
-            assert_eq!(t.get(&k), Option::Some(k));
+            assert_eq!(t.get(k), Option::Some(k));
         }
     }
     let v2: Vec<i32> = vec![12i32, 987i32, 19i32, 98i32];
     t = t.insert_many(v2.iter().map(|k| (k.clone(), k.clone())));
     for k in &v2 {
-        assert_eq!(t.get(&k).unwrap(), k);
+        assert_eq!(t.get(k).unwrap(), k);
     }
 }
 
-fn dedup<T: Ord + Clone + Hash>(v: &mut Vec<T>) {
+fn dedup_with<K, T, F>(v: &mut Vec<T>, f: F)
+where F: Fn(&T) -> &K,
+      K: Ord + Clone + Hash,
+{
     let mut seen = HashSet::new();
     let mut i = 0;
     while i < v.len() {
-        if seen.contains(&v[i]) {
+        if seen.contains(f(&v[i])) {
             v.remove(i);
         } else {
-            seen.insert(v[i].clone());
+            seen.insert(f(&v[i]).clone());
             i += 1
         }
     }
 }
 
-fn test_insert_many<T: Ord + Clone + Debug + Rand + Hash>() {
-    let mut v = randvec::<T>(SIZE);
-    dedup(&mut v);
-    let mut t = avl::Tree::new().insert_many(v.iter().map(|k| (k.clone(), k.clone())));
+fn test_insert_many_gen<K, V>()
+where
+    K: Ord + Clone + Debug + Rand + Hash,
+    V: Ord + Clone + Debug + Rand + Hash,
+{
+    let mut v = randvec::<(K, V)>(SIZE);
+    dedup_with(&mut v, |(ref k, _)| k);
+    let mut t = avl::Tree::new().insert_many(v.iter().map(|(k, v)| (k.clone(), v.clone())));
     t.invariant();
-    for k in &v {
-        assert_eq!(t.get(&k).unwrap(), k)
+    for (k, v) in &v {
+        assert_eq!(t.get(k).unwrap(), v)
     }
     {
         let mut i = 0;
-        for k in &v {
+        for (k, _) in &v {
             if i % CHECK == 0 {
-                t = t.remove(&k).0;
+                t = t.remove(k).0;
                 t.invariant();
             }
             i = i + 1;
         }
         i = 0;
-        for k in &v {
+        for (k, v) in &v {
             if i % CHECK == 0 {
-                assert_eq!(t.get(&k), None);
+                assert_eq!(t.get(k), None);
             } else {
-                assert_eq!(t.get(&k), Some(k));
+                assert_eq!(t.get(k), Some(v));
             }
             i = i + 1;
         }
     };
-    let mut v2 = randvec::<T>(SIZE);
-    dedup(&mut v2);
-    t = t.insert_many(v2.iter().map(|k| (k.clone(), k.clone())));
+    let v2 = {
+        let len = v.len();
+        v.append(&mut randvec::<(K, V)>(SIZE));
+        dedup_with(&mut v, |(ref k, _)| k);
+        v.split_off(len)
+    };
+    t = t.insert_many(v2.iter().map(|(k, v)| (k.clone(), v.clone())));
     t.invariant();
     {
         let mut i = 0;
-        for k in &v {
+        for (k, v) in &v {
             if i % CHECK != 0 {
-                assert_eq!(t.get(&k), Some(k));
+                assert_eq!(t.get(k), Some(v));
             }
             i += 1
         }
     }
-    for k in &v2 {
-        assert_eq!(t.get(&k), Some(k));
+    for (k, v) in &v2 {
+        assert_eq!(t.get(k), Some(v));
     }
     let mut i = 0;
-    t = t.update_many(v2.iter().map(|k| (k.clone(), ())), &mut |k, (), cur| {
+    t = t.update_many(v2.iter().map(|(k, v)| (k.clone(), v.clone())), &mut |k, v, cur| {
         i += 1;
-        assert_eq!(cur, Some((&k, &k)));
+        assert_eq!(cur, Some((&k, &v)));
         None
     });
     t.invariant();
     assert_eq!(i, v2.len());
-    for k in &v2 {
-        assert_eq!(t.get(&k), None)
+    for (k, _) in &v2 {
+        assert_eq!(t.get(k), None)
     }
 }
 
-#[test]
-fn test_int_insert_many() {
-    test_insert_many::<i32>()
-}
+make_tests!(test_insert_many_gen);
 
-#[test]
-fn test_str_insert_many() {
-    test_insert_many::<String>()
-}
-
-fn test_map_rand<T: Ord + Clone + Debug + Rand>() {
-    let v = randvec::<T>(SIZE);
+fn test_map_rand_gen<K, V>()
+where
+    K: Ord + Clone + Debug + Rand + Hash,
+    V: Ord + Clone + Debug + Rand + Hash,
+{
+    let mut vals = randvec::<(K, V)>(SIZE);
+    dedup_with(&mut vals, |(ref k, _)| k);
     let mut t = Map::new();
     let mut i = 0;
-    for k in &v {
-        t = t.insert(k, k).0;
-        assert_eq!(*t.get(&k).unwrap(), k);
-        if i % CHECK == 0 {
-            t.invariant();
-            for k in &v[0..i] {
-                assert_eq!(*t.get(&k).unwrap(), k);
-            }
-        }
+    for (k, v) in &vals {
+        t = t.insert(k.clone(), v.clone()).0;
+        assert_eq!(t.get(k).unwrap(), v);
         i = i + 1;
     }
+    for (k, v) in &vals {
+        assert_eq!(t.get(k).unwrap(), v);
+    }
+    t.invariant();
 
     i = 0;
-    for k in &v {
-        t = t.remove(&k).0;
-        if i % CHECK == 0 {
-            t.invariant();
-            for k in &v[0..i] {
-                assert_eq!(t.get(&k), Option::None);
-            }
-        }
+    for (k, _) in &vals {
+        t = t.remove(k).0;
         i = i + 1;
     }
-}
-
-#[test]
-fn test_int_map_rand() {
-    test_map_rand::<i32>()
-}
-
-#[test]
-fn test_str_map_rand() {
-    test_map_rand::<String>()
-}
-
-fn test_map_iter<T: Borrow<T> + Ord + Clone + Debug + Rand>() {
-    let mut v = randvec::<T>(SIZE);
-    let t = Map::new().insert_many(v.iter().map(|k| (k.clone(), k.clone())));
+    for (k, _) in &vals {
+        assert_eq!(t.get(k), Option::None);
+    }
     t.invariant();
-    v.sort_unstable();
-    v.dedup();
+}
+
+make_tests!(test_map_rand_gen);
+
+fn test_map_iter_gen<K, V>()
+where
+    K: Ord + Clone + Debug + Rand + Hash,
+    V: Ord + Clone + Debug + Rand + Hash,
+{
+    let mut vals = randvec::<(K, V)>(SIZE);
+    dedup_with(&mut vals, |(ref k, _)| k);
+    let t = Map::new().insert_many(vals.iter().cloned());
+    t.invariant();
+    assert_eq!(vals.len(), t.len());
+    vals.sort_unstable_by(|t0, t1| t0.0.cmp(&t1.0));
     let mut i = 0;
-    for (k0, k1) in &t {
-        assert_eq!(*k0, *k1);
-        assert_eq!(*k0, v[i]);
+    for (k, v) in &t {
+        let (k_, v_) = (&vals[i].0, &vals[i].1);
+        assert_eq!(k, k_);
+        assert_eq!(v, v_);
         i = i + 1;
     }
 }
 
-#[test]
-fn test_int_map_iter() {
-    test_map_iter::<i32>()
-}
-
-#[test]
-fn test_string_map_iter() {
-    test_map_iter::<String>()
-}
+make_tests!(test_map_iter_gen);
 
 #[test]
 fn test_map_range_small() {
@@ -401,13 +457,17 @@ fn test_map_range_small() {
     }
 }
 
-fn test_map_range<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
-    let mut v = randvec::<T>(SIZE);
-    let mut t: Map<T, T> = Map::new();
-    t = t.insert_many(v.iter().map(|x| (x.clone(), x.clone())));
+fn test_map_range_gen<K, V>()
+where
+    K: Ord + Clone + Debug + Rand + Hash,
+    V: Ord + Clone + Debug + Rand + Hash,
+{
+    let mut vals = randvec::<(K, V)>(SIZE);
+    dedup_with(&mut vals, |(ref k, _)| k);
+    let mut t: Map<K, V> = Map::new();
+    t = t.insert_many(vals.iter().map(|(k, v)| (k.clone(), v.clone())));
     t.invariant();
-    v.sort_unstable();
-    v.dedup();
+    vals.sort_unstable_by(|t0, t1| t0.0.cmp(&t1.0));
     let (start, end) = loop {
         let mut r = rand::thread_rng();
         let i = r.gen_range(0, SIZE - 1);
@@ -423,18 +483,19 @@ fn test_map_range<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
     println!(
         "start: {:?}:{:?} end {:?}:{:?} len {:?}",
         start,
-        v[start],
+        vals[start],
         end,
-        v[end],
-        v.len()
+        vals[end],
+        vals.len()
     );
     {
         let mut i = start;
-        let lbound = Included(v[i].clone());
-        let ubound = Excluded(v[end].clone());
-        for (k0, k1) in t.range(lbound, ubound) {
-            assert_eq!(k0, k1);
-            assert_eq!(k0, &v[i]);
+        let lbound = Included(vals[i].0.clone());
+        let ubound = Excluded(vals[end].0.clone());
+        for (k, v) in t.range(lbound, ubound) {
+            let (k_, v_) = (&vals[i].0, &vals[i].1);
+            assert_eq!(k, k_);
+            assert_eq!(v, v_);
             assert!(i < end);
             i += 1;
         }
@@ -442,11 +503,12 @@ fn test_map_range<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
     }
     {
         let mut i = start;
-        let lbound = Excluded(v[i].clone());
-        let ubound = Included(v[end].clone());
-        for (k0, k1) in t.range(lbound, ubound) {
-            assert_eq!(k0, k1);
-            assert_eq!(k0, &v[i + 1]);
+        let lbound = Excluded(vals[i].0.clone());
+        let ubound = Included(vals[end].0.clone());
+        for (k, v) in t.range(lbound, ubound) {
+            let (k_, v_) = (&vals[i + 1].0, &vals[i + 1].1);
+            assert_eq!(k, k_);
+            assert_eq!(v, v_);
             assert!(i < end);
             i += 1;
         }
@@ -455,10 +517,11 @@ fn test_map_range<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
     {
         let mut i = 0;
         let lbound = Unbounded;
-        let ubound = Excluded(v[end].clone());
-        for (k0, k1) in t.range(lbound, ubound) {
-            assert_eq!(k0, k1);
-            assert_eq!(k0, &v[i]);
+        let ubound = Excluded(vals[end].0.clone());
+        for (k, v) in t.range(lbound, ubound) {
+            let (k_, v_) = (&vals[i].0, &vals[i].1);
+            assert_eq!(k, k_);
+            assert_eq!(v, v_);
             assert!(i < end);
             i += 1;
         }
@@ -466,12 +529,13 @@ fn test_map_range<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
     }
     {
         let mut i = end - 1;
-        let lbound = Included(v[start].clone());
-        let ubound = Excluded(v[end].clone());
+        let lbound = Included(vals[start].0.clone());
+        let ubound = Excluded(vals[end].0.clone());
         let mut r = t.range(lbound, ubound);
-        while let Some((k0, k1)) = r.next_back() {
-            assert_eq!(k0, k1);
-            assert_eq!(k0, &v[i]);
+        while let Some((k, v)) = r.next_back() {
+            let (k_, v_) = (&vals[i].0, &vals[i].1);
+            assert_eq!(k, k_);
+            assert_eq!(v, v_);
             assert!(i >= start);
             i -= 1;
         }
@@ -479,19 +543,11 @@ fn test_map_range<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
     }
 }
 
-#[test]
-fn test_int_map_range() {
-    test_map_range::<i32>()
-}
+make_tests!(test_map_range_gen);
 
-#[test]
-fn test_string_map_range() {
-    test_map_range::<String>()
-}
-
-fn test_set<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
+fn test_set_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
     let mut v = randvec::<T>(SIZE);
-    dedup(&mut v);
+    dedup_with(&mut v, |k| k);
     let mut t = Set::new();
     let mut i = 0;
     for k in &v {
@@ -526,13 +582,11 @@ fn test_set<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
 }
 
 #[test]
-fn test_int_set() {
-    test_set::<i32>()
-}
-
-#[test]
-fn test_string_set() {
-    test_set::<String>()
+fn test_set() {
+    test_set_gen::<i32>();
+    test_set_gen::<usize>();
+    test_set_gen::<Arc<String>>();
+    test_set_gen::<(i32, Arc<String>)>();
 }
 
 #[test]
@@ -568,8 +622,8 @@ fn test_ord() {
 fn test_union_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
     let mut v0 = randvec::<T>(SIZE);
     let mut v1 = randvec::<T>(SIZE);
-    dedup(&mut v0);
-    dedup(&mut v1);
+    dedup_with(&mut v0, |k| k);
+    dedup_with(&mut v1, |k| k);
     let m0 = Map::from_iter(v0.iter().map(|k| (k.clone(), 1)));
     let m1 = Map::from_iter(v1.iter().map(|k| (k.clone(), 1)));
     let m2 = m0.union(&m1, |_, v0, v1| Some(v0 + v1));
@@ -587,20 +641,18 @@ fn test_union_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
 }
 
 #[test]
-fn test_union_string() {
-    test_union_gen::<String>()
-}
-
-#[test]
-fn test_union_int() {
-    test_union_gen::<i32>()
+fn test_union() {
+    test_union_gen::<i32>();
+    test_union_gen::<usize>();
+    test_union_gen::<Arc<String>>();
+    test_union_gen::<(i32, Arc<String>)>();
 }
 
 fn test_intersect_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
     let mut v0 = randvec::<T>(SIZE);
     let mut v1 = randvec::<T>(SIZE);
-    dedup(&mut v0);
-    dedup(&mut v1);
+    dedup_with(&mut v0, |k| k);
+    dedup_with(&mut v1, |k| k);
     let m0 = Map::from_iter(v0.iter().map(|k| (k.clone(), 1)));
     let m1 = Map::from_iter(v1.iter().map(|k| (k.clone(), 1)));
     let m2 = m0.intersect(&m1, |_, v0, v1| Some(v0 + v1));
@@ -616,7 +668,7 @@ fn test_intersect_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
     ins(v0, &mut hm0);
     ins(v1, &mut hm1);
     for (k, v0) in &hm0 {
-        match hm1.get(&k) {
+        match hm1.get(k) {
             None => (),
             Some(v1) => {
                 hm2.insert(k.clone(), *v0 + *v1);
@@ -632,20 +684,18 @@ fn test_intersect_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
 }
 
 #[test]
-fn test_intersect_string() {
-    test_intersect_gen::<String>();
-}
-
-#[test]
-fn test_intersect_int() {
+fn test_intersect() {
     test_intersect_gen::<i32>();
+    test_intersect_gen::<usize>();
+    test_intersect_gen::<Arc<String>>();
+    test_intersect_gen::<(i32, Arc<String>)>();
 }
 
 fn test_diff_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
     let mut v0 = randvec::<T>(SIZE);
     let mut v1 = randvec::<T>(SIZE);
-    dedup(&mut v0);
-    dedup(&mut v1);
+    dedup_with(&mut v0, |k| k);
+    dedup_with(&mut v1, |k| k);
     let m0 = Map::from_iter(v0.iter().map(|k| (k.clone(), ())));
     let m1 = Map::from_iter(v1.iter().map(|k| (k.clone(), ())));
     let m2 = m0.diff(&m1, |_, (), ()| None);
@@ -655,7 +705,7 @@ fn test_diff_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
         hm.insert(k, ());
     }
     for k in &v1 {
-        hm.remove(&k);
+        hm.remove(k);
     }
     for (k, ()) in &hm {
         m2.get(k).unwrap();
@@ -666,11 +716,9 @@ fn test_diff_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
 }
 
 #[test]
-fn test_diff_string() {
-    test_diff_gen::<String>();
-}
-
-#[test]
-fn test_diff_int() {
+fn test_diff() {
     test_diff_gen::<i32>();
+    test_diff_gen::<usize>();
+    test_diff_gen::<Arc<String>>();
+    test_diff_gen::<(i32, Arc<String>)>();
 }

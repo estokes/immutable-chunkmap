@@ -1,6 +1,6 @@
 [package]
 name = "immutable-chunkmap"
-version = "0.5.5"
+version = "0.5.8"
 authors = ["Eric Stokes <letaris@gmail.com>"]
 publish = true
 description = "A cache efficient immutable map and set with lookup performance equivalent to BTreeMap and BTreeSet, fast batch insert and update methods, and efficient implementations of all set operations."
@@ -12,7 +12,10 @@ repository = "https://github.com/estokes/immutable-chunkmap"
 edition = "2018"
 
 [dependencies]
-arrayvec = "0.4"
+arrayvec = "0.5"
+packed_struct = "0.3"
+packed_struct_codegen = "0.3"
 
 [dev-dependencies]
+paste = "0.1"
 rand = ">= 0.3"

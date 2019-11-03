@@ -1,15 +1,18 @@
 use rand::{
+    SeedableRng, Rng,
+    rngs::StdRng,
     distributions::{Distribution, Standard},
-    random,
 };
 use std::time::Duration;
 
 pub(crate) fn randvec<T>(len: usize) -> Vec<T>
     where Standard: Distribution<T>
 {
+    // so we get repeatable results
+    let mut rng = StdRng::from_seed([0; 32]);
     let mut v: Vec<T> = Vec::new();
     for _ in 0..len {
-        v.push(random())
+        v.push(rng.gen())
     }
     v
 }

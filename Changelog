@@ -1,3 +1,19 @@
+0.5.8
+* further 20% performance improvement on batch update operations.
+
+0.5.7
+* improve performance of batch update operations on unsorted data by a
+large amount (7x on trees of size 10million and chunks of size 100k).
+0.5.6
+
+* packed the height and length together, which reduced the size of
+nodes by 1 word. That reduction gets us a 1-2% improvement in
+lookup times (more benefit for larger trees). Tree length is now
+limited to 2^56 elements instead of usize::MAX elements.
+
+* made the tests run faster by wrapping strings in Arcs, which is
+closer to how you'd use them in a real program anyway.
+
 0.5.5
 * small performance optimizations update operations
 
@@ -6,31 +22,31 @@
 
 0.5.3
 * implement Set::diff, and Map::diff, O(log(N) + M) where M is the
-  number of intersecting chunks. Now all the fundamental set
-  operations are implemented.
+number of intersecting chunks. Now all the fundamental set
+operations are implemented.
 * rename Map::merge to Map::union. Sorry for the tiny break in
-  semantic versioning, but given it was just released I don't
-  think it's a huge problem to change it now.
+semantic versioning, but given it was just released I don't
+think it's a huge problem to change it now.
 
 0.5.2
 * implement Set::intersect, and Map::intersect, O(log(N) + M)
-  where M is the number of intersecting chunks.
+where M is the number of intersecting chunks.
 
 0.5.1
 * implement Set::union, and Map::merge, O(log(N) + M) where M is the
-  number of intersecting chunks and N is the size of the largest
-  tree. Should always be as fast as update_many from the other map's
-  iterator, a lot faster in the case of a small intersection.
+number of intersecting chunks and N is the size of the largest
+tree. Should always be as fast as update_many from the other map's
+iterator, a lot faster in the case of a small intersection.
 * remove my silly &mut F requirement for closure arguments to
-  functions in the public interface. Sorry I'm still learning rust, I
-  didn't know FnMut was also implemented by a &mut.
+functions in the public interface. Sorry I'm still learning rust, I
+didn't know FnMut was also implemented by a &mut.
 
 0.5.0
 * implement map get_key, get_full
 * implement set update_many
 * fix some incorrect documentation
 * BREAKING change map and set update functions so they are able to
-  work with borrowed forms of the key
+work with borrowed forms of the key
 
 0.4.1
 * implement get in the set module
@@ -39,29 +55,29 @@
 0.4.0
 * add a set module
 * remove the rc and arc modules. There is no observable performance
-  difference between rc and arc, so just use arc everywhere. This is
-  especially relevant because all the practical applications of this
-  library than I know about require using Arc.
+difference between rc and arc, so just use arc everywhere. This is
+especially relevant because all the practical applications of this
+library than I know about require using Arc.
 * BREAKING: fix return type of insert and remove to match BTreeMap
 
 0.3.2
 * fix a small performance regression in update_many caused by my last
-  change
+change
 
 0.3.1
 * fix a bug in update_many that could rarely cause a removed item not
-  to be removed
+to be removed
 
 0.3.0(yanked)
 * BREAKING: change the name of insert_sorted to insert_many
 * add update, and update_many
 * insert 14% performance improvement
 * insert_many 42% performance improvement on unsorted data, now faster
-  than insert on random data
+than insert on random data
 
 0.2.1
 * BREAKING: change signature of insert to match BTreeMap as closely as
-  possible. Sorry I was new to rust when I first wrote this module :-(
+possible. Sorry I was new to rust when I first wrote this module :-(
 
 0.2.0
 * iteration runs in constant space
