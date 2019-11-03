@@ -1,6 +1,11 @@
+0.5.8
+* further 20% performance improvement on batch update operations.
+
 0.5.7
-* improve performance of batch update operations on unsorted data by a large amount (7x on trees of size 10million and chunks of size 100k).
+* improve performance of batch update operations on unsorted data by a
+large amount (7x on trees of size 10million and chunks of size 100k).
 0.5.6
+
 * packed the height and length together, which reduced the size of
 nodes by 1 word. That reduction gets us a 1-2% improvement in
 lookup times (more benefit for larger trees). Tree length is now
