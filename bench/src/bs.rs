@@ -90,7 +90,7 @@ pub(crate) fn run(size: usize) -> () {
     let (m, d) = create(size);
     let get_par = bench_get(&m, &d);
     let get = bench_get_seq(&m, &d);
-    println!("{},0,0,{},{},0",
+    println!("{.0},0,0,{.0},{.0},0",
              size,
              utils::to_ns_per(get, size),
              utils::to_ns_per(get_par, size));

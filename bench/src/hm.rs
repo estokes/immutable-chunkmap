@@ -14,7 +14,9 @@ fn bench_insert(len: usize) -> (Arc<RwLock<HashMap<i64, i64>>>, Arc<Vec<i64>>, D
     (Arc::new(RwLock::new(m)), Arc::new(data), begin.elapsed())
 }
 
-fn bench_insert_sorted(len: usize) -> (Arc<RwLock<HashMap<i64, i64>>>, Arc<Vec<i64>>, Duration) {
+fn bench_insert_sorted(
+    len: usize
+) -> (Arc<RwLock<HashMap<i64, i64>>>, Arc<Vec<i64>>, Duration) {
     let mut m = HashMap::new();
     let mut data = utils::randvec::<i64>(len);
     let begin = Instant::now();
@@ -64,7 +66,7 @@ pub(crate) fn run(size: usize) -> () {
     let get_par = bench_get(&m, &d);
     let get = bench_get_seq(&m, &d);
     let rm = bench_remove(&mut m, &d);
-    println!("{},{},{},{},{},{}",
+    println!("{:.0},{:.0},{:.0},{:.0},{:.2},{:.0}",
              size,
              utils::to_ns_per(insert, size),
              utils::to_ns_per(inserts, size),

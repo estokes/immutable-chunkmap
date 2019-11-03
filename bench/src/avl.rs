@@ -43,7 +43,7 @@ pub(crate) fn run(size: usize) {
     let (_, _, inserts) = bench_insert_sorted(size);
     let get = bench_get(&m, &d);
     let rm = bench_remove(m, &d);
-    println!("{},{},{},{},0,{}",
+    println!("{.0},{.0},{.0},{.0},0,{.0}",
              size,
              utils::to_ns_per(insert, size),
              utils::to_ns_per(inserts, size),

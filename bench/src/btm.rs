@@ -90,7 +90,7 @@ pub(crate) fn run(size: usize) -> () {
     let iter = max(MIN_ITER, size);
     let iterp = max(MIN_ITER * n, size);
     println!(
-        "{},{:.1},{:.1},{:.1},{:.1},{:.1}",
+        "{},{:.0},{:.0},{:.0},{:.2},{:.0}",
         size,
         utils::to_ns_per(insert, size),
         utils::to_ns_per(inserts, size),
