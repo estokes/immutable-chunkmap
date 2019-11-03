@@ -11,7 +11,7 @@ use std::{
     slice
 };
 
-static CACHE_SIZE: usize = 512;
+static CACHE_SIZE: usize = 128;
 
 #[derive(Clone)]
 enum CacheOp<V: Clone> {
