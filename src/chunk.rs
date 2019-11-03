@@ -1,6 +1,6 @@
 use std::{
     borrow::Borrow,
-    cmp::{Ord, Ordering},
+    cmp::{Ord, Ordering, min},
     fmt::{self, Debug, Formatter},
     iter, slice, vec,
 };
@@ -142,10 +142,20 @@ where
         }
     }
 
-    // chunk must be sorted
+    fn overflow_to(&mut self, to: &mut Vec<(K, V)>) {
+        if self.len() > SIZE {
+            to.extend(
+                self.keys.split_off(SIZE).into_iter().zip(
+                    self.vals.split_off(SIZE).into_iter()
+                )
+            )
+        }
+    }
+
+    // invariant: chunk is sorted and deduped
     pub(crate) fn update_chunk<Q, D, F>(
         &self,
-        mut chunk: Vec<(Q, D)>,
+        chunk: Vec<(Q, D)>,
         leaf: bool,
         f: &mut F,
     ) -> UpdateChunk<Q, K, V, D>
@@ -163,36 +173,23 @@ where
         } else if full && in_right {
             UpdateChunk::UpdateRight(chunk)
         } else if leaf && (in_left || in_right) {
-            let (mut keys, mut vals): (Vec<_>, Vec<_>) =
-                chunk.drain(0..).filter_map(|(q, d)| f(q, d, None)).unzip();
-            let mut elts = {
-                if in_right {
-                    let mut elts = self.clone();
-                    elts.keys.append(&mut keys);
-                    elts.vals.append(&mut vals);
-                    elts
-                } else {
-                    let mut elts = Chunk::empty();
-                    elts.keys = keys;
-                    elts.vals = vals;
-                    elts.keys.extend_from_slice(&self.keys);
-                    elts.vals.extend_from_slice(&self.vals);
-                    elts
-                }
-            };
-            let overflow_right = {
-                if elts.len() <= SIZE {
-                    Vec::new()
-                } else {
-                    elts.keys
-                        .split_off(SIZE)
-                        .into_iter()
-                        .zip(elts.vals.split_off(SIZE).into_iter())
-                        .collect::<Vec<_>>()
-                }
-            };
-            elts.keys.shrink_to_fit();
-            elts.vals.shrink_to_fit();
+            let (mut keys, mut vals): (Vec<K>, Vec<V>) =
+                chunk.into_iter().filter_map(|(q, d)| f(q, d, None)).unzip();
+            let mut overflow_right = Vec::new();
+            let mut elts = Chunk::with_capacity(self.len() + keys.len());
+            if in_right {
+                elts.keys.extend_from_slice(&self.keys);
+                elts.vals.extend_from_slice(&self.vals);
+                elts.keys.append(&mut keys);
+                elts.vals.append(&mut vals);
+                elts.overflow_to(&mut overflow_right);
+            } else {
+                elts.keys = keys;
+                elts.vals = vals;
+                elts.keys.extend_from_slice(&self.keys);
+                elts.vals.extend_from_slice(&self.vals);
+                elts.overflow_to(&mut overflow_right);
+            }
             UpdateChunk::Updated {
                 elts,
                 update_left: Vec::new(),
@@ -200,69 +197,112 @@ where
                 overflow_right,
             }
         } else {
-            let mut elts = self.clone();
+            #[inline(always)]
+            fn copy_up_to<K, V>(
+                t: &Chunk<K, V>,
+                elts: &mut Chunk<K, V>,
+                overflow_right: &mut Vec<(K, V)>,
+                m: &mut usize,
+                i: usize
+            ) where K: Ord + Clone, V: Clone {
+                let n = min(i - *m, SIZE - elts.len());
+                if n > 0 {
+                    elts.keys.extend_from_slice(&t.keys[*m..*m + n]);
+                    elts.vals.extend_from_slice(&t.vals[*m..*m + n]);
+                    *m += n;
+                }
+                if *m < i {
+                    overflow_right.extend(
+                        t.keys.as_slice()[*m..i].iter().cloned()
+                            .zip(t.vals.as_slice()[*m..i].iter().cloned())
+                    );
+                    *m = i;
+                }
+            }
+            // invariant: don't cross the streams.
             let mut not_done = Vec::new();
             let mut update_left = Vec::new();
             let mut update_right = Vec::new();
             let mut overflow_right = Vec::new();
-            for (q, d) in chunk.drain(0..) {
-                if elts.len() == 0 {
-                    not_done.push((q, d));
-                    continue;
+            let mut m = 0;
+            let mut elts = Chunk::with_capacity(min(SIZE, self.len() + chunk.len()));
+            let mut chunk = chunk.into_iter();
+            loop {
+                if m == self.len() && elts.len() == 0 {
+                    not_done.extend(chunk);
+                    break;
                 }
-                match elts.get(&q) {
-                    Loc::Here(i) => {
-                        match f(q, d, Some((&elts.keys[i], &elts.vals[i]))) {
-                            None => {
-                                elts.keys.remove(i);
-                                elts.vals.remove(i);
-                            }
-                            Some((k, v)) => {
-                                elts.keys[i] = k;
-                                elts.vals[i] = v;
-                            }
-                        }
+                match chunk.next() {
+                    None => {
+                        copy_up_to(
+                            self, &mut elts, &mut overflow_right, &mut m, self.len()
+                        );
+                        break;
                     }
-                    Loc::NotPresent(i) => {
-                        if elts.len() < SIZE {
-                            if let Some((k, v)) = f(q, d, None) {
-                                elts.keys.insert(i, k);
-                                elts.vals.insert(i, v);
+                    Some((q, d)) => {
+                        match self.get(&q) {
+                            Loc::Here(i) => {
+                                copy_up_to(
+                                    self, &mut elts, &mut overflow_right, &mut m, i
+                                );
+                                let r = f(q, d, Some((&self.keys[i], &self.vals[i])));
+                                if let Some((k, v)) = r {
+                                    if elts.len() < SIZE {
+                                        elts.keys.push(k);
+                                        elts.vals.push(v);
+                                    } else {
+                                        overflow_right.push((k, v))
+                                    }
+                                }
+                                // self[i] was replaced or deleted, skip it
+                                m += 1;
                             }
-                        } else {
-                            if let Some((k, v)) = f(q, d, None) {
-                                overflow_right.push((
-                                    elts.keys.pop().unwrap(),
-                                    elts.vals.pop().unwrap(),
-                                ));
-                                elts.keys.insert(i, k);
-                                elts.vals.insert(i, v);
+                            Loc::NotPresent(i) => {
+                                copy_up_to(
+                                    self, &mut elts, &mut overflow_right, &mut m, i
+                                );
+                                if let Some((k, v)) = f(q, d, None) {
+                                    if elts.len() < SIZE {
+                                        elts.keys.push(k);
+                                        elts.vals.push(v);
+                                    } else {
+                                        overflow_right.push((k, v));
+                                    }
+                                }
                             }
-                        }
-                    }
-                    Loc::InLeft => {
-                        if leaf && elts.keys.len() < SIZE {
-                            if let Some((k, v)) = f(q, d, None) {
-                                elts.keys.insert(0, k);
-                                elts.vals.insert(0, v);
+                            Loc::InLeft => {
+                                if leaf && elts.len() < SIZE {
+                                    if let Some((k, v)) = f(q, d, None) {
+                                        elts.keys.push(k);
+                                        elts.vals.push(v);
+                                    }
+                                } else {
+                                    update_left.push((q, d))
+                                }
                             }
-                        } else {
-                            update_left.push((q, d))
-                        }
-                    }
-                    Loc::InRight => {
-                        if leaf && elts.len() < SIZE {
-                            if let Some((k, v)) = f(q, d, None) {
-                                elts.keys.push(k);
-                                elts.vals.push(v);
+                            Loc::InRight => {
+                                let len = self.len();
+                                copy_up_to(
+                                    self, &mut elts, &mut overflow_right, &mut m, len
+                                );
+                                if leaf && elts.len() < SIZE {
+                                    let (mut keys, mut vals): (Vec<K>, Vec<V>) =
+                                        iter::once((q, d)).chain(chunk)
+                                        .filter_map(|(q, d)| f(q, d, None))
+                                        .unzip();
+                                    elts.keys.append(&mut keys);
+                                    elts.vals.append(&mut vals);
+                                    elts.overflow_to(&mut overflow_right);
+                                } else {
+                                    update_right.push((q, d));
+                                    update_right.extend(chunk);
+                                }
+                                break;
                             }
-                        } else {
-                            update_right.push((q, d))
                         }
                     }
                 }
             }
-            overflow_right.reverse();
             if elts.len() > 0 {
                 assert_eq!(not_done.len(), 0);
                 UpdateChunk::Updated {

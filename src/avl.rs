@@ -9,7 +9,7 @@ use std::{
     hash::{Hash, Hasher},
     ops::{Bound, Index},
     sync::Arc,
-    iter, mem, slice,
+    iter, slice,
 };
 
 // until we get 128 bit machines with exabytes of memory
@@ -741,20 +741,12 @@ where
             }
             v
         };
-        let mut chunk: Vec<(Q, D)> = Vec::with_capacity(SIZE);
-        let t = elts.drain(0..).fold(self.clone(), |t, (q, d)| {
-            chunk.push((q, d));
-            if chunk.len() < SIZE {
-                t
-            } else {
-                t.update_chunk(mem::replace(&mut chunk, Vec::with_capacity(SIZE)), f)
-            }
-        });
-        if chunk.len() == 0 {
-            t
-        } else {
-            t.update_chunk(chunk, f)
-        }
+        let mut t = self.clone();
+        while elts.len() > 0 {
+            let chunk = elts.drain(0..min(SIZE, elts.len())).collect::<Vec<_>>();
+            t = t.update_chunk(chunk, f)
+        };
+        t
     }
 
     pub(crate) fn insert_many<E: IntoIterator<Item = (K, V)>>(&self, elts: E) -> Self {
