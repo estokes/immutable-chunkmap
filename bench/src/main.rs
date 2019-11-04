@@ -35,7 +35,7 @@ where K: Hash + Ord + Clone + Rand + Send + Sync + 'static,
     fn bench_insert_many(
         keys: &Vec<K>,
         vals: &Vec<V>
-    ) -> Duration {
+    ) -> (Self, Duration) {
         let mut m = C::new();
         let csize = max(1, keys.len() / 100);
         let mut chunks = vec![];
@@ -52,16 +52,25 @@ where K: Hash + Ord + Clone + Rand + Send + Sync + 'static,
         for chunk in chunks {
             m.insert_many(chunk);
         }
+        (Bench(Arc::new(RwLock::new(m)), PhantomData, PhantomData), begin.elapsed())
+    }
+
+    fn bench_remove(&self, keys: &Arc<Vec<K>>) -> Duration {
+        let begin = Instant::now();
+        let mut m = self.0.write().unwrap();
+        for i in 0..(keys.len() / 10) {
+            m.remove(&keys[i]).unwrap();
+        }
         begin.elapsed()
     }
 
-    fn bench_insert(keys: &Vec<K>, vals: &Vec<V>) -> (Self, Duration) {
-        let mut m = C::new();
+    fn bench_insert(&self, keys: &Vec<K>, vals: &Vec<V>) -> Duration {
         let begin = Instant::now();
-        for i in 0..keys.len() {
+        let mut m = self.0.write().unwrap();
+        for i in 0..(keys.len() / 10) {
             m.insert(keys[i].clone(), vals[i].clone());
         }
-        (Bench(Arc::new(RwLock::new(m)), PhantomData, PhantomData), begin.elapsed())
+        begin.elapsed()
     }
 
     fn bench_get(&self, keys: &Arc<Vec<K>>, n: usize) -> Duration {
@@ -102,34 +111,25 @@ where K: Hash + Ord + Clone + Rand + Send + Sync + 'static,
         begin.elapsed()
     }
 
-    fn bench_remove(&self, keys: &Arc<Vec<K>>) -> Duration {
-        let begin = Instant::now();
-        let mut m = self.0.write().unwrap();
-        for k in keys.iter() {
-            m.remove(k).unwrap();
-        }
-        begin.elapsed()
-    }
-
     pub(crate) fn run(size: usize) {
         let n = num_cpus::get();
         let keys = Arc::new(utils::randvec::<K>(size));
         let vals = Arc::new(utils::randvec::<V>(size));
-        let (m, insert) = Self::bench_insert(&*keys, &*vals);
-        let inserts = Self::bench_insert_many(&*keys, &*vals);
+        let (m, insertm) = Self::bench_insert_many(&*keys, &*vals);
+        let rm = m.bench_remove(&keys);
+        let insert = m.bench_insert(&*keys, &*vals);
         let get_par = m.bench_get(&keys, n);
         let get = m.bench_get_seq(&keys);
-        let rm = m.bench_remove(&keys);
         let iter = max(MIN_ITER, size);
         let iterp = max(MIN_ITER * n, size * n);
         println!(
             "{},{:.0},{:.0},{:.0},{:.2},{:.0}",
             size,
-            utils::to_ns_per(insert, size),
-            utils::to_ns_per(inserts, size),
+            utils::to_ns_per(insert, size / 10),
+            utils::to_ns_per(insertm, size),
             utils::to_ns_per(get, iter),
             utils::to_ns_per(get_par, iterp),
-            utils::to_ns_per(rm, size)
+            utils::to_ns_per(rm, size / 10)
         );
     }
 }
