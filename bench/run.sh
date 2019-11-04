@@ -17,7 +17,7 @@ for j in $@; do
     run $j ptr $i
   done
   echo "testing $j str"
-  for i in 1000 10000 100000 1000000; do
+  for i in 1000 10000 100000 1000000 10000000; do
     run $j str $i
   done
 done
