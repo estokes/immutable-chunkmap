@@ -29,8 +29,8 @@ where K: Clone + Rand,
 {
     fn bench_insert_many(
         len: usize,
-        keys: &Arc<Vec<K>>,
-        vals: &Arc<Vec<V>>
+        keys: &Vec<K>,
+        vals: &Vec<V>
     ) -> Duration {
         let mut m = C::new();
         let csize = max(1, len / 100);
@@ -51,16 +51,13 @@ where K: Clone + Rand,
         begin.elapsed()
     }
 
-    fn bench_insert(len: usize, keys: &Arc<Vec<K>>, vals: &Arc<Vec<V>>) -> (Self, Duration) {
-        let m = <Self as Bench<K, V>>::new();
+    fn bench_insert(len: usize, keys: &Vec<K>, vals: &Vec<V>) -> (Self, Duration) {
+        let m = C::new();
         let begin = Instant::now();
-        {
-            let lm = m.write();
-            for i in 0..keys.len() {
-                lm.insert(keys[i].clone(), vals[i].clone());
-            }
+        for i in 0..keys.len() {
+            lm.insert(keys[i].clone(), vals[i].clone());
         }
-        (m, begin.elapsed())
+        (Bench(Arc::new(RwLock::new(m))), begin.elapsed())
     }
 
     fn bench_get(&self, keys: &Arc<Vec<K>>, n: usize) -> Duration {
@@ -70,7 +67,7 @@ where K: Clone + Rand,
         for n in 0..n {
             let (m, keys) = (self.clone(), keys.clone());
             threads.push(thread::spawn(move || {
-                let m = m.read();
+                let m = m.0.read().unwrap();
                 let mut r = 0;
                 while r < iter {
                     let mut j = n;
@@ -90,7 +87,7 @@ where K: Clone + Rand,
 
     fn bench_get_seq(&self, keys: &Arc<Vec<K>>) -> Duration {
         let begin = Instant::now();
-        let m = m.self().unwrap();
+        let m = m.0.read().unwrap();
         let mut i = 0;
         while i < MIN_ITER {
             for k in d {
@@ -103,7 +100,7 @@ where K: Clone + Rand,
 
     fn bench_remove(&self, keys: &Arc<Vec<K>>) -> Duration {
         let begin = Instant::now();
-        let mut m = self.write().unwrap();
+        let mut m = self.0.write().unwrap();
         for k in d {
             m.remove(k).unwrap();
         }
@@ -114,8 +111,8 @@ where K: Clone + Rand,
         let n = num_cpus::get();
         let keys = Arc::new(randvec::<K>(size));
         let vals = Arc::new(randvec::<V>(size));
-        let (m, insert) = <Self as Bench<K, V>>::bench_insert(size, &keys, &vals);
-        let inserts = <Self as Bench<K, V>>::bench_insert_many(size, &keys, &vals);
+        let (m, insert) = <Self as Bench<K, V>>::bench_insert(size, &*keys, &*vals);
+        let inserts = <Self as Bench<K, V>>::bench_insert_many(size, &*keys, &*vals);
         let get_par = m.bench_get(&m, &keys, n);
         let get = m.bench_get_seq(&m, &keys);
         let rm = m.bench_remove(&keys);
@@ -134,38 +131,43 @@ where K: Clone + Rand,
 }
 
 impl<K, V> Collection<K, V> for HashMap<K, V> {
+    fn new() -> Self { HashMap::new() }
     fn insert_many(&mut self, chunk: Vec<(K, V)>) {
         for (k, v) in chunk {
             self.insert(k, v);
         }
     }
-
     fn insert(&mut self, k: K, v: V) -> Option<V> { self.insert(k, v) }
     fn remove<Q>(&mut self, k: Q) -> Option<V> where K: Borrow<Q> { self.remove(k) }
     fn get<Q>(&self, k: Q) -> Option<&V> where K: Borrow<Q> { self.get(k) }
 }
 
 impl <K, V> Collection<K, V> for BTreeMap<K, V> {
+    fn new() -> Self { BTreeMap::new() }
     fn insert_many(&mut self, chunk: Vec<(K, V)>) {
         for (k, v) in chunk {
             self.insert(k, v);
         }
     }
-
     fn insert(&mut self, k: K, v: V) -> Option<V> { self.insert(k, v) }
     fn remove<Q>(&mut self, k: Q) -> Option<V> where K: Borrow<Q> { self.remove(k) }
     fn get<Q>(&self, k: Q) -> Option<&V> where K: Borrow<Q> { self.get(k) }
 }
 
-#[derive(Clone)]
-struct BenchHashMap<K, V>(Arc<RwLock<HashMap<K, V>>>);
+struct CMWrap<K, V>(Map<K, V>);
 
-impl<K, V> Bench<K, V> for BenchHashMap<K, V>
-where K: Hash + PartialEq + Clone,
-      V: Clone
-{
-    type Inner = HashMap<K, V>;
-    fn new() -> Self { BenchHashMap(Arc::new(RwLock::new(HashMap::new()))) }
-    fn read(&self) -> RwLockReadGuard<Inner> { self.0.read().unwrap() }
-    fn write(&self) -> RwLockWriteGuard<Inner> { self.0.write().unwrap() }
+impl<K, V> Collection<K, V> for CMWrap<K, V> {
+    fn new() -> Self { CMWrap(Map::empty()) }
+    fn insert_many(&mut self, chunk: Vec<(K, V)>) { self.0 = self.0.insert_many(chunk) }
+    fn insert(&mut self, k, v) -> Option<V> {
+        let (m, prev) = self.0.insert(k, v);
+        self.0 = m;
+        prev
+    }
+    fn remove<Q>(&mut self, k: Q) -> Option<V> where K: Borrow<Q> {
+        let (m, prev) = self.0.remove(k);
+        self.0 = m;
+        prev
+    }
+    fn get<Q>(&self, k: Q) -> Option<&V> where K: Borrow<Q> { self.0.get(k) }
 }

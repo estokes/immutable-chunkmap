@@ -1,16 +1,16 @@
-use std::vec::Vec;
-use std::iter::FromIterator;
-use std::env;
-mod cm;
-mod btm;
-mod hm;
-mod bs;
-mod avl;
-mod ls;
-mod vec;
-mod utils;
+use std::{
+    iter::FromIterator,
+    env,
+    collections::{HashMap, BTreeMap},
+};
 
-fn usage() { println!("usage: <arc|rc|btm|bs> <size>") }
+mod utils;
+mod gen;
+use gen::{Bench, CMWrap};
+
+fn usage() {
+    println!("usage: <cm_ptr|cm_str|btm_ptr|btm_str|hm_ptr|hm_str> <size>")
+}
 
 fn main() {
     let args = Vec::from_iter(env::args());
@@ -18,13 +18,12 @@ fn main() {
     else {
         let size = args[2].parse::<usize>().unwrap();
         match args[1].as_ref() {
-            "cm" => cm::run(size),
-            "bs" => bs::run(size),
-            "avl" => avl::run(size),
-            "ls" => ls::run(size),
-            "btm" => btm::run(size),
-            "hm" => hm::run(size),
-            "vec" => vec::run(size),
+            "cm_ptr" => Bench<CMWrap<usize, usize>>::run(size),
+            "cm_str" => Bench<CMWrap<Arc<String>, Arc<String>>::run(size),
+            "btm_ptr" => Bench<BTreeMap<usize, usize>>::run(size),
+            "btm_str" => Bench<BTreeMap<Arc<String>, Arc<String>>>::run(size),
+            "hm_ptr" => Bench<HashMap<usize, usize>>::run(size),
+            "hm_str" => Bench<HashMap<Arc<String>, Arc<String>>>::run(size),
             _ => usage() 
         }
     }
