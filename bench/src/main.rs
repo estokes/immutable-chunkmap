@@ -12,7 +12,7 @@ use std::{
     time::{Duration, Instant},
 };
 use immutable_chunkmap::map::Map;
-use crate::utils::{self, Rand};
+use crate::utils::Rand;
 
 const MIN_ITER: usize = 1000000;
 
