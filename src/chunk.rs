@@ -118,9 +118,10 @@ unsafe impl<K: Ord + Clone, V: Clone> Cacheable for Chunk<K, V> {
         1000
     }
 
-    fn reinit(&mut self) {
+    fn reinit(&mut self) -> bool {
         self.keys.clear();
         self.vals.clear();
+        true
     }
 }
 

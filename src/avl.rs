@@ -9,7 +9,7 @@ use std::{
     hash::{Hash, Hasher},
     ops::{Bound, Index},
     sync::Arc,
-    iter, mem, slice,
+    iter, slice,
 };
 use cached_arc::Arc as CachedArc;
 
