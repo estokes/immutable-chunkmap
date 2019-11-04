@@ -2,6 +2,8 @@ use rand::Rng;
 use std::{
     time::Duration,
     sync::Arc,
+    collections::HashSet,
+    hash::Hash,
 };
 
 const STRSIZE: usize = 16;
@@ -43,12 +45,36 @@ pub(crate) fn random<T: Rand>() -> T {
     T::rand(&mut rng)
 }
 
-pub(crate) fn randvec<T: Rand>(len: usize) -> Vec<T> {
+pub(crate) fn randvec<T: Ord + Clone + Hash + Rand>(len: usize) -> Vec<T> {
     let mut v: Vec<T> = Vec::new();
-    for _ in 0..len {
-        v.push(random())
+    loop {
+        for _ in 0..len {
+            v.push(random())
+        }
+        dedup_with(&mut v, |k| k);
+        if v.len() >= len {
+            while v.len() > len {
+                v.pop();
+            }
+            break v;
+        }
     }
-    v
+}
+
+fn dedup_with<K, T, F>(v: &mut Vec<T>, f: F)
+where F: Fn(&T) -> &K,
+      K: Ord + Clone + Hash,
+{
+    let mut seen = HashSet::new();
+    let mut i = 0;
+    while i < v.len() {
+        if seen.contains(f(&v[i])) {
+            v.remove(i);
+        } else {
+            seen.insert(f(&v[i]).clone());
+            i += 1
+        }
+    }
 }
 
 #[allow(dead_code)]

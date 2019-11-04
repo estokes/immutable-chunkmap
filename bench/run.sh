@@ -4,17 +4,20 @@ B=target/release/bench
 
 function run() {
   KIND="$1"
-  SIZE="$2"
+  TYP="$2"
+  SIZE="$3"
   for k in 1 2 3; do
-    if ! test "$KIND" == "ls" -a "$SIZE" -gt 100000; then
-      $B $KIND $SIZE
-    fi
+      $B $KIND $TYP $SIZE
   done
 }
 
 for j in $@; do
-  echo "testing $j"
+  echo "testing $j ptr"
   for i in 1000 10000 100000 1000000 10000000; do
-    run $j $i
+    run $j ptr $i
+  done
+  echo "testing $j str"
+  for i in 1000 10000 100000 1000000 10000000; do
+    run $j str $i
   done
 done

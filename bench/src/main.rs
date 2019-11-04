@@ -29,7 +29,7 @@ struct Bench<C, K, V>(Arc<RwLock<C>>, PhantomData<K>, PhantomData<V>);
 
 impl<C, K, V> Bench<C, K, V>
 where K: Hash + Ord + Clone + Rand + Send + Sync + 'static,
-      V: Clone + Rand + Send + Sync + 'static,
+      V: Hash + Ord + Clone + Rand + Send + Sync + 'static,
       C: Collection<K, V> + Send + Sync + 'static,
 {
     fn bench_insert_many(
@@ -135,8 +135,8 @@ where K: Hash + Ord + Clone + Rand + Send + Sync + 'static,
 }
 
 impl<K, V> Collection<K, V> for HashMap<K, V>
-where K: Ord + Hash + Clone + Rand + Send + Sync,
-      V: Clone + Rand + Send + Sync
+where K: Hash + Ord + Clone + Rand + Send + Sync,
+      V: Hash + Ord + Clone + Rand + Send + Sync
 {
     fn new() -> Self { HashMap::new() }
     fn insert_many(&mut self, chunk: Vec<(K, V)>) {
@@ -152,8 +152,8 @@ where K: Ord + Hash + Clone + Rand + Send + Sync,
 }
 
 impl <K, V> Collection<K, V> for BTreeMap<K, V>
-where K: Ord + Clone + Rand + Send + Sync,
-      V: Clone + Rand + Send + Sync
+where K: Hash + Ord + Clone + Rand + Send + Sync,
+      V: Hash + Ord + Clone + Rand + Send + Sync
 {
     fn new() -> Self { BTreeMap::new() }
     fn insert_many(&mut self, chunk: Vec<(K, V)>) {
@@ -171,8 +171,8 @@ where K: Ord + Clone + Rand + Send + Sync,
 struct CMWrap<K: Ord + Clone, V: Clone>(Map<K, V>);
 
 impl<K, V> Collection<K, V> for CMWrap<K, V>
-where K: Ord + Clone + Rand + Send + Sync,
-      V: Clone + Rand + Send + Sync
+where K: Hash + Ord + Clone + Rand + Send + Sync,
+      V: Hash + Ord + Clone + Rand + Send + Sync
 {
     fn new() -> Self { CMWrap(Map::new()) }
     fn insert_many(&mut self, chunk: Vec<(K, V)>) { self.0 = self.0.insert_many(chunk) }
