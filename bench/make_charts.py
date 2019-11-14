@@ -5,14 +5,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 def run_one(bench, kind, size):
-    [ float(x) for x in subprocess.run(
+    return [ float(x) for x in subprocess.run(
         ["target/release/bench", bench, kind, size],
-        capture_output = True,
+        stdout = subprocess.PIPE,
         check = True
-    ).stdout[0].split(',') ]
+    ).stdout.strip().split(b',') ]
 
 def avg3(l):
-    l.append((l.pop() + l.pop() + l.pop()) / 3)
+    l.append((l.pop() + l.pop() + l.pop()) / 3.)
 
 def run(bench, kind):
     result = {

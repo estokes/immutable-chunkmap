@@ -11,13 +11,7 @@ function run() {
   done
 }
 
-for j in $@; do
-  echo "testing $j ptr"
-  for i in 1000 10000 100000 1000000 10000000; do
-    run $j ptr $i
-  done
-  echo "testing $j str"
-  for i in 1000 10000 100000 1000000 10000000; do
-    run $j str $i
-  done
+echo "testing $j $2"
+for i in 1000 10000 100000 1000000 10000000; do
+    run $1 $2 $i
 done

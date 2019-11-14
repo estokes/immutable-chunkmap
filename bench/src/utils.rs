@@ -18,6 +18,16 @@ impl<T: Rand, U: Rand> Rand for (T, U) {
     }
 }
 
+impl Rand for String {
+    fn rand<R: Rng>(r: &mut R) -> Self {
+        let mut s = String::new();
+        for _ in 0..STRSIZE {
+            s.push(r.gen())
+        }
+        s
+    }
+}
+
 impl Rand for Arc<String> {
     fn rand<R: Rng>(r: &mut R) -> Self {
         let mut s = String::new();
