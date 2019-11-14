@@ -22,9 +22,10 @@ def run(bench, kind):
         'get_parallel': [],
         'remove': [],
     }
-    for i in ['1000', '10000', '100000', '1000000', '10000000']:
+#    for i in ['1000', '10000', '100000', '1000000', '10000000']:
+    for i in ['1000', '10000']:
         for j in [1, 2, 3]:
-            res = run_one(bench, kind)
+            res = run_one(bench, kind, i)
             result['insert'].append(res[1])
             result['insert_many'].append(res[2])
             result['get'].append(res[3])
@@ -35,6 +36,7 @@ def run(bench, kind):
         avg3(result['get'])
         avg3(result['get_parallel'])
         avg3(result['remove'])
+    return result
             
 def plot(fname, title, cm, hm, btm):
     fig, ax = plt.subplots()
