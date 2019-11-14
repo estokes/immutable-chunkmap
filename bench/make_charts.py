@@ -100,3 +100,33 @@ plot(
     results['hashmap']['ptr']['get_parallel'],
     results['btreemap']['ptr']['get_parallel'],
 )
+plot(
+    'str_insert.png', 'insert', "ns / insert", "final size",
+    results['chunkmap']['str']['insert'],
+    results['hashmap']['str']['insert'],
+    results['btreemap']['str']['insert']
+)
+plot(
+    'str_insert_many.png', "insert many", "ns / insert", "final size",
+    results['chunkmap']['str']['insert_many'],
+    results['hashmap']['str']['insert_many'],
+    results['btreemap']['str']['insert_many']
+)
+plot(
+    'str_remove.png', "remove", "ns / remove", "initial size",
+    results['chunkmap']['str']['remove'],
+    results['hashmap']['str']['remove'],
+    results['btreemap']['str']['remove']
+)
+plot(
+    'str_get.png', "get", "ns / get", "size",
+    results['chunkmap']['str']['get'],
+    results['hashmap']['str']['get'],
+    results['btreemap']['str']['get']
+)
+plot(
+    'str_get_parallel.png', "get (all cores)", "ns / get", "size",
+    results['chunkmap']['str']['get_parallel'],
+    results['hashmap']['str']['get_parallel'],
+    results['btreemap']['str']['get_parallel'],
+)
