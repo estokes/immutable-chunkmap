@@ -18,6 +18,7 @@ def run(bench, kind):
     result = {
         'insert': [],
         'insert_many': [],
+        'insert_many_par': [],
         'get': [],
         'get_parallel': [],
         'remove': [],
@@ -118,6 +119,12 @@ plot(
     results['chunkmap']['str']['insert_many'],
     results['hashmap']['str']['insert_many'],
     results['btreemap']['str']['insert_many']
+)
+plot(
+    'str_insert_many_par.png', "insert many (all cores)", "ns / insert", "final size",
+    results['chunkmap']['str']['insert_many_par'],
+    results['hashmap']['str']['insert_many_par'],
+    results['btreemap']['str']['insert_many_par']
 )
 plot(
     'str_remove.png', "remove", "ns / remove", "initial size",
