@@ -22,6 +22,7 @@ trait Collection<K, V> {
     fn remove<Q>(&mut self, k: &Q) -> Option<V> where Q: Ord + Hash, K: Borrow<Q>;
     fn get<Q>(&self, k: &Q) -> Option<&V> where Q: Ord + Hash, K: Borrow<Q>;
     fn merge_into(&mut self, from: Self);
+    fn len(&self) -> usize;
 }
 
 fn chunk<K, V>(keys: &Vec<K>, vals: &Vec<V>, denom: usize) -> Vec<Vec<(K, V)>>
@@ -36,6 +37,9 @@ where K: Clone,
         if cur.len() >= csize {
             chunks.push(mem::replace(&mut cur, vec![]));
         }
+    }
+    if cur.len() > 0 {
+        chunks.push(cur);
     }
     chunks
 }
@@ -66,10 +70,11 @@ where K: Hash + Ord + Clone + Rand + Send + Sync + 'static,
         vals: &Vec<V>,
         n: usize
     ) -> (Self, Duration) {
-        let chunks = chunk(keys, vals, n - 1);
+        let mut chunks = chunk(keys, vals, n - 1);
         let len = chunks.len();
         let (tx, rx) = channel();
         let begin = Instant::now();
+        let mine = chunks.pop().unwrap();
         for chunk in chunks {
             let tx = tx.clone();
             thread::spawn(move || {
@@ -81,12 +86,15 @@ where K: Hash + Ord + Clone + Rand + Send + Sync + 'static,
         mem::drop(tx);
         let mut t = C::new();
         let mut i = 0;
+        t.insert_many(mine);
         while let Ok(part) = rx.recv() {
             t.merge_into(part);
             i += 1;
         }
-        assert_eq!(i, len);
-        (Bench(Arc::new(RwLock::new(t)), PhantomData, PhantomData), begin.elapsed())
+        assert_eq!(i, len - 1);
+        assert_eq!(t.len(), keys.len());
+        (Bench(Arc::new(RwLock::new(t)), PhantomData, PhantomData),
+         begin.elapsed())
     }
 
     fn bench_remove(&self, keys: &Arc<Vec<K>>) -> Duration {
@@ -190,6 +198,7 @@ where K: Hash + Ord + Clone + Rand + Send + Sync,
     fn merge_into(&mut self, other: HashMap<K, V>) {
         self.extend(other.into_iter());
     }
+    fn len(&self) -> usize { self.len() }
 }
 
 impl <K, V> Collection<K, V> for BTreeMap<K, V>
@@ -212,6 +221,7 @@ where K: Hash + Ord + Clone + Rand + Send + Sync,
     fn merge_into(&mut self, other: BTreeMap<K, V>) {
         self.extend(other.into_iter())
     }
+    fn len(&self) -> usize { self.len() }
 }
 
 struct CMWrap<K: Ord + Clone, V: Clone>(Map<K, V>);
@@ -238,6 +248,7 @@ where K: Hash + Ord + Clone + Rand + Send + Sync,
     fn merge_into(&mut self, other: CMWrap<K, V>) {
         self.0 = self.0.union(&other.0, |_, _, v| Some(v.clone()))
     }
+    fn len(&self) -> usize { self.0.len() }
 }
 
 fn usage() {
