@@ -37,7 +37,7 @@ def run(bench, kind):
         avg3(result['remove'])
     return result
             
-def plot(fname, title, cm, hm, btm):
+def plot(fname, title, xlbl, ylbl, cm, hm, btm):
     fig, ax = plt.subplots()
     labels = ['1k', '10k', '100k', '1m', '10m']
     x = np.arange(len(labels))
@@ -45,8 +45,8 @@ def plot(fname, title, cm, hm, btm):
     rects_hm = ax.bar(x - width, hm, width, label="HashMap")
     rects_cm = ax.bar(x, cm, width, label="Chunkmap")
     rects_bt = ax.bar(x + width, btm, width, label="BtreeMap")
-    ax.set_ylabel('ns')
-    ax.set_xlabel('size')
+    ax.set_ylabel(xlbl)
+    ax.set_xlabel(ylbl)
     ax.set_title(title)
     ax.set_xticks(x)
     ax.set_xticklabels(labels)
@@ -71,31 +71,31 @@ results = {
 
 plt.rcdefaults()
 plot(
-    'usize_insert.png', 'insert',
+    'usize_insert.png', 'insert', "ns / insert", "final size",
     results['chunkmap']['ptr']['insert'],
     results['hashmap']['ptr']['insert'],
     results['btreemap']['ptr']['insert']
 )
 plot(
-    'usize_insert_many.png', "insert_many",
+    'usize_insert_many.png', "insert_many", "ns / insert", "final size",
     results['chunkmap']['ptr']['insert_many'],
     results['hashmap']['ptr']['insert_many'],
     results['btreemap']['ptr']['insert_many']
 )
 plot(
-    'usize_remove.png', "remove",
+    'usize_remove.png', "remove", "ns / remove", "initial size",
     results['chunkmap']['ptr']['remove'],
     results['hashmap']['ptr']['remove'],
     results['btreemap']['ptr']['remove']
 )
 plot(
-    'usize_get.png', "get",
+    'usize_get.png', "get", "ns / get", "size",
     results['chunkmap']['ptr']['get'],
     results['hashmap']['ptr']['get'],
     results['btreemap']['ptr']['get']
 )
 plot(
-    'usize_get_parallel.png', "get (all cores)",
+    'usize_get_parallel.png', "get (all cores)", "avg ns / get", "size",
     results['chunkmap']['ptr']['get_parallel'],
     results['hashmap']['ptr']['get_parallel'],
     results['btreemap']['ptr']['get_parallel'],
