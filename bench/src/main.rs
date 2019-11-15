@@ -32,9 +32,8 @@ where K: Clone,
     let mut chunks = vec![];
     let mut cur = vec![];
     for (k, v) in keys.into_iter().zip(vals.into_iter()) {
-        if cur.len() < csize {
-            cur.push((k.clone(), v.clone()));
-        } else {
+        cur.push((k.clone(), v.clone()));
+        if cur.len() >= csize {
             chunks.push(mem::replace(&mut cur, vec![]));
         }
     }
