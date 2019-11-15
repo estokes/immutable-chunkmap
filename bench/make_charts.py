@@ -22,10 +22,9 @@ def run(bench, kind):
         'get_parallel': [],
         'remove': [],
     }
-#    for i in ['1000', '10000', '100000', '1000000', '10000000']:
-    for i in ['1000', '10000']:
+    for size in ['1000', '10000', '100000', '1000000', '10000000']:
         for j in [1, 2, 3]:
-            res = run_one(bench, kind, i)
+            res = run_one(bench, kind, size)
             result['insert'].append(res[1])
             result['insert_many'].append(res[2])
             result['get'].append(res[3])
@@ -41,11 +40,11 @@ def run(bench, kind):
 def plot(fname, title, cm, hm, btm):
     fig, ax = plt.subplots()
     labels = ['1k', '10k', '100k', '1m', '10m']
-    x = np.arrange(len(labels))
+    x = np.arange(len(labels))
     width = 0.20
-    rects_cm = ax.bar(x - width / 3, cm, width, label="Chunkmap")
-    rects_hm = ax.bar(x, hm, width, label="HashMap")
-    rects_bt = ax.bar(x + width / 3, btm, width, label="BtreeMap")
+    rects_hm = ax.bar(x - width, hm, width, label="HashMap")
+    rects_cm = ax.bar(x, cm, width, label="Chunkmap")
+    rects_bt = ax.bar(x + width, btm, width, label="BtreeMap")
     ax.set_label('ns / operation')
     ax.set_title(title)
     ax.set_xticks(x)
@@ -71,32 +70,32 @@ results = {
 
 plt.rcdefaults()
 plot(
-    'insert.png', 'Insert One Element',
-    results['chunkmap']['insert'],
-    results['hashmap']['insert'],
-    results['btreemap']['insert']
+    'usize_insert.png', 'Insert One Element',
+    results['chunkmap']['ptr']['insert'],
+    results['hashmap']['ptr']['insert'],
+    results['btreemap']['ptr']['insert']
 )
 plot(
-    'insert_many.png', "Insert Many Random Elements",
-    results['chunkmap']['insert_many'],
-    results['hashmap']['insert_many'],
-    results['btreemap']['insert_many']
+    'usize_insert_many.png', "Insert Many Random Elements",
+    results['chunkmap']['ptr']['insert_many'],
+    results['hashmap']['ptr']['insert_many'],
+    results['btreemap']['ptr']['insert_many']
 )
 plot(
-    'remove.png', "Remove One Element",
-    results['chunkmap']['remove'],
-    results['hashmap']['remove'],
-    results['btreemap']['remove']
+    'usize_remove.png', "Remove One Element",
+    results['chunkmap']['ptr']['remove'],
+    results['hashmap']['ptr']['remove'],
+    results['btreemap']['ptr']['remove']
 )
 plot(
-    'get.png', "Lookup One Element",
-    results['chunkmap']['get'],
-    results['hashmap']['get'],
-    results['btreemap']['get']
+    'usize_get.png', "Lookup One Element",
+    results['chunkmap']['ptr']['get'],
+    results['hashmap']['ptr']['get'],
+    results['btreemap']['ptr']['get']
 )
 plot(
-    'get_parallel.png', "Lookup Throughput (all cores)",
-    results['chunkmap']['get_parallel'],
-    results['hashmap']['get_parallel'],
-    results['btreemap']['get_parallel'],
+    'usize_get_parallel.png', "Lookup Throughput (all cores)",
+    results['chunkmap']['ptr']['get_parallel'],
+    results['hashmap']['ptr']['get_parallel'],
+    results['btreemap']['ptr']['get_parallel'],
 )
