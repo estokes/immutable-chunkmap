@@ -108,10 +108,16 @@ where K: Hash + Ord + Clone + Rand + Send + Sync + 'static,
     }
 
     fn bench_insert(&self, keys: &Vec<K>, vals: &Vec<V>) -> Duration {
-        let begin = Instant::now();
+        let len = keys.len() / 10;
+        let chunk =
+            keys[0..len].into_iter()
+            .zip(vals[0..len].into_iter())
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect::<Vec<_>>();
         let mut m = self.0.write().unwrap();
-        for i in 0..(keys.len() / 10) {
-            m.insert(keys[i].clone(), vals[i].clone());
+        let begin = Instant::now();
+        for (k, v) in chunk {
+            m.insert(k, v);
         }
         begin.elapsed()
     }
@@ -158,10 +164,10 @@ where K: Hash + Ord + Clone + Rand + Send + Sync + 'static,
         let n = num_cpus::get();
         let keys = Arc::new(utils::randvec::<K>(size));
         let vals = Arc::new(utils::randvec::<V>(size));
-        let (m, insertm) = Self::bench_insert_many(&*keys, &*vals);
+        let (m, insertmp) = Self::bench_insert_many_par(&*keys, &*vals, n);
         let rm = m.bench_remove(&keys);
         let insert = m.bench_insert(&*keys, &*vals);
-        let (m, insertmp) = Self::bench_insert_many_par(&*keys, &*vals, n);
+        let (m, insertm) = Self::bench_insert_many(&*keys, &*vals);
         let get_par = m.bench_get(&keys, n);
         let get = m.bench_get_seq(&keys);
         let iter = max(MIN_ITER, size);
