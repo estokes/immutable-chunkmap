@@ -45,7 +45,8 @@ def plot(fname, title, cm, hm, btm):
     rects_hm = ax.bar(x - width, hm, width, label="HashMap")
     rects_cm = ax.bar(x, cm, width, label="Chunkmap")
     rects_bt = ax.bar(x + width, btm, width, label="BtreeMap")
-    ax.set_label('ns / operation')
+    ax.set_ylabel('ns')
+    ax.set_xlabel('size')
     ax.set_title(title)
     ax.set_xticks(x)
     ax.set_xticklabels(labels)
@@ -70,31 +71,31 @@ results = {
 
 plt.rcdefaults()
 plot(
-    'usize_insert.png', 'Insert One Element',
+    'usize_insert.png', 'insert',
     results['chunkmap']['ptr']['insert'],
     results['hashmap']['ptr']['insert'],
     results['btreemap']['ptr']['insert']
 )
 plot(
-    'usize_insert_many.png', "Insert Many Random Elements",
+    'usize_insert_many.png', "insert_many",
     results['chunkmap']['ptr']['insert_many'],
     results['hashmap']['ptr']['insert_many'],
     results['btreemap']['ptr']['insert_many']
 )
 plot(
-    'usize_remove.png', "Remove One Element",
+    'usize_remove.png', "remove",
     results['chunkmap']['ptr']['remove'],
     results['hashmap']['ptr']['remove'],
     results['btreemap']['ptr']['remove']
 )
 plot(
-    'usize_get.png', "Lookup One Element",
+    'usize_get.png', "get",
     results['chunkmap']['ptr']['get'],
     results['hashmap']['ptr']['get'],
     results['btreemap']['ptr']['get']
 )
 plot(
-    'usize_get_parallel.png', "Lookup Throughput (all cores)",
+    'usize_get_parallel.png', "get (all cores)",
     results['chunkmap']['ptr']['get_parallel'],
     results['hashmap']['ptr']['get_parallel'],
     results['btreemap']['ptr']['get_parallel'],
