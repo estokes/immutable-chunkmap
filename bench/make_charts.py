@@ -34,6 +34,7 @@ def run(bench, kind):
             result['remove'].append(res[6])
         avg3(result['insert'])
         avg3(result['insert_many'])
+        avg3(result['insert_many_par'])
         avg3(result['get'])
         avg3(result['get_parallel'])
         avg3(result['remove'])
