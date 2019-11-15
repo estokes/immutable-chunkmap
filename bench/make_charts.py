@@ -77,7 +77,7 @@ plot(
     results['btreemap']['ptr']['insert']
 )
 plot(
-    'usize_insert_many.png', "insert_many", "ns / insert", "final size",
+    'usize_insert_many.png', "insert many", "ns / insert", "final size",
     results['chunkmap']['ptr']['insert_many'],
     results['hashmap']['ptr']['insert_many'],
     results['btreemap']['ptr']['insert_many']
@@ -95,7 +95,7 @@ plot(
     results['btreemap']['ptr']['get']
 )
 plot(
-    'usize_get_parallel.png', "get (all cores)", "avg ns / get", "size",
+    'usize_get_parallel.png', "get (all cores)", "ns / get", "size",
     results['chunkmap']['ptr']['get_parallel'],
     results['hashmap']['ptr']['get_parallel'],
     results['btreemap']['ptr']['get_parallel'],
