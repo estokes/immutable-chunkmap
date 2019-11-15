@@ -6,7 +6,7 @@ use std::{
     hash::Hash,
 };
 
-const STRSIZE: usize = 16;
+const STRSIZE: usize = 32;
 
 pub(crate) trait Rand: Sized {
     fn rand<R: Rng>(r: &mut R) -> Self;

@@ -1,14 +1,13 @@
 mod utils;
 use std::{
+    env, mem, thread,
     borrow::Borrow,
     cmp::max,
     collections::{BTreeMap, HashMap},
-    env,
     hash::Hash,
     iter::FromIterator,
     marker::PhantomData,
-    sync::{Arc, RwLock},
-    thread,
+    sync::{Arc, RwLock, mpsc::channel},
     time::{Duration, Instant},
 };
 use immutable_chunkmap::map::Map;
@@ -22,6 +21,24 @@ trait Collection<K, V> {
     fn insert(&mut self, k: K, v: V) -> Option<V>;
     fn remove<Q>(&mut self, k: &Q) -> Option<V> where Q: Ord + Hash, K: Borrow<Q>;
     fn get<Q>(&self, k: &Q) -> Option<&V> where Q: Ord + Hash, K: Borrow<Q>;
+    fn merge_into(&mut self, from: Self);
+}
+
+fn chunk<K, V>(keys: &Vec<K>, vals: &Vec<V>, denom: usize) -> Vec<Vec<(K, V)>>
+where K: Clone,
+      V: Clone
+{
+    let csize = max(1, keys.len() / denom);
+    let mut chunks = vec![];
+    let mut cur = vec![];
+    for (k, v) in keys.into_iter().zip(vals.into_iter()) {
+        if cur.len() < csize {
+            cur.push((k.clone(), v.clone()));
+        } else {
+            chunks.push(mem::replace(&mut cur, vec![]));
+        }
+    }
+    chunks
 }
 
 #[derive(Clone)]
@@ -37,22 +54,40 @@ where K: Hash + Ord + Clone + Rand + Send + Sync + 'static,
         vals: &Vec<V>
     ) -> (Self, Duration) {
         let mut m = C::new();
-        let csize = max(1, keys.len() / 100);
-        let mut chunks = vec![];
-        let mut i = 0;
-        while i < keys.len() {
-            let mut cur = vec![];
-            while i < keys.len() && cur.len() < csize {
-                cur.push((keys[i].clone(), vals[i].clone()));
-                i += 1;
-            }
-            chunks.push(cur);
-        }
+        let chunks = chunk(keys, vals, 100);
         let begin = Instant::now();
         for chunk in chunks {
             m.insert_many(chunk);
         }
         (Bench(Arc::new(RwLock::new(m)), PhantomData, PhantomData), begin.elapsed())
+    }
+
+    fn bench_insert_many_par(
+        keys: &Vec<K>,
+        vals: &Vec<V>,
+        n: usize
+    ) -> (Self, Duration) {
+        let chunks = chunk(keys, vals, n - 1);
+        let len = chunks.len();
+        let (tx, rx) = channel();
+        let begin = Instant::now();
+        for chunk in chunks {
+            let tx = tx.clone();
+            thread::spawn(move || {
+                let mut t = C::new();
+                t.insert_many(chunk);
+                tx.send(t).unwrap();
+            });
+        }
+        mem::drop(tx);
+        let mut t = C::new();
+        let mut i = 0;
+        while let Ok(part) = rx.recv() {
+            t.merge_into(part);
+            i += 1;
+        }
+        assert_eq!(i, len);
+        (Bench(Arc::new(RwLock::new(t)), PhantomData, PhantomData), begin.elapsed())
     }
 
     fn bench_remove(&self, keys: &Arc<Vec<K>>) -> Duration {
@@ -118,15 +153,17 @@ where K: Hash + Ord + Clone + Rand + Send + Sync + 'static,
         let (m, insertm) = Self::bench_insert_many(&*keys, &*vals);
         let rm = m.bench_remove(&keys);
         let insert = m.bench_insert(&*keys, &*vals);
+        let (m, insertmp) = Self::bench_insert_many_par(&*keys, &*vals, n);
         let get_par = m.bench_get(&keys, n);
         let get = m.bench_get_seq(&keys);
         let iter = max(MIN_ITER, size);
         let iterp = max(MIN_ITER * n, size * n);
         println!(
-            "{},{:.0},{:.0},{:.0},{:.2},{:.0}",
+            "{},{:.0},{:.0},{:.0},{:.0},{:.2},{:.0}",
             size,
             utils::to_ns_per(insert, size / 10),
             utils::to_ns_per(insertm, size),
+            utils::to_ns_per(insertmp, size),
             utils::to_ns_per(get, iter),
             utils::to_ns_per(get_par, iterp),
             utils::to_ns_per(rm, size / 10)
@@ -148,7 +185,12 @@ where K: Hash + Ord + Clone + Rand + Send + Sync,
     fn remove<Q>(&mut self, k: &Q) -> Option<V> where Q: Ord + Hash, K: Borrow<Q> {
         self.remove(k)
     }
-    fn get<Q>(&self, k: &Q) -> Option<&V> where Q: Ord + Hash, K: Borrow<Q> { self.get(k) }
+    fn get<Q>(&self, k: &Q) -> Option<&V> where Q: Ord + Hash, K: Borrow<Q> {
+        self.get(k)
+    }
+    fn merge_into(&mut self, other: HashMap<K, V>) {
+        self.extend(other.into_iter());
+    }
 }
 
 impl <K, V> Collection<K, V> for BTreeMap<K, V>
@@ -165,7 +207,12 @@ where K: Hash + Ord + Clone + Rand + Send + Sync,
     fn remove<Q>(&mut self, k: &Q) -> Option<V> where Q: Ord + Hash, K: Borrow<Q> {
         self.remove(k)
     }
-    fn get<Q>(&self, k: &Q) -> Option<&V> where Q: Ord + Hash, K: Borrow<Q> { self.get(k) }
+    fn get<Q>(&self, k: &Q) -> Option<&V> where Q: Ord + Hash, K: Borrow<Q> {
+        self.get(k)
+    }
+    fn merge_into(&mut self, other: BTreeMap<K, V>) {
+        self.extend(other.into_iter())
+    }
 }
 
 struct CMWrap<K: Ord + Clone, V: Clone>(Map<K, V>);
@@ -186,14 +233,19 @@ where K: Hash + Ord + Clone + Rand + Send + Sync,
         self.0 = m;
         prev
     }
-    fn get<Q>(&self, k: &Q) -> Option<&V> where Q: Ord + Hash, K: Borrow<Q> { self.0.get(k) }
+    fn get<Q>(&self, k: &Q) -> Option<&V> where Q: Ord + Hash, K: Borrow<Q> {
+        self.0.get(k)
+    }
+    fn merge_into(&mut self, other: CMWrap<K, V>) {
+        self.0 = self.0.union(&other.0, |_, _, v| Some(v.clone()))
+    }
 }
 
 fn usage() {
     println!("usage: <cm|btm|hm> <ptr|str> <size>")
 }
 
-type S = String;
+type S = Arc<String>;
 type P = usize;
 
 fn main() {
