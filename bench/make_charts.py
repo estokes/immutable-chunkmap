@@ -27,9 +27,10 @@ def run(bench, kind):
             res = run_one(bench, kind, size)
             result['insert'].append(res[1])
             result['insert_many'].append(res[2])
-            result['get'].append(res[3])
-            result['get_parallel'].append(res[4])
-            result['remove'].append(res[5])
+            result['insert_many_par'].append(res[3])
+            result['get'].append(res[4])
+            result['get_parallel'].append(res[5])
+            result['remove'].append(res[6])
         avg3(result['insert'])
         avg3(result['insert_many'])
         avg3(result['get'])
@@ -81,6 +82,12 @@ plot(
     results['chunkmap']['ptr']['insert_many'],
     results['hashmap']['ptr']['insert_many'],
     results['btreemap']['ptr']['insert_many']
+)
+plot(
+    'usize_insert_many_par.png', "insert many (all cores)", "ns / insert", "final size",
+    results['chunkmap']['ptr']['insert_many_par'],
+    results['hashmap']['ptr']['insert_many_par'],
+    results['btreemap']['ptr']['insert_many_par']
 )
 plot(
     'usize_remove.png', "remove", "ns / remove", "initial size",
