@@ -1,21 +1,21 @@
 open Core
 
-let random_array size = Array.init size (fun _ -> Random.int Int.max_value)
+let random_string () =
+  let size = 32 in
+  let s = Bytes.create size in
+  for i = 0 to size - 1 do
+    let c = Option.value_exn (Char.of_int (Random.int 254)) in
+    Bytes.set s i c;
+  done;
+  s
 
-let bench_add v =
+let random_str_array size = Array.init size (fun _ -> random_string ())
+let random_int_array size = Array.init size (fun _ -> Random.int Int.max_value)
+
+let bench_add cmp v =
   let st = Time.now () in
   let m =
-    Array.fold v ~init:(Map.empty (module Int)) ~f:(fun m k ->
-      Map.set m ~key:k ~data:k)
-  in
-  let en = Time.now () in
-  (m, Time.diff en st)
-
-let bench_add_sorted v =
-  let st = Time.now () in
-  Array.sort ~compare:Int.compare v;
-  let m =
-    Array.fold v ~init:(Map.empty (module Int)) ~f:(fun m k ->
+    Array.fold v ~init:(Map.empty cmp) ~f:(fun m k ->
       Map.set m ~key:k ~data:k)
   in
   let en = Time.now () in
@@ -42,17 +42,33 @@ let bench_remove m v =
 
 let () =
   let size =
-    if Array.length Sys.argv = 2 then Int.of_string Sys.argv.(1)
+    if Array.length Sys.argv = 4 then Int.of_string Sys.argv.(3)
     else begin
-      printf "usage: test <size>\n%!";
+      printf "usage: test <unused> <kind> <size>\n%!";
       exit 0
     end
   in
-  let v = random_array size in
-  let (m, add) = bench_add v in
-  let (_, adds) = bench_add_sorted (random_array size) in
-  let find = bench_find m v in
-  let rm = bench_remove m v in
   let str t = sprintf "%g" (Time.Span.to_ns t /. float size) in
-  printf "%d,%s,%s,%s,%s,%s\n%!"
-    size (str add) (str adds) (str find) "0" (str rm)
+  match Sys.argv.(2) with
+    "ptr" -> begin
+      let v = random_int_array size in
+      let vs = random_int_array size in
+      Array.sort ~compare:Int.compare vs;
+      let (m, add) = bench_add (module Int) v in
+      let (_, adds) = bench_add (module Int) vs in
+      let find = bench_find m v in
+      let rm = bench_remove m v in
+      printf "%d,%s,%s,%s,%s,%s,%s\n%!"
+        size (str add) (str adds) "0." (str find) "0" (str rm)
+    end
+  | "str" -> begin
+      let v = random_str_array size in
+      let vs = random_str_array size in
+      let (m, add) = bench_add (module Bytes) v in
+      let (_, adds) = bench_add (module Bytes) vs in
+      let find = bench_find m v in
+      let rm = bench_remove m v in
+      printf "%d,%s,%s,%s,%s,%s,%s\n%!"
+        size (str add) (str adds) "0." (str find) "0" (str rm)
+    end
+  | _ -> failwith "invalid kind. Allowed kinds: [ptr, str]"

@@ -1,5 +1,7 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
+import json
+import argparse
 import subprocess
 import matplotlib.pyplot as plt
 import numpy as np
@@ -14,8 +16,8 @@ def run_one(bench, kind, size):
 def avg3(l):
     l.append((l.pop() + l.pop() + l.pop()) / 3.)
 
-def run(bench, kind):
-    result = {
+def proto():
+    return {
         'insert': [],
         'insert_many': [],
         'insert_many_par': [],
@@ -23,6 +25,9 @@ def run(bench, kind):
         'get_parallel': [],
         'remove': [],
     }
+
+def run(bench, kind):
+    result = proto()
     for size in ['1000', '10000', '100000', '1000000', '10000000']:
         for j in [1, 2, 3]:
             res = run_one(bench, kind, size)
@@ -57,91 +62,146 @@ def plot(fname, title, xlbl, ylbl, cm, hm, btm):
     fig.tight_layout()
     fig.savefig(fname)
 
-results = {
-    'chunkmap': {
-        'ptr': run('cm', 'ptr'),
-        'str': run('cm', 'str'),
-    },
-    'hashmap': {
-        'ptr': run('hm', 'ptr'),
-        'str': run('hm', 'str'),
-    },
-    'btreemap': {
-        'ptr': run('btm', 'ptr'),
-        'str': run('btm', 'str'),
-    },
-}
+def 
 
-plt.rcdefaults()
-plot(
-    'usize_insert.png', 'insert', "ns / insert", "final size",
-    results['chunkmap']['ptr']['insert'],
-    results['hashmap']['ptr']['insert'],
-    results['btreemap']['ptr']['insert']
+def load_results(args):
+    try:
+        with open(args.data_path + '/data.json', 'r') as f:
+            return json.load(f)
+    except:
+        return {
+            'cm': {
+                'ptr': proto(),
+                'str': proto()
+            },
+            'hm': {
+                'ptr': proto(),
+                'str': proto()
+            },
+            'btm': {
+                'ptr': proto(),
+                'str': proto()
+            },
+            'oc': {
+                'ptr': proto(),
+                'str': proto()
+            },
+        }
+
+def save_results(args, results):
+    with open(args.data_path + '/data.json', 'w') as f:
+        json.dump(results)
+
+def chart(args, results):
+    plt.rcdefaults()
+    plot(
+        args.data_path + '/usize_insert.png',
+        'insert', "ns / insert", "final size",
+        results['cm']['ptr']['insert'],
+        results['hm']['ptr']['insert'],
+        results['btm']['ptr']['insert']
+    )
+    plot(
+        args.data_path + '/usize_insert_many.png',
+        "insert many", "ns / insert", "final size",
+        results['cm']['ptr']['insert_many'],
+        results['hm']['ptr']['insert_many'],
+        results['btm']['ptr']['insert_many']
+    )
+    plot(
+        args.data_path + '/usize_insert_many_par.png',
+        "insert many (all cores)", "ns / insert", "final size",
+        results['cm']['ptr']['insert_many_par'],
+        results['hm']['ptr']['insert_many_par'],
+        results['btm']['ptr']['insert_many_par']
+    )
+    plot(
+        args.data_path + '/usize_remove.png',
+        "remove", "ns / remove", "initial size",
+        results['cm']['ptr']['remove'],
+        results['hm']['ptr']['remove'],
+        results['btm']['ptr']['remove']
+    )
+    plot(
+        args.data_path + '/usize_get.png',
+        "get", "ns / get", "size",
+        results['cm']['ptr']['get'],
+        results['hm']['ptr']['get'],
+        results['btm']['ptr']['get']
+    )
+    plot(
+        args.data_path + '/usize_get_parallel.png',
+        "get (all cores)", "ns / get", "size",
+        results['cm']['ptr']['get_parallel'],
+        results['hm']['ptr']['get_parallel'],
+        results['btm']['ptr']['get_parallel'],
+    )
+    plot(
+        args.data_path + '/str_insert.png',
+        'insert', "ns / insert", "final size",
+        results['cm']['str']['insert'],
+        results['hm']['str']['insert'],
+        results['btm']['str']['insert']
+    )
+    plot(
+        args.data_path + '/str_insert_many.png',
+        "insert many", "ns / insert", "final size",
+        results['cm']['str']['insert_many'],
+        results['hm']['str']['insert_many'],
+        results['btm']['str']['insert_many']
+    )
+    plot(
+        args.data_path + '/str_insert_many_par.png',
+        "insert many (all cores)", "ns / insert", "final size",
+        results['cm']['str']['insert_many_par'],
+        results['hm']['str']['insert_many_par'],
+        results['btm']['str']['insert_many_par']
+    )
+    plot(
+        args.data_path + '/str_remove.png',
+        "remove", "ns / remove", "initial size",
+        results['cm']['str']['remove'],
+        results['hm']['str']['remove'],
+        results['btm']['str']['remove']
+    )
+    plot(
+        args.data_path + '/str_get.png',
+        "get", "ns / get", "size",
+        results['cm']['str']['get'],
+        results['hm']['str']['get'],
+        results['btm']['str']['get']
+    )
+    plot(
+        args.data_path + '/str_get_parallel.png',
+        "get (all cores)", "ns / get", "size",
+        results['cm']['str']['get_parallel'],
+        results['hm']['str']['get_parallel'],
+        results['btm']['str']['get_parallel'],
+    )
+
+parser = argparse.ArgumentParser(description = "run benchmarks")
+parser.add_argument(
+    '--run',
+    required = False,
+    choices = ['all', 'cm', 'hm', 'btm', 'oc']
 )
-plot(
-    'usize_insert_many.png', "insert many", "ns / insert", "final size",
-    results['chunkmap']['ptr']['insert_many'],
-    results['hashmap']['ptr']['insert_many'],
-    results['btreemap']['ptr']['insert_many']
-)
-plot(
-    'usize_insert_many_par.png', "insert many (all cores)", "ns / insert", "final size",
-    results['chunkmap']['ptr']['insert_many_par'],
-    results['hashmap']['ptr']['insert_many_par'],
-    results['btreemap']['ptr']['insert_many_par']
-)
-plot(
-    'usize_remove.png', "remove", "ns / remove", "initial size",
-    results['chunkmap']['ptr']['remove'],
-    results['hashmap']['ptr']['remove'],
-    results['btreemap']['ptr']['remove']
-)
-plot(
-    'usize_get.png', "get", "ns / get", "size",
-    results['chunkmap']['ptr']['get'],
-    results['hashmap']['ptr']['get'],
-    results['btreemap']['ptr']['get']
-)
-plot(
-    'usize_get_parallel.png', "get (all cores)", "ns / get", "size",
-    results['chunkmap']['ptr']['get_parallel'],
-    results['hashmap']['ptr']['get_parallel'],
-    results['btreemap']['ptr']['get_parallel'],
-)
-plot(
-    'str_insert.png', 'insert', "ns / insert", "final size",
-    results['chunkmap']['str']['insert'],
-    results['hashmap']['str']['insert'],
-    results['btreemap']['str']['insert']
-)
-plot(
-    'str_insert_many.png', "insert many", "ns / insert", "final size",
-    results['chunkmap']['str']['insert_many'],
-    results['hashmap']['str']['insert_many'],
-    results['btreemap']['str']['insert_many']
-)
-plot(
-    'str_insert_many_par.png', "insert many (all cores)", "ns / insert", "final size",
-    results['chunkmap']['str']['insert_many_par'],
-    results['hashmap']['str']['insert_many_par'],
-    results['btreemap']['str']['insert_many_par']
-)
-plot(
-    'str_remove.png', "remove", "ns / remove", "initial size",
-    results['chunkmap']['str']['remove'],
-    results['hashmap']['str']['remove'],
-    results['btreemap']['str']['remove']
-)
-plot(
-    'str_get.png', "get", "ns / get", "size",
-    results['chunkmap']['str']['get'],
-    results['hashmap']['str']['get'],
-    results['btreemap']['str']['get']
-)
-plot(
-    'str_get_parallel.png', "get (all cores)", "ns / get", "size",
-    results['chunkmap']['str']['get_parallel'],
-    results['hashmap']['str']['get_parallel'],
-    results['btreemap']['str']['get_parallel'],
-)
+parser.add_argument('--data-path', required = True)
+parser.add_argument('--chart', default = False, action = 'store_const', const = True)
+args = parser.parse_args()
+
+results = load_results(args)
+
+if args.run == 'all' || args.run == 'cm':
+    results['cm']['ptr'] = run('cm', 'ptr')
+    results['cm']['str'] = run('cm', 'str')
+if args.run == 'all' || args.run == 'hm':
+    results['hm']['ptr'] = run('hm', 'ptr')
+    results['hm']['str'] = run('hm', 'str')
+if args.run == 'all' || args.run == 'btm':
+    results['btm']['ptr'] = run('btm', 'ptr')
+    results['btm']['str'] = run('btm', 'str')
+
+save_results(args, results)
+
+if args.chart:
+    chart(args, results)
