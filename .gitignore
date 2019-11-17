@@ -1,3 +1,4 @@
+**/bench-ocaml/test
 **/target/
 **/*.rs.bk
 Cargo.lock
