@@ -63,8 +63,6 @@ def plot(fname, title, xlbl, ylbl, cm, hm, btm, oc):
     fig.tight_layout()
     fig.savefig(fname)
 
-def 
-
 def load_results(args):
     try:
         with open(args.data_path + '/data.json', 'r') as f:
@@ -204,16 +202,16 @@ args = parser.parse_args()
 
 results = load_results(args)
 
-if args.run == 'all' || args.run == 'cm':
+if args.run == 'all' or args.run == 'cm':
     results['cm']['ptr'] = run('target/release/bench', 'cm', 'ptr')
     results['cm']['str'] = run('target/release/bench', 'cm', 'str')
-if args.run == 'all' || args.run == 'hm':
+if args.run == 'all' or args.run == 'hm':
     results['hm']['ptr'] = run('target/release/bench', 'hm', 'ptr')
     results['hm']['str'] = run('target/release/bench', 'hm', 'str')
-if args.run == 'all' || args.run == 'btm':
+if args.run == 'all' or args.run == 'btm':
     results['btm']['ptr'] = run('target/release/bench', 'btm', 'ptr')
     results['btm']['str'] = run('target/release/bench', 'btm', 'str')
-if args.run == 'all' || args.run == 'oc':
+if args.run == 'all' or args.run == 'oc':
     results['oc']['ptr'] = run('../bench-ocaml/test', 'oc', 'ptr')
     results['oc']['str'] = run('../bench-ocaml/test', 'oc', 'str')
 
