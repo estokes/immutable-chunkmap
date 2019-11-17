@@ -261,7 +261,7 @@ fn usage() {
     println!("usage: <cm|btm|hm> <ptr|str> <size>")
 }
 
-type S = String;
+type S = Vec<u8>;
 type P = usize;
 
 fn main() {
