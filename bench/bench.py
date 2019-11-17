@@ -89,7 +89,7 @@ def load_results(args):
 
 def save_results(args, results):
     with open(args.data_path + '/data.json', 'w') as f:
-        json.dump(results)
+        json.dump(results, f)
 
 def chart(args, results):
     plt.rcdefaults()
