@@ -32,7 +32,8 @@ let bench_find m k =
   let st = Time.now () in
   let i = ref 0 in
   let len = Array.length k in
-  while !i < (Int.max len min_iter) do
+  let iter = Int.max len min_iter in
+  while !i < iter do
     assert (Option.is_some (Map.find m (Array.unsafe_get k (!i mod len))));
     incr i
   done;
