@@ -10,7 +10,6 @@ use std::{
     sync::{Arc, RwLock, mpsc::channel},
     time::{Duration, Instant},
 };
-use arccstr::ArcCStr;
 use immutable_chunkmap::map::Map;
 use crate::utils::Rand;
 
@@ -262,7 +261,7 @@ fn usage() {
     println!("usage: <cm|btm|hm> <ptr|str> <size>")
 }
 
-type S = ArcCStr;
+type S = String;
 type P = usize;
 
 fn main() {

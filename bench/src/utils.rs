@@ -4,9 +4,7 @@ use std::{
     sync::Arc,
     collections::HashSet,
     hash::Hash,
-    convert::TryFrom,
 };
-use arccstr::ArcCStr;
 
 const STRSIZE: usize = 32;
 
@@ -30,26 +28,19 @@ impl Rand for String {
     }
 }
 
-impl Rand for Arc<String> {
+impl Rand for Vec<u8> {
     fn rand<R: Rng>(r: &mut R) -> Self {
-        let mut s = String::new();
+        let mut s: Vec<u8> = Vec::with_capacity(STRSIZE);
         for _ in 0..STRSIZE {
             s.push(r.gen())
         }
-        Arc::new(s)
+        s
     }
 }
 
-impl Rand for ArcCStr {
+impl<T: Rand> Rand for Arc<T> {
     fn rand<R: Rng>(r: &mut R) -> Self {
-        let mut s: Vec<u8> = Vec::new();
-        while s.len() < STRSIZE {
-            let v = r.gen();
-            if v != 0 {
-                s.push(v)
-            }
-        }
-        ArcCStr::try_from(&s[0..]).unwrap()
+        Arc::new(<T as Rand>::rand(r))
     }
 }
 
