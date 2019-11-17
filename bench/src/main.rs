@@ -161,8 +161,8 @@ where K: Hash + Ord + Clone + Rand + Send + Sync + 'static,
 
     pub(crate) fn run(size: usize) {
         let n = num_cpus::get();
-        let keys = Arc::new(utils::randvec::<K>(size));
-        let vals = Arc::new(utils::randvec::<V>(size));
+        let keys = Arc::new(utils::randvec::<K>(n, size));
+        let vals = Arc::new(utils::randvec::<V>(n, size));
         let (m, insertmp) = Self::bench_insert_many_par(&*keys, &*vals, n);
         let rm = m.bench_remove(&keys);
         let insert = m.bench_insert(&*keys, &*vals);
