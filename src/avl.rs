@@ -810,23 +810,6 @@ where
         self.update_chunk(chunk, &mut |k, v, _| Some((k, v)))
     }
 
-    fn do_chunk<Q, D, F>(&mut self, chunk: &mut Vec<(Q, D)>, f: &mut F)
-    where
-        Q: Ord,
-        K: Borrow<Q>,
-        F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
-    {
-        if chunk.len() < 6 {
-            for (q, d) in chunk.drain(0..) {
-                *self = self.update(q, d, f).0;
-            }
-        } else {
-            let mut new_chunk = Vec::new();
-            swap(&mut new_chunk, chunk);
-            *self = self.update_chunk(new_chunk, f);
-        }
-    }
-
     pub(crate) fn update_many<Q, D, E, F>(&self, elts: E, f: &mut F) -> Self
     where
         E: IntoIterator<Item = (Q, D)>,
