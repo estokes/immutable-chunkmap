@@ -136,8 +136,6 @@ where
             vals: ArrayVec::new(),
         });
         let arc_ref = Arc::get_mut(&mut arc).unwrap();
-        assert_eq!(arc_ref.keys.len(), 0);
-        assert_eq!(arc_ref.vals.len(), 0);
         f(arc_ref);
         arc
     }
