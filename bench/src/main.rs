@@ -176,12 +176,12 @@ where K: Hash + Ord + Clone + Rand + Send + Sync + 'static,
         println!(
             "{},{:.0},{:.0},{:.0},{:.0},{:.2},{:.0}",
             size,
-            utils::to_ns_per(insert, size / 10),
+            utils::to_ns_per(insert, min(size / 10, MAX_ADD)),
             utils::to_ns_per(insertm, size),
             utils::to_ns_per(insertmp, size),
             utils::to_ns_per(get, iter),
             utils::to_ns_per(get_par, iterp),
-            utils::to_ns_per(rm, size / 10)
+            utils::to_ns_per(rm, min(size / 10, MAX_ADD))
         );
     }
 }
