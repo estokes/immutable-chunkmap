@@ -8,7 +8,6 @@ use std::{
     fmt::{self, Debug, Formatter},
     hash::{Hash, Hasher},
     iter,
-    mem::swap,
     ops::{Bound, Index},
     slice,
     sync::Arc,
