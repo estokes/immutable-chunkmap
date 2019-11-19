@@ -3,6 +3,7 @@
 
 pub(crate) mod chunk;
 pub(crate) mod avl;
+pub mod cached_map;
 pub mod map;
 pub mod set;
 
