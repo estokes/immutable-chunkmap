@@ -8,7 +8,7 @@ edition = "2018"
 lto = true
 
 [dependencies]
+smallvec = "1.0"
 immutable-chunkmap = {path = "../"}
 rand = ">= 0.3"
 num_cpus = ">= 1.0"
-

@@ -1,4 +1,5 @@
 use rand::Rng;
+use smallvec::SmallVec;
 use std::{
     time::Duration,
     sync::{Arc, mpsc::channel},
@@ -8,7 +9,7 @@ use std::{
     thread, mem,
 };
 
-const STRSIZE: usize = 32;
+pub(crate) const STRSIZE: usize = 32;
 
 pub(crate) trait Rand: Sized {
     fn rand<R: Rng>(r: &mut R) -> Self;
@@ -17,6 +18,16 @@ pub(crate) trait Rand: Sized {
 impl<T: Rand, U: Rand> Rand for (T, U) {
     fn rand<R: Rng>(r: &mut R) -> Self {
         (T::rand(r), U::rand(r))
+    }
+}
+
+impl Rand for SmallVec<[u8; STRSIZE]> {
+    fn rand<R: Rng>(r: &mut R) -> Self {
+        let mut v = SmallVec::<[u8; STRSIZE]>::new();
+        for _ in 0..STRSIZE {
+            v.push(r.gen())
+        }
+        v
     }
 }
 
