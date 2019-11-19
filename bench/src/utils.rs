@@ -1,12 +1,14 @@
 use rand::Rng;
 use std::{
     time::Duration,
-    sync::Arc,
+    sync::{Arc, mpsc::channel},
     collections::HashSet,
     hash::Hash,
+    iter::FromIterator,
+    thread, mem,
 };
 
-const STRSIZE: usize = 16;
+const STRSIZE: usize = 32;
 
 pub(crate) trait Rand: Sized {
     fn rand<R: Rng>(r: &mut R) -> Self;
@@ -18,13 +20,29 @@ impl<T: Rand, U: Rand> Rand for (T, U) {
     }
 }
 
-impl Rand for Arc<String> {
+impl Rand for String {
     fn rand<R: Rng>(r: &mut R) -> Self {
         let mut s = String::new();
         for _ in 0..STRSIZE {
             s.push(r.gen())
         }
-        Arc::new(s)
+        s
+    }
+}
+
+impl Rand for Vec<u8> {
+    fn rand<R: Rng>(r: &mut R) -> Self {
+        let mut s: Vec<u8> = Vec::with_capacity(STRSIZE);
+        for _ in 0..STRSIZE {
+            s.push(r.gen())
+        }
+        s
+    }
+}
+
+impl<T: Rand> Rand for Arc<T> {
+    fn rand<R: Rng>(r: &mut R) -> Self {
+        Arc::new(<T as Rand>::rand(r))
     }
 }
 
@@ -45,36 +63,33 @@ pub(crate) fn random<T: Rand>() -> T {
     T::rand(&mut rng)
 }
 
-pub(crate) fn randvec<T: Ord + Clone + Hash + Rand>(len: usize) -> Vec<T> {
-    let mut v: Vec<T> = Vec::new();
-    loop {
-        for _ in 0..len {
-            v.push(random())
-        }
-        dedup_with(&mut v, |k| k);
-        if v.len() >= len {
-            while v.len() > len {
-                v.pop();
-            }
-            break v;
-        }
-    }
-}
-
-fn dedup_with<K, T, F>(v: &mut Vec<T>, f: F)
-where F: Fn(&T) -> &K,
-      K: Ord + Clone + Hash,
+pub(crate) fn randvec<T>(n: usize, len: usize) -> Vec<T>
+where T: Ord + Clone + Hash + Rand + Send + 'static
 {
-    let mut seen = HashSet::new();
-    let mut i = 0;
-    while i < v.len() {
-        if seen.contains(f(&v[i])) {
-            v.remove(i);
-        } else {
-            seen.insert(f(&v[i]).clone());
-            i += 1
-        }
+    let csize = len / n;
+    let (tx, rx) = channel();
+    for _ in 0..n - 1 {
+        let tx = tx.clone();
+        thread::spawn(move || {
+            let mut v: HashSet<T> = HashSet::with_capacity(csize);
+            while v.len() < csize {
+                v.insert(random());
+            }
+            tx.send(v).unwrap()
+        });
     }
+    mem::drop(tx);
+    let mut v: HashSet<T> = HashSet::with_capacity(len);
+    while v.len() < csize {
+        v.insert(random());
+    }
+    while let Ok(c) = rx.recv() {
+        v.extend(c.into_iter())
+    }
+    while v.len() < len {
+        v.insert(random());
+    }
+    Vec::from_iter(v.into_iter())
 }
 
 #[allow(dead_code)]
