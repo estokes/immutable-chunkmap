@@ -18,17 +18,26 @@ struct Node<T> {
     next: List<T>,
 }
 
-#[derive(Clone)]
 enum List<T> {
     Empty,
     Node(Arc<Node<T>>)
 }
 
+impl<T> Clone for List<T> {
+    fn clone(&self) -> Self {
+        match self {
+            List::Empty => List::Empty,
+            List::Node(n) => List::Node(n.clone())
+        }
+    }
+}
+
 impl<T> List<T> {
-    fn empty() -> Self { List::Emtpy }
+    fn empty() -> Self { List::Empty }
 
     fn push(&self, data: T) -> Self {
-        Node(Arc::new(Node { data, next: self.clone() }))
+        let next = self.clone();
+        List::Node(Arc::new(Node { data, next }))
     }
 
     fn hd(&self) -> Option<&T> {
@@ -46,13 +55,13 @@ impl<T> List<T> {
     }
 
     fn len(&self) -> usize {
-        let mut n = 0;
+        let mut len = 0;
         let mut hd = self;
         while let List::Node(n) = hd {
-            n += 1;
+            len += 1;
             hd = &n.next
         }
-        n
+        len
     }
 }
 
@@ -60,12 +69,12 @@ impl<'a, T> IntoIterator for &'a List<T> {
     type Item = &'a T;
     type IntoIter = ListIter<'a, T>;
 
-    fn into_iter(&'a self) -> Self::IntoIter {
+    fn into_iter(self) -> Self::IntoIter {
         ListIter(self)
     }
 }
 
-struct<'a, T> ListIter<'a, T>(&'a List<T>);
+struct ListIter<'a, T>(&'a List<T>);
 
 impl<'a, T> Iterator for ListIter<'a, T> {
     type Item = &'a T;
@@ -96,14 +105,17 @@ struct Cache<K: Ord + Clone, V: Clone> {
 
 impl<K, V> Cache<K, V> where K: Ord + Clone, V: Clone {
     fn empty() -> Self {
-        Cache(List::empty())
+        Cache {
+            len: 0,
+            data: List::empty()
+        }
     }
 
-    fn get<Q: ?Sized + Ord>(&self, k: &Q) -> Option<&CacheOp<V>>
+    fn get<Q: ?Sized + Ord>(&self, k: &Q) -> Option<(&K, &CacheOp<V>)>
     where K: Borrow<Q>
     {
         for (k0, v) in &self.data {
-            if k = k0.borrow() {
+            if k == k0.borrow() {
                 return Some((k0, v))
             }
         }
@@ -116,12 +128,12 @@ impl<K, V> Cache<K, V> where K: Ord + Clone, V: Clone {
     
     fn update(&self, k: K, v: CacheOp<V>) -> Self {
         Cache {
-            len: len + 1,
-            data: self.data.push((k, v));
+            len: self.len + 1,
+            data: self.data.push((k, v)),
         }
     }
 
-    fn iter<'a>(&'a self) -> ListIter<'a, T> {
+    fn iter<'a>(&'a self) -> ListIter<'a, (K, CacheOp<V>)> {
         self.data.into_iter()
     }
 }
@@ -351,7 +363,8 @@ where
         Q: Ord,
         K: Borrow<Q>,
     {
-        self.flush().root.range(lbound, ubound)
+        // CR estokes: This is broken
+        self.root.range(lbound, ubound)
     }
 }
 
