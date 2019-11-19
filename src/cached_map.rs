@@ -5,7 +5,7 @@ use std::{
     default::Default,
     fmt::{self, Debug, Formatter},
     hash::{Hash, Hasher},
-    iter::{self, FromIterator},
+    iter::{self, FromIterator, IntoIterator, Iterator},
     ops::{Bound, Index},
     sync::Arc,
     slice
@@ -30,7 +30,57 @@ impl<T> List<T> {
     fn push(&self, data: T) -> Self {
         Node(Arc::new(Node { data, next: self.clone() }))
     }
+
+    fn hd(&self) -> Option<&T> {
+        match self {
+            List::Empty => None,
+            List::Node(n) => Some(&n.data)
+        }
+    }
+
+    fn tl(&self) -> Self {
+        match self {
+            List::Empty => List::Empty,
+            List::Node(n) => n.next.clone()
+        }
+    }
+
+    fn len(&self) -> usize {
+        let mut n = 0;
+        let mut hd = self;
+        while let List::Node(n) = hd {
+            n += 1;
+            hd = &n.next
+        }
+        n
+    }
 }
+
+impl<'a, T> IntoIterator for &'a List<T> {
+    type Item = &'a T;
+    type IntoIter = ListIter<'a, T>;
+
+    fn into_iter(&'a self) -> Self::IntoIter {
+        ListIter(self)
+    }
+}
+
+struct<'a, T> ListIter<'a, T>(&'a List<T>);
+
+impl<'a, T> Iterator for ListIter<'a, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.0 {
+            List::Empty => None,
+            List::Node(n) => {
+                self.0 = &n.next;
+                Some(&n.data)
+            }
+        }
+    }
+}
+
 
 #[derive(Clone)]
 enum CacheOp<V: Clone> {
@@ -40,73 +90,45 @@ enum CacheOp<V: Clone> {
 
 #[derive(Clone)]
 struct Cache<K: Ord + Clone, V: Clone> {
-    keys: Vec<K>,
-    vals: Vec<CacheOp<V>>
-}
-
-impl<'a, K, V> IntoIterator for &'a Cache<K, V>
-where
-    K: 'a + Ord + Clone,
-    V: 'a + Clone,
-{
-    type Item = (&'a K, &'a CacheOp<V>);
-    type IntoIter = iter::Zip<slice::Iter<'a, K>, slice::Iter<'a, CacheOp<V>>>;
-    fn into_iter(self) -> Self::IntoIter {
-        (&self.keys).into_iter().zip(&self.vals)
-    }
+    len: usize,
+    data: List<(K, CacheOp<V>)>
 }
 
 impl<K, V> Cache<K, V> where K: Ord + Clone, V: Clone {
     fn empty() -> Self {
-        Cache {
-            keys: Vec::new(),
-            vals: Vec::new(),
-        }
+        Cache(List::empty())
     }
 
-    fn with_empty<F: FnOnce(&mut Cache<K, V>)>(f: F) -> Self {
-        let mut cache = Cache::empty();
-        f(&mut cache);
-        cache
-    }
-
-    fn get<Q: ?Sized + Ord>(&self, k: &Q) -> Result<usize, usize>
+    fn get<Q: ?Sized + Ord>(&self, k: &Q) -> Option<&CacheOp<V>>
     where K: Borrow<Q>
     {
-        self.keys.binary_search_by_key(&k, |k| k.borrow())
+        for (k0, v) in &self.data {
+            if k = k0.borrow() {
+                return Some((k0, v))
+            }
+        }
+        None
     }
 
     fn len(&self) -> usize {
-        self.keys.len()
+        self.len
     }
     
     fn update(&self, k: K, v: CacheOp<V>) -> Self {
-        match self.get(&k) {
-            Ok(i) => Cache::with_empty(|elts| {
-                elts.keys.extend_from_slice(&self.keys[0..i]);
-                elts.vals.extend_from_slice(&self.vals[0..i]);
-                elts.keys.push(k);
-                elts.vals.push(v);
-                if i + 1 < self.len() {
-                    elts.keys.extend_from_slice(&self.keys[i + 1..]);
-                    elts.vals.extend_from_slice(&self.vals[i + 1..]);
-                }
-            }),
-            Err(i) => Cache::with_empty(|elts| {
-                elts.keys.extend_from_slice(&self.keys[0..i]);
-                elts.vals.extend_from_slice(&self.vals[0..i]);
-                elts.keys.push(k);
-                elts.vals.push(v);
-                elts.keys.extend_from_slice(&self.keys[i..]);
-                elts.vals.extend_from_slice(&self.vals[i..]);
-            })
+        Cache {
+            len: len + 1,
+            data: self.data.push((k, v));
         }
+    }
+
+    fn iter<'a>(&'a self) -> ListIter<'a, T> {
+        self.data.into_iter()
     }
 }
 
 #[derive(Clone)]
 pub struct Map<K: Ord + Clone, V: Clone> {
-    cache: Arc<Cache<K, V>>,
+    cache: Cache<K, V>,
     root: Tree<K, V>
 }
 
@@ -166,7 +188,7 @@ where
     /// Create a new empty map
     pub fn new() -> Self {
         Map {
-            cache: Arc::new(Cache::empty()),
+            cache: Cache::empty(),
             root: Tree::new(),
         }
     }
@@ -175,14 +197,14 @@ where
         if self.cache.len() == 0 {
             self.clone()
         } else {
-            let items = self.cache.into_iter().map(|(k, v)| (k.clone(), v.clone()));
+            let items = self.cache.iter().map(|(k, v)| (k.clone(), v.clone()));
             let root = self.root.update_many(items, &mut |k, op, _| {
                 match op {
                     CacheOp::Removed => None,
                     CacheOp::Updated(v) => Some((k, v))
                 }
             });
-            Map { root, cache: Arc::new(Cache::empty()) }
+            Map { root, cache: Cache::empty() }
         }
     }
 
@@ -211,7 +233,7 @@ where
     pub fn insert(&self, k: K, v: V) -> (Self, Option<V>) {
         let prev = self.get(&k);
         let m = Map {
-            cache: Arc::new(self.cache.update(k, CacheOp::Updated(v))),
+            cache: self.cache.update(k, CacheOp::Updated(v)),
             root: self.root.clone()
         };
         if m.cache.len() <= CACHE_SIZE {
@@ -229,10 +251,10 @@ where
     {
         let prev = self.get_full(&q);
         let cache = match f(q, d, prev) {
-            Some((k, v)) => Arc::new(self.cache.update(k, CacheOp::Updated(v))),
+            Some((k, v)) => self.cache.update(k, CacheOp::Updated(v)),
             None => match prev {
                 None => self.cache.clone(),
-                Some((k, _)) => Arc::new(self.cache.update(k.clone(), CacheOp::Removed)),
+                Some((k, _)) => self.cache.update(k.clone(), CacheOp::Removed),
             }
         };
         let m = Map { cache, root: self.root.clone() };
@@ -249,7 +271,7 @@ where
         F: FnMut(&K, &V, &V) -> Option<V>,
     {
         Map {
-            cache: Arc::new(Cache::empty()),
+            cache: Cache::empty(),
             root: Tree::union(&self.flush().root, &other.flush().root, &mut f),
         }
     }
@@ -259,7 +281,7 @@ where
         F: FnMut(&K, &V, &V) -> Option<V>,
     {
         Map {
-            cache: Arc::new(Cache::empty()),
+            cache: Cache::empty(),
             root: Tree::intersect(&self.flush().root, &other.flush().root, &mut f)
         }
     }
@@ -268,7 +290,7 @@ where
     where F: FnMut(&K, &V, &V) -> Option<V>, K: Debug, V: Debug
     {
         Map {
-            cache: Arc::new(Cache::empty()),
+            cache: Cache::empty(),
             root: Tree::diff(&self.flush().root, &other.flush().root, &mut f)
         }
     }
@@ -278,8 +300,8 @@ where
         K: Borrow<Q>,
     {
         match self.cache.get(k) {
-            Err(_) => self.root.get(k),
-            Ok(i) => match self.cache.vals[i] {
+            None => self.root.get(k),
+            Some((_, v)) => match v {
                 CacheOp::Removed => None,
                 CacheOp::Updated(ref v) => Some(v)
             }
@@ -291,10 +313,10 @@ where
         K: Borrow<Q>,
     {
         match self.cache.get(k) {
-            Err(_) => self.root.get_key(k),
-            Ok(i) => match self.cache.vals[i] {
+            None => self.root.get_key(k),
+            Some((k, v)) => match v {
                 CacheOp::Removed => None,
-                CacheOp::Updated(_) => Some(&self.cache.keys[i])
+                CacheOp::Updated(_) => Some(&k)
             }
         }
     }
@@ -304,10 +326,10 @@ where
         K: Borrow<Q>,
     {
         match self.cache.get(k) {
-            Err(_) => self.root.get_full(k),
-            Ok(i) => match self.cache.vals[i] {
+            None => self.root.get_full(k),
+            Some((k, v)) => match v {
                 CacheOp::Removed => None,
-                CacheOp::Updated(ref v) => Some((&self.cache.keys[i], v))
+                CacheOp::Updated(ref v) => Some((k, v))
             }
         }
     }
@@ -329,8 +351,7 @@ where
         Q: Ord,
         K: Borrow<Q>,
     {
-        // CR estokes: this is broken
-        self.root.range(lbound, ubound)
+        self.flush().root.range(lbound, ubound)
     }
 }
 
