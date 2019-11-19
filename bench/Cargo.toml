@@ -11,4 +11,4 @@ lto = true
 immutable-chunkmap = {path = "../"}
 rand = ">= 0.3"
 num_cpus = ">= 1.0"
-immutable-map = ">= 0.1.2"
+
