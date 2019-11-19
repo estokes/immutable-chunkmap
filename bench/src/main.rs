@@ -1,4 +1,5 @@
 mod utils;
+use smallvec::SmallVec;
 use std::{
     env, mem, thread,
     borrow::Borrow,
@@ -11,7 +12,7 @@ use std::{
     time::{Duration, Instant},
 };
 use immutable_chunkmap::map::Map;
-use crate::utils::Rand;
+use crate::utils::{Rand, STRSIZE};
 
 const MIN_ITER: usize = 1000000;
 
@@ -261,7 +262,7 @@ fn usage() {
     println!("usage: <cm|btm|hm> <ptr|str> <size>")
 }
 
-type S = Vec<u8>;
+type S = SmallVec<[u8; STRSIZE]>;
 type P = usize;
 
 fn main() {
