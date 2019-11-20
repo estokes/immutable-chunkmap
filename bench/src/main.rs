@@ -263,7 +263,7 @@ fn usage() {
     println!("usage: <cm|btm|hm> <ptr|str> <size>")
 }
 
-type S = Arc<str>;
+type S = Vec<u8>;
 type P = usize;
 
 fn main() {
