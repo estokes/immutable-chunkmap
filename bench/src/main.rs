@@ -20,8 +20,8 @@ trait Collection<K, V> {
     fn new() -> Self;
     fn insert_many(&mut self, chunk: Vec<(K, V)>);
     fn insert(&mut self, k: K, v: V) -> Option<V>;
-    fn remove<Q>(&mut self, k: &Q) -> Option<V> where Q: Ord + Hash, K: Borrow<Q>;
-    fn get<Q>(&self, k: &Q) -> Option<&V> where Q: Ord + Hash, K: Borrow<Q>;
+    fn remove<Q>(&mut self, k: &Q) -> Option<V> where Q: Ord + Hash + Clone, K: Borrow<Q>;
+    fn get<Q>(&self, k: &Q) -> Option<&V> where Q: Ord + Hash + Clone, K: Borrow<Q>;
     fn merge_into(&mut self, from: Self);
     fn len(&self) -> usize;
 }
@@ -196,10 +196,10 @@ where K: Hash + Ord + Clone + Rand + Send + Sync,
         }
     }
     fn insert(&mut self, k: K, v: V) -> Option<V> { self.insert(k, v) }
-    fn remove<Q>(&mut self, k: &Q) -> Option<V> where Q: Ord + Hash, K: Borrow<Q> {
+    fn remove<Q>(&mut self, k: &Q) -> Option<V> where Q: Ord + Hash + Clone, K: Borrow<Q> {
         self.remove(k)
     }
-    fn get<Q>(&self, k: &Q) -> Option<&V> where Q: Ord + Hash, K: Borrow<Q> {
+    fn get<Q>(&self, k: &Q) -> Option<&V> where Q: Ord + Hash + Clone, K: Borrow<Q> {
         self.get(k)
     }
     fn merge_into(&mut self, other: HashMap<K, V>) {
@@ -219,10 +219,10 @@ where K: Hash + Ord + Clone + Rand + Send + Sync,
         }
     }
     fn insert(&mut self, k: K, v: V) -> Option<V> { self.insert(k, v) }
-    fn remove<Q>(&mut self, k: &Q) -> Option<V> where Q: Ord + Hash, K: Borrow<Q> {
+    fn remove<Q>(&mut self, k: &Q) -> Option<V> where Q: Ord + Hash + Clone, K: Borrow<Q> {
         self.remove(k)
     }
-    fn get<Q>(&self, k: &Q) -> Option<&V> where Q: Ord + Hash, K: Borrow<Q> {
+    fn get<Q>(&self, k: &Q) -> Option<&V> where Q: Ord + Hash + Clone, K: Borrow<Q> {
         self.get(k)
     }
     fn merge_into(&mut self, other: BTreeMap<K, V>) {
@@ -244,12 +244,12 @@ where K: Hash + Ord + Clone + Rand + Send + Sync,
         self.0 = m;
         prev
     }
-    fn remove<Q>(&mut self, k: &Q) -> Option<V> where Q: Ord + Hash, K: Borrow<Q> {
+    fn remove<Q>(&mut self, k: &Q) -> Option<V> where Q: Ord + Hash + Clone, K: Borrow<Q> {
         let (m, prev) = self.0.remove(k);
         self.0 = m;
         prev
     }
-    fn get<Q>(&self, k: &Q) -> Option<&V> where Q: Ord + Hash, K: Borrow<Q> {
+    fn get<Q>(&self, k: &Q) -> Option<&V> where Q: Ord + Hash + Clone, K: Borrow<Q> {
         self.0.get(k)
     }
     fn merge_into(&mut self, other: CMWrap<K, V>) {
@@ -262,7 +262,7 @@ fn usage() {
     println!("usage: <cm|btm|hm> <ptr|str> <size>")
 }
 
-type S = SmallVec<[u8; STRSIZE]>;
+type S = Vec<u8>;
 type P = usize;
 
 fn main() {

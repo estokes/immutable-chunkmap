@@ -6,7 +6,6 @@
 pub(crate) mod chunk;
 pub(crate) mod avl;
 pub mod map;
-pub mod cached_map;
 pub mod set;
 
 #[cfg(test)]
