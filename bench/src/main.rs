@@ -3,7 +3,7 @@ use smallvec::SmallVec;
 use std::{
     env, mem, thread,
     borrow::Borrow,
-    cmp::max,
+    cmp::{max, min},
     collections::{BTreeMap, HashMap},
     hash::Hash,
     iter::FromIterator,
@@ -12,9 +12,10 @@ use std::{
     time::{Duration, Instant},
 };
 use immutable_chunkmap::map::Map;
-use crate::utils::{Rand, STRSIZE};
+use crate::utils::Rand;
 
 const MIN_ITER: usize = 1000000;
+const MAX_ADD: usize = 100_000;
 
 trait Collection<K, V> {
     fn new() -> Self;
@@ -101,14 +102,14 @@ where K: Hash + Ord + Clone + Rand + Send + Sync + 'static,
     fn bench_remove(&self, keys: &Arc<Vec<K>>) -> Duration {
         let begin = Instant::now();
         let mut m = self.0.write().unwrap();
-        for i in 0..(keys.len() / 10) {
+        for i in 0..(min(keys.len() / 10, MAX_ADD)) {
             m.remove(&keys[i]).unwrap();
         }
         begin.elapsed()
     }
 
     fn bench_insert(&self, keys: &Vec<K>, vals: &Vec<V>) -> Duration {
-        let len = keys.len() / 10;
+        let len = min(keys.len() / 10, MAX_ADD);
         let chunk =
             keys[0..len].into_iter()
             .zip(vals[0..len].into_iter())
@@ -262,7 +263,7 @@ fn usage() {
     println!("usage: <cm|btm|hm> <ptr|str> <size>")
 }
 
-type S = Vec<u8>;
+type S = Arc<str>;
 type P = usize;
 
 fn main() {

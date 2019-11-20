@@ -51,6 +51,13 @@ impl Rand for Vec<u8> {
     }
 }
 
+impl Rand for Arc<str> {
+    fn rand<R: Rng>(r: &mut R) -> Self {
+        let s = <String as Rand>::rand(r);
+        Arc::from(s.as_str())
+    }
+}
+
 impl<T: Rand> Rand for Arc<T> {
     fn rand<R: Rng>(r: &mut R) -> Self {
         Arc::new(<T as Rand>::rand(r))
