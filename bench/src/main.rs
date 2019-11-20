@@ -72,7 +72,7 @@ where K: Hash + Ord + Clone + Rand + Send + Sync + 'static,
         vals: &Vec<V>,
         n: usize
     ) -> (Self, Duration) {
-        let mut chunks = chunk(keys, vals, n - 1);
+        let mut chunks = chunk(keys, vals, n);
         let len = chunks.len();
         let (tx, rx) = channel();
         let begin = Instant::now();

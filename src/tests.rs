@@ -50,28 +50,28 @@ macro_rules! make_tests {
         paste::item! {
             #[test]
             fn [<$name _i32_string>]() {
-                $name::<i32, Arc<String>>();
+                $name::<i32, Arc<str>>();
             }
         }
 
         paste::item! {
             #[test]
             fn [<$name _string_i32>]() {
-                $name::<Arc<String>, i32>();
+                $name::<Arc<str>, i32>();
             }
         }
 
         paste::item! {
             #[test]
             fn [<$name _usize_string_pair>]() {
-                $name::<usize, (Arc<String>, Arc<String>)>();
+                $name::<usize, (Arc<str>, Arc<str>)>();
             }
         }
 
         paste::item! {
             #[test]
             fn [<$name _string_pair_usize>]() {
-                $name::<(Arc<String>, Arc<String>), usize>();
+                $name::<(Arc<str>, Arc<str>), usize>();
             }
         }
     }
@@ -87,13 +87,13 @@ impl<T: Rand, U: Rand> Rand for (T, U) {
     }
 }
 
-impl Rand for Arc<String> {
+impl Rand for Arc<str> {
     fn rand<R: Rng>(r: &mut R) -> Self {
         let mut s = String::new();
         for _ in 0..STRSIZE {
             s.push(r.gen())
         }
-        Arc::new(s)
+        Arc::new(s.as_str())
     }
 }
 
