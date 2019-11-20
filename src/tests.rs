@@ -93,7 +93,7 @@ impl Rand for Arc<str> {
         for _ in 0..STRSIZE {
             s.push(r.gen())
         }
-        Arc::new(s.as_str())
+        Arc::from(s.as_str())
     }
 }
 
@@ -585,8 +585,8 @@ fn test_set_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
 fn test_set() {
     test_set_gen::<i32>();
     test_set_gen::<usize>();
-    test_set_gen::<Arc<String>>();
-    test_set_gen::<(i32, Arc<String>)>();
+    test_set_gen::<Arc<str>>();
+    test_set_gen::<(i32, Arc<str>)>();
 }
 
 #[test]
@@ -644,8 +644,8 @@ fn test_union_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
 fn test_union() {
     test_union_gen::<i32>();
     test_union_gen::<usize>();
-    test_union_gen::<Arc<String>>();
-    test_union_gen::<(i32, Arc<String>)>();
+    test_union_gen::<Arc<str>>();
+    test_union_gen::<(i32, Arc<str>)>();
 }
 
 fn test_intersect_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
@@ -687,8 +687,8 @@ fn test_intersect_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
 fn test_intersect() {
     test_intersect_gen::<i32>();
     test_intersect_gen::<usize>();
-    test_intersect_gen::<Arc<String>>();
-    test_intersect_gen::<(i32, Arc<String>)>();
+    test_intersect_gen::<Arc<str>>();
+    test_intersect_gen::<(i32, Arc<str>)>();
 }
 
 fn test_diff_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
@@ -719,6 +719,6 @@ fn test_diff_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
 fn test_diff() {
     test_diff_gen::<i32>();
     test_diff_gen::<usize>();
-    test_diff_gen::<Arc<String>>();
-    test_diff_gen::<(i32, Arc<String>)>();
+    test_diff_gen::<Arc<str>>();
+    test_diff_gen::<(i32, Arc<str>)>();
 }
