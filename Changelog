@@ -1,3 +1,7 @@
+0.5.9
+* add weak references to maps and sets as well as methods to get the
+  strong and weak count of map/set references.
+
 0.5.8
 * further 20% performance improvement on batch update operations.
 
