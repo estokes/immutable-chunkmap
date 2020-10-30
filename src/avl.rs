@@ -8,7 +8,7 @@ use std::{
     fmt::{self, Debug, Formatter},
     hash::{Hash, Hasher},
     ops::{Bound, Index},
-    sync::Arc,
+    sync::{Arc, Weak},
     iter, slice,
 };
 
@@ -42,6 +42,21 @@ where
     fn height(&self) -> u8 {
         let has = HeightAndSize::unpack(&self.height_and_size).unwrap();
         *has.height
+    }
+}
+
+#[derive(Clone)]
+pub(crate) enum WeakTree<K: Ord + Clone, V: Clone> {
+    Empty,
+    Node(Weak<Node<K, V>>)
+}
+
+impl<K: Ord + Clone, V: Clone> WeakTree<K, V> {
+    pub(crate) fn upgrade(&self) -> Option<Tree<K, V>> {
+        match self {
+            WeakTree::Empty => Some(Tree::Empty),
+            WeakTree::Node(n) => Weak::upgrade(n).map(Tree::Node)
+        }
     }
 }
 
@@ -342,6 +357,27 @@ where
         Tree::Empty
     }
 
+    pub(crate) fn downgrade(&self) -> WeakTree<K, V> {
+        match self {
+            Tree::Empty => WeakTree::Empty,
+            Tree::Node(n) => WeakTree::Node(Arc::downgrade(n))
+        }
+    }
+
+    pub(crate) fn strong_count(&self) -> usize {
+        match self {
+            Tree::Empty => 0,
+            Tree::Node(n) => Arc::strong_count(n)
+        }
+    }
+
+    pub(crate) fn weak_count(&self) -> usize {
+        match self {
+            Tree::Empty => 0,
+            Tree::Node(n) => Arc::weak_count(n)
+        }
+    }
+    
     pub(crate) fn range<'a, Q>(
         &'a self,
         lbound: Bound<Q>,

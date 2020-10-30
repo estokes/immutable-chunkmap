@@ -1,4 +1,4 @@
-use crate::avl::{Iter, Tree};
+use crate::avl::{Iter, Tree, WeakTree};
 use std::{
     borrow::Borrow,
     cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd},
@@ -48,6 +48,20 @@ use std::{
 /// ```
 #[derive(Clone)]
 pub struct Map<K: Ord + Clone, V: Clone>(Tree<K, V>);
+
+/// A weak reference to a map.
+#[derive(Clone)]
+pub struct WeakMapRef<K: Ord + Clone, V: Clone>(WeakTree<K, V>);
+
+impl<K, V> WeakMapRef<K, V>
+where
+    K: Ord + Clone,
+    V: Clone,
+{
+    pub fn upgrade(&self) -> Option<Map<K, V>> {
+        self.0.upgrade().map(Map)
+    }
+}
 
 impl<K, V> Hash for Map<K, V>
 where
@@ -158,6 +172,21 @@ where
     /// Create a new empty map
     pub fn new() -> Self {
         Map(Tree::new())
+    }
+
+    /// Create a weak reference to this map
+    pub fn downgrade(&self) -> WeakMapRef<K, V> {
+        WeakMapRef(self.0.downgrade())
+    }
+
+    /// Return the number of strong references to this map (see Arc)
+    pub fn strong_count(&self) -> usize {
+        self.0.strong_count()
+    }
+
+    /// Return the number of weak references to this map (see Arc)
+    pub fn weak_count(&self) -> usize {
+        self.0.weak_count()
     }
 
     /// This will insert many elements at once, and is
@@ -367,7 +396,10 @@ where
     /// }
     /// ```
     pub fn diff<F>(&self, other: &Map<K, V>, mut f: F) -> Self
-    where F: FnMut(&K, &V, &V) -> Option<V>, K: Debug, V: Debug
+    where
+        F: FnMut(&K, &V, &V) -> Option<V>,
+        K: Debug,
+        V: Debug,
     {
         Map(Tree::diff(&self.0, &other.0, &mut f))
     }

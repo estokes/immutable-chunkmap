@@ -1,4 +1,4 @@
-use crate::avl::{Iter, Tree};
+use crate::avl::{Iter, Tree, WeakTree};
 use std::{
     borrow::Borrow,
     cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd},
@@ -31,6 +31,18 @@ use std::{
 /// ```
 #[derive(Clone)]
 pub struct Set<K: Ord + Clone>(Tree<K, ()>);
+
+#[derive(Clone)]
+pub struct WeakSetRef<K: Ord + Clone>(WeakTree<K, ()>);
+
+impl<K> WeakSetRef<K>
+where
+    K: Ord + Clone,
+{
+    pub fn upgrade(&self) -> Option<Set<K>> {
+        self.0.upgrade().map(Set)
+    }
+}
 
 impl<K> Hash for Set<K>
 where
@@ -140,6 +152,21 @@ where
         Set(Tree::new())
     }
 
+    /// Create a weak reference to this set
+    pub fn downgrade(&self) -> WeakSetRef<K> {
+        WeakSetRef(self.0.downgrade())
+    }
+
+    /// Return the number of strong references to this set (see Arc)
+    pub fn strong_count(&self) -> usize {
+        self.0.strong_count()
+    }
+
+    /// Return the number of weak references to this set (see Arc)
+    pub fn weak_count(&self) -> usize {
+        self.0.weak_count()
+    }
+
     /// This will insert many elements at once, and is
     /// potentially a lot faster than inserting one by one,
     /// especially if the data is sorted.
@@ -187,12 +214,12 @@ where
         E: IntoIterator<Item = Q>,
         F: FnMut(Q, Option<&K>) -> Option<K>,
     {
-        let root = self
-            .0
-            .update_many(elts.into_iter().map(|k| (k, ())), &mut |q, (), cur| {
-                let cur = cur.map(|(k, ())| k);
-                f(q, cur).map(|k| (k, ()))
-            });
+        let root =
+            self.0
+                .update_many(elts.into_iter().map(|k| (k, ())), &mut |q, (), cur| {
+                    let cur = cur.map(|(k, ())| k);
+                    f(q, cur).map(|k| (k, ()))
+                });
         Set(root)
     }
 
@@ -281,7 +308,11 @@ where
     ///     }
     /// }
     pub fn intersect(&self, other: &Set<K>) -> Self {
-        Set(Tree::intersect(&self.0, &other.0, &mut |_, (), ()| Some(())))
+        Set(Tree::intersect(
+            &self.0,
+            &other.0,
+            &mut |_, (), ()| Some(()),
+        ))
     }
 
     /// Return the difference of two sets. Runs in O(log(N) + M) time
@@ -305,7 +336,10 @@ where
     ///     assert!(s2.contains(&i));
     /// }
     /// ```
-    pub fn diff(&self, other: &Set<K>) -> Self where K: Debug {
+    pub fn diff(&self, other: &Set<K>) -> Self
+    where
+        K: Debug,
+    {
         Set(Tree::diff(&self.0, &other.0, &mut |_, (), ()| None))
     }
 
