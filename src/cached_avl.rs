@@ -61,6 +61,22 @@ struct CacheAvl<K: Ord + Clone, V: Clone> {
 }
 
 impl<K: Ord + Clone, V: Clone> CacheAvl<K, V> {
+    pub(crate) fn flush(&self) -> Self {
+        let mut ops = Vec::new();
+        let mut cache = &self.cache;
+        while let List::Head(a) = cache {
+            ops.push(a.0.clone());
+            cache = &a.1;
+        }
+        let avl = self
+            .avl
+            .update_many(ops, &mut |k, op: Option<V>, _| op.map(|v| (k, v)));
+        CacheAvl {
+            cache: List::Nil,
+            avl,
+        }
+    }
+
     pub(crate) fn fast_insert(&self, k: K, v: V) -> Self {
         CacheAvl {
             cache: self.cache.insert((k, Some(v))),
