@@ -15,6 +15,7 @@ edition = "2018"
 arrayvec = "0.5"
 packed_struct = "0.3"
 packed_struct_codegen = "0.3"
+arc-swap = "1"
 
 [dev-dependencies]
 paste = "0.1"
