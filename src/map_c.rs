@@ -1,9 +1,7 @@
 use crate::{
     avl::{Iter, Tree, WeakTree},
     cached_avl::CacheAvl,
-    chunk,
 };
-use arc_swap::{ArcSwap, Guard};
 use std::{
     borrow::Borrow,
     cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd},
@@ -12,7 +10,6 @@ use std::{
     hash::{Hash, Hasher},
     iter::FromIterator,
     ops::{Bound, Index},
-    sync::Arc,
 };
 
 /// This Map uses a similar strategy to BTreeMap to ensure cache
@@ -52,7 +49,100 @@ use std::{
 ///   println!("key {}, val: {}", k, v)
 /// }
 /// ```
-pub struct Map<K: Ord + Clone, V: Clone>(ArcSwap<CacheAvl<K, V>>);
+#[derive(Clone)]
+pub struct Map<K: Ord + Clone, V: Clone>(Tree<K, V>);
+
+pub struct DirtyMap<K: Ord + Clone, V: Clone>(CacheAvl<K, V>);
+
+impl<K, V> DirtyMap<K, V>
+where
+    K: Ord + Clone,
+    V: Clone,
+{
+    pub fn new() -> DirtyMap<K, V> {
+        DirtyMap(CacheAvl::new(Tree::Empty))
+    }
+
+    pub fn flush(&self) -> Map<K, V> {
+        Map(self.0.flush())
+    }
+
+    /// return a new map with (k, v) inserted into it. If k
+    /// already exists in the old map, the old binding will be
+    /// returned, and the new map will contain the new
+    /// binding. In fact this method is just a wrapper around
+    /// update.
+    pub fn insert(&self, k: K, v: V) -> (Self, Option<V>) {
+        let (root, prev) = self.0.insert(k, v);
+        (DirtyMap(root), prev)
+    }
+
+    /// return a new map with the mapping under k removed. If
+    /// the binding existed in the old map return it. Runs in
+    /// log(N) time and log(N) space, where N is the size of
+    /// the map.
+    pub fn remove<Q: Sized + Ord>(&self, k: Q) -> (Self, Option<V>)
+    where
+        K: Borrow<Q>,
+    {
+        let (root, prev) = self.0.remove(k);
+        (DirtyMap(root), prev)
+    }
+
+    /// lookup the mapping for k. If it doesn't exist return
+    /// None. Runs in log(N) time and constant space. where N
+    /// is the size of the map.
+    pub fn get<'a, Q: ?Sized + Ord>(&'a self, k: &Q) -> Option<&'a V>
+    where
+        K: Borrow<Q>,
+    {
+        self.0.get(k)
+    }
+
+    /// lookup the mapping for k. Return the key. If it doesn't exist
+    /// return None. Runs in log(N) time and constant space. where N
+    /// is the size of the map.
+    pub fn get_key<'a, Q: ?Sized + Ord>(&'a self, k: &Q) -> Option<&'a K>
+    where
+        K: Borrow<Q>,
+    {
+        self.0.get_key(k)
+    }
+
+    /// lookup the mapping for k. Return both the key and the
+    /// value. If it doesn't exist return None. Runs in log(N) time
+    /// and constant space. where N is the size of the map.
+    pub fn get_full<'a, Q: ?Sized + Ord>(&'a self, k: &Q) -> Option<(&'a K, &'a V)>
+    where
+        K: Borrow<Q>,
+    {
+        self.0.get_full(k)
+    }
+}
+
+/// A weak reference to a map.
+#[derive(Clone)]
+pub struct WeakMapRef<K: Ord + Clone, V: Clone>(WeakTree<K, V>);
+
+impl<K, V> WeakMapRef<K, V>
+where
+    K: Ord + Clone,
+    V: Clone,
+{
+    pub fn upgrade(&self) -> Option<Map<K, V>> {
+        self.0.upgrade().map(Map)
+    }
+}
+
+impl<K, V> Hash for Map<K, V>
+where
+    K: Hash + Ord + Clone,
+    V: Hash + Clone,
+{
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.hash(state)
+    }
+}
 
 impl<K, V> Default for Map<K, V>
 where
@@ -64,23 +154,13 @@ where
     }
 }
 
-impl<K, V> Hash for Map<K, V>
-where
-    K: Hash + Ord + Clone,
-    V: Hash + Clone,
-{
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.flushed().tree().hash(state)
-    }
-}
-
 impl<K, V> PartialEq for Map<K, V>
 where
     K: PartialEq + Ord + Clone,
     V: PartialEq + Clone,
 {
     fn eq(&self, other: &Map<K, V>) -> bool {
-        self.flushed().tree() == other.flushed().tree()
+        self.0 == other.0
     }
 }
 
@@ -97,7 +177,7 @@ where
     V: PartialOrd + Clone,
 {
     fn partial_cmp(&self, other: &Map<K, V>) -> Option<Ordering> {
-        self.flushed().tree().partial_cmp(&other.flushed().tree())
+        self.0.partial_cmp(&other.0)
     }
 }
 
@@ -107,7 +187,7 @@ where
     V: Ord + Clone,
 {
     fn cmp(&self, other: &Map<K, V>) -> Ordering {
-        self.flushed().tree().cmp(&other.flushed().tree())
+        self.0.cmp(&other.0)
     }
 }
 
@@ -117,7 +197,41 @@ where
     V: Debug + Clone,
 {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        self.flushed().tree().fmt(f)
+        self.0.fmt(f)
+    }
+}
+
+impl<'a, Q, K, V> Index<&'a Q> for Map<K, V>
+where
+    Q: Ord,
+    K: Ord + Clone + Borrow<Q>,
+    V: Clone,
+{
+    type Output = V;
+    fn index(&self, k: &Q) -> &V {
+        self.get(k).expect("element not found for key")
+    }
+}
+
+impl<K, V> FromIterator<(K, V)> for Map<K, V>
+where
+    K: Ord + Clone,
+    V: Clone,
+{
+    fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
+        Map::new().insert_many(iter)
+    }
+}
+
+impl<'a, K, V> IntoIterator for &'a Map<K, V>
+where
+    K: 'a + Borrow<K> + Ord + Clone,
+    V: 'a + Clone,
+{
+    type Item = (&'a K, &'a V);
+    type IntoIter = Iter<'a, K, K, V>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
     }
 }
 
@@ -128,36 +242,26 @@ where
 {
     /// Create a new empty map
     pub fn new() -> Self {
-        Map(ArcSwap::new(Arc::new(CacheAvl::new())))
+        Map(Tree::new())
     }
 
-    pub fn flushed(&self) -> FlushedMapGuard<K, V> {
-        let g = self.0.load();
-        if !g.is_flushed() {
-            self.0.store(Arc::new(g.flush()))
-        }
-        FlushedMapGuard(self.0.load())
-    }
-
-    pub fn load(&self) -> MapGuard<K, V> {
-        MapGuard(self.0.load())
+    pub fn dirty(self) -> DirtyMap<K, V> {
+        DirtyMap(CacheAvl::new(self.0))
     }
 
     /// Create a weak reference to this map
     pub fn downgrade(&self) -> WeakMapRef<K, V> {
-        WeakMapRef(self.flushed().0.tree().downgrade())
+        WeakMapRef(self.0.downgrade())
     }
 
-    // CR estokes: is this correct?
     /// Return the number of strong references to this map (see Arc)
     pub fn strong_count(&self) -> usize {
-        self.load().tree().strong_count()
+        self.0.strong_count()
     }
 
-    // CR estokes: is this correct?
     /// Return the number of weak references to this map (see Arc)
     pub fn weak_count(&self) -> usize {
-        self.load().tree().weak_count()
+        self.0.weak_count()
     }
 
     /// This will insert many elements at once, and is
@@ -179,8 +283,55 @@ where
     /// }
     /// ```
     pub fn insert_many<E: IntoIterator<Item = (K, V)>>(&self, elts: E) -> Self {
-        let tree = self.flushed().tree().insert_many(elts);
-        Map(ArcSwap::new(Arc::new(CacheAvl::wrap(tree))))
+        Map(self.0.insert_many(elts))
+    }
+
+    /// This method updates multiple bindings in one call. Given an
+    /// iterator of an arbitrary type (Q, D), where Q is any borrowed
+    /// form of K, an update function taking Q, D, the current binding
+    /// in the map, if any, and producing the new binding, if any,
+    /// this method will produce a new map with updated bindings of
+    /// many elements at once. It will skip intermediate node
+    /// allocations where possible. If the data in elts is sorted, it
+    /// will be able to skip many more intermediate allocations, and
+    /// can produce a speedup of about 10x compared to
+    /// inserting/updating one by one. In any case it should always be
+    /// faster than inserting elements one by one, even with random
+    /// unsorted keys.
+    ///
+    /// #Examples
+    /// ```
+    /// use std::iter::FromIterator;
+    /// use self::immutable_chunkmap::map::Map;
+    ///
+    /// let m = Map::from_iter((0..4).map(|k| (k, k)));
+    /// let m = m.update_many(
+    ///     (0..4).map(|x| (x, ())),
+    ///     |k, (), cur| cur.map(|(_, c)| (k, c + 1))
+    /// );
+    /// assert_eq!(
+    ///     m.into_iter().map(|(k, v)| (*k, *v)).collect::<Vec<_>>(),
+    ///     vec![(0, 1), (1, 2), (2, 3), (3, 4)]
+    /// );
+    /// ```
+    pub fn update_many<Q, D, E, F>(&self, elts: E, mut f: F) -> Self
+    where
+        E: IntoIterator<Item = (Q, D)>,
+        Q: Ord,
+        K: Borrow<Q>,
+        F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
+    {
+        Map(self.0.update_many(elts, &mut f))
+    }
+
+    /// return a new map with (k, v) inserted into it. If k
+    /// already exists in the old map, the old binding will be
+    /// returned, and the new map will contain the new
+    /// binding. In fact this method is just a wrapper around
+    /// update.
+    pub fn insert(&self, k: K, v: V) -> (DirtyMap<K, V>, Option<V>) {
+        let t = DirtyMap(CacheAvl::new(self.0.clone()));
+        t.insert(k, v)
     }
 
     /// return a new map with the binding for q, which can be any
@@ -218,13 +369,8 @@ where
         K: Borrow<Q>,
         F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
     {
-        let (root, prev) = self.0.load().update(q, d, &mut f);
-        let root = if root.cached() >= chunk::SIZE {
-            root.flush()
-        } else {
-            root
-        };
-        (Map(ArcSwap::new(Arc::new(root))), prev)
+        let (root, prev) = self.0.update(q, d, &mut f);
+        (Map(root), prev)
     }
 
     /// Merge two maps together. Bindings that exist in both maps will
@@ -263,8 +409,7 @@ where
     where
         F: FnMut(&K, &V, &V) -> Option<V>,
     {
-        let t = Tree::union(self.flushed().tree(), other.flushed().tree(), &mut f);
-        Map(ArcSwap::new(Arc::new(CacheAvl::wrap(t))))
+        Map(Tree::union(&self.0, &other.0, &mut f))
     }
 
     /// Produce a map containing the mapping over F of the
@@ -296,8 +441,7 @@ where
     where
         F: FnMut(&K, &V, &V) -> Option<V>,
     {
-        let t = Tree::intersect(self.flushed().tree(), other.flushed().tree(), &mut f);
-        Map(ArcSwap::new(Arc::new(CacheAvl::wrap(t))))
+        Map(Tree::intersect(&self.0, &other.0, &mut f))
     }
 
     /// Produce a map containing the second map subtracted from the
@@ -332,87 +476,7 @@ where
         K: Debug,
         V: Debug,
     {
-        let t = Tree::diff(self.flushed().tree(), other.flushed().tree(), &mut f);
-        Map(ArcSwap::new(Arc::new(CacheAvl::wrap(t))))
-    }
-
-    /// This method updates multiple bindings in one call. Given an
-    /// iterator of an arbitrary type (Q, D), where Q is any borrowed
-    /// form of K, an update function taking Q, D, the current binding
-    /// in the map, if any, and producing the new binding, if any,
-    /// this method will produce a new map with updated bindings of
-    /// many elements at once. It will skip intermediate node
-    /// allocations where possible. If the data in elts is sorted, it
-    /// will be able to skip many more intermediate allocations, and
-    /// can produce a speedup of about 10x compared to
-    /// inserting/updating one by one. In any case it should always be
-    /// faster than inserting elements one by one, even with random
-    /// unsorted keys.
-    ///
-    /// #Examples
-    /// ```
-    /// use std::iter::FromIterator;
-    /// use self::immutable_chunkmap::map::Map;
-    ///
-    /// let m = Map::from_iter((0..4).map(|k| (k, k)));
-    /// let m = m.update_many(
-    ///     (0..4).map(|x| (x, ())),
-    ///     |k, (), cur| cur.map(|(_, c)| (k, c + 1))
-    /// );
-    /// assert_eq!(
-    ///     m.into_iter().map(|(k, v)| (*k, *v)).collect::<Vec<_>>(),
-    ///     vec![(0, 1), (1, 2), (2, 3), (3, 4)]
-    /// );
-    /// ```
-    pub fn update_many<Q, D, E, F>(&self, elts: E, mut f: F) -> Self
-    where
-        E: IntoIterator<Item = (Q, D)>,
-        Q: Ord,
-        K: Borrow<Q>,
-        F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
-    {
-        let tree = self.flushed().tree().update_many(elts, &mut f);
-        Map(ArcSwap::new(Arc::new(CacheAvl::wrap(tree))))
-    }
-
-    /// return a new map with (k, v) inserted into it. If k
-    /// already exists in the old map, the old binding will be
-    /// returned, and the new map will contain the new
-    /// binding. In fact this method is just a wrapper around
-    /// update.
-    pub fn insert(&self, k: K, v: V) -> (Self, Option<V>) {
-        let (root, prev) = self.0.load().insert(k, v);
-        let root = if root.cached() >= chunk::SIZE {
-            root.flush()
-        } else {
-            root
-        };
-        (Map(ArcSwap::new(Arc::new(root))), prev)
-    }
-
-    /// return a new map with the mapping under k removed. If
-    /// the binding existed in the old map return it. Runs in
-    /// log(N) time and log(N) space, where N is the size of
-    /// the map.
-    pub fn remove<Q: Sized + Ord>(&self, k: &Q) -> (Self, Option<V>)
-    where
-        K: Borrow<Q>,
-    {
-        let (root, prev) = self.0.load().remove(k);
-        let root = if root.cached() >= chunk::SIZE {
-            root.flush()
-        } else {
-            root
-        };
-        (Map(ArcSwap::new(Arc::new(root))), prev)
-    }
-}
-
-pub struct MapGuard<K: Ord + Clone, V: Clone>(Guard<Arc<CacheAvl<K, V>>>);
-
-impl<K: Ord + Clone, V: Clone> MapGuard<K, V> {
-    pub(crate) fn tree(&self) -> &Tree<K, V> {
-        self.0.tree()
+        Map(Tree::diff(&self.0, &other.0, &mut f))
     }
 
     /// lookup the mapping for k. If it doesn't exist return
@@ -444,75 +508,22 @@ impl<K: Ord + Clone, V: Clone> MapGuard<K, V> {
     {
         self.0.get_full(k)
     }
-}
 
-pub struct FlushedMapGuard<K: Ord + Clone, V: Clone>(Guard<Arc<CacheAvl<K, V>>>);
-
-impl<K, V> Hash for FlushedMapGuard<K, V>
-where
-    K: Hash + Ord + Clone,
-    V: Hash + Clone,
-{
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.tree().hash(state)
+    /// return a new map with the mapping under k removed. If
+    /// the binding existed in the old map return it. Runs in
+    /// log(N) time and log(N) space, where N is the size of
+    /// the map.
+    pub fn remove<Q: Sized + Ord>(&self, k: &Q) -> (Self, Option<V>)
+    where
+        K: Borrow<Q>,
+    {
+        let (t, prev) = self.0.remove(k);
+        (Map(t), prev)
     }
-}
 
-impl<K, V> PartialEq for FlushedMapGuard<K, V>
-where
-    K: PartialEq + Ord + Clone,
-    V: PartialEq + Clone,
-{
-    fn eq(&self, other: &FlushedMapGuard<K, V>) -> bool {
-        self.tree() == other.tree()
-    }
-}
-
-impl<K, V> Eq for FlushedMapGuard<K, V>
-where
-    K: Eq + Ord + Clone,
-    V: Eq + Clone,
-{
-}
-
-impl<K, V> PartialOrd for FlushedMapGuard<K, V>
-where
-    K: Ord + Clone,
-    V: PartialOrd + Clone,
-{
-    fn partial_cmp(&self, other: &FlushedMapGuard<K, V>) -> Option<Ordering> {
-        self.tree().partial_cmp(&other.tree())
-    }
-}
-
-impl<K, V> Ord for FlushedMapGuard<K, V>
-where
-    K: Ord + Clone,
-    V: Ord + Clone,
-{
-    fn cmp(&self, other: &FlushedMapGuard<K, V>) -> Ordering {
-        self.tree().cmp(&other.tree())
-    }
-}
-
-impl<K, V> Debug for FlushedMapGuard<K, V>
-where
-    K: Debug + Ord + Clone,
-    V: Debug + Clone,
-{
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        self.tree().fmt(f)
-    }
-}
-
-impl<K: Ord + Clone, V: Clone> FlushedMapGuard<K, V> {
     /// get the number of elements in the map O(1) time and space
     pub fn len(&self) -> usize {
-        self.tree().len()
-    }
-
-    pub(crate) fn tree(&self) -> &Tree<K, V> {
-        self.0.tree()
+        self.0.len()
     }
 
     /// return an iterator over the subset of elements in the
@@ -523,66 +534,12 @@ impl<K: Ord + Clone, V: Clone> FlushedMapGuard<K, V> {
     /// tree, and M is the number of elements you examine.
     ///
     /// if lbound >= ubound the returned iterator will be empty
-    pub fn range<'a, Q>(
-        &'a self,
-        lbound: Bound<Q>,
-        ubound: Bound<Q>,
-    ) -> Iter<'a, Q, K, V>
+    pub fn range<'a, Q>(&'a self, lbound: Bound<Q>, ubound: Bound<Q>) -> Iter<'a, Q, K, V>
     where
         Q: Ord,
         K: Borrow<Q>,
     {
-        self.tree().range(lbound, ubound)
-    }
-}
-
-/// A weak reference to a map.
-#[derive(Clone)]
-pub struct WeakMapRef<K: Ord + Clone, V: Clone>(WeakTree<K, V>);
-
-impl<K, V> WeakMapRef<K, V>
-where
-    K: Ord + Clone,
-    V: Clone,
-{
-    pub fn upgrade(&self) -> Option<Map<K, V>> {
-        self.0
-            .upgrade()
-            .map(|t| Map(ArcSwap::new(Arc::new(CacheAvl::wrap(t)))))
-    }
-}
-
-impl<'a, Q, K, V> Index<&'a Q> for MapGuard<K, V>
-where
-    Q: Ord,
-    K: Ord + Clone + Borrow<Q>,
-    V: Clone,
-{
-    type Output = V;
-    fn index(&self, k: &Q) -> &V {
-        self.0.get(k).expect("element not found for key")
-    }
-}
-
-impl<K, V> FromIterator<(K, V)> for Map<K, V>
-where
-    K: Ord + Clone,
-    V: Clone,
-{
-    fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
-        Map::new().insert_many(iter)
-    }
-}
-
-impl<'a, K, V> IntoIterator for &'a FlushedMapGuard<K, V>
-where
-    K: 'a + Borrow<K> + Ord + Clone,
-    V: 'a + Clone,
-{
-    type Item = (&'a K, &'a V);
-    type IntoIter = Iter<'a, K, K, V>;
-    fn into_iter(self) -> Self::IntoIter {
-        self.tree().into_iter()
+        self.0.range(lbound, ubound)
     }
 }
 
@@ -593,6 +550,6 @@ where
 {
     #[allow(dead_code)]
     pub fn invariant(&self) -> () {
-        self.flushed().tree().invariant()
+        self.0.invariant()
     }
 }

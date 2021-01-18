@@ -1,18 +1,19 @@
 mod utils;
-use smallvec::SmallVec;
+use crate::utils::Rand;
+use immutable_chunkmap::map_c::{Map, DirtyMap};
 use std::{
-    env, mem, thread,
     borrow::Borrow,
     cmp::{max, min},
     collections::{BTreeMap, HashMap},
+    env,
     hash::Hash,
     iter::FromIterator,
     marker::PhantomData,
-    sync::{Arc, RwLock, mpsc::channel},
+    mem,
+    sync::{mpsc::channel, Arc, RwLock},
+    thread,
     time::{Duration, Instant},
 };
-use immutable_chunkmap::map::Map;
-use crate::utils::Rand;
 
 const MIN_ITER: usize = 1000000;
 const MAX_ADD: usize = 100_000;
@@ -21,15 +22,22 @@ trait Collection<K, V> {
     fn new() -> Self;
     fn insert_many(&mut self, chunk: Vec<(K, V)>);
     fn insert(&mut self, k: K, v: V) -> Option<V>;
-    fn remove<Q>(&mut self, k: &Q) -> Option<V> where Q: Ord + Hash + Clone, K: Borrow<Q>;
-    fn get<Q>(&self, k: &Q) -> Option<&V> where Q: Ord + Hash + Clone, K: Borrow<Q>;
+    fn remove<Q>(&mut self, k: &Q) -> Option<V>
+    where
+        Q: Ord + Hash + Clone,
+        K: Borrow<Q>;
+    fn get<Q>(&self, k: &Q) -> Option<&V>
+    where
+        Q: Ord + Hash + Clone,
+        K: Borrow<Q>;
     fn merge_into(&mut self, from: Self);
     fn len(&self) -> usize;
 }
 
 fn chunk<K, V>(keys: &Vec<K>, vals: &Vec<V>, denom: usize) -> Vec<Vec<(K, V)>>
-where K: Clone,
-      V: Clone
+where
+    K: Clone,
+    V: Clone,
 {
     let csize = max(1, keys.len() / denom);
     let mut chunks = vec![];
@@ -50,28 +58,25 @@ where K: Clone,
 struct Bench<C, K, V>(Arc<RwLock<C>>, PhantomData<K>, PhantomData<V>);
 
 impl<C, K, V> Bench<C, K, V>
-where K: Hash + Ord + Clone + Rand + Send + Sync + 'static,
-      V: Hash + Ord + Clone + Rand + Send + Sync + 'static,
-      C: Collection<K, V> + Send + Sync + 'static,
+where
+    K: Hash + Ord + Clone + Rand + Send + Sync + 'static,
+    V: Hash + Ord + Clone + Rand + Send + Sync + 'static,
+    C: Collection<K, V> + Send + Sync + 'static,
 {
-    fn bench_insert_many(
-        keys: &Vec<K>,
-        vals: &Vec<V>
-    ) -> (Self, Duration) {
+    fn bench_insert_many(keys: &Vec<K>, vals: &Vec<V>) -> (Self, Duration) {
         let mut m = C::new();
         let chunks = chunk(keys, vals, 100);
         let begin = Instant::now();
         for chunk in chunks {
             m.insert_many(chunk);
         }
-        (Bench(Arc::new(RwLock::new(m)), PhantomData, PhantomData), begin.elapsed())
+        (
+            Bench(Arc::new(RwLock::new(m)), PhantomData, PhantomData),
+            begin.elapsed(),
+        )
     }
 
-    fn bench_insert_many_par(
-        keys: &Vec<K>,
-        vals: &Vec<V>,
-        n: usize
-    ) -> (Self, Duration) {
+    fn bench_insert_many_par(keys: &Vec<K>, vals: &Vec<V>, n: usize) -> (Self, Duration) {
         let mut chunks = chunk(keys, vals, n);
         let len = chunks.len();
         let (tx, rx) = channel();
@@ -95,8 +100,10 @@ where K: Hash + Ord + Clone + Rand + Send + Sync + 'static,
         }
         assert_eq!(i, len - 1);
         assert_eq!(t.len(), keys.len());
-        (Bench(Arc::new(RwLock::new(t)), PhantomData, PhantomData),
-         begin.elapsed())
+        (
+            Bench(Arc::new(RwLock::new(t)), PhantomData, PhantomData),
+            begin.elapsed(),
+        )
     }
 
     fn bench_remove(&self, keys: &Arc<Vec<K>>) -> Duration {
@@ -110,8 +117,8 @@ where K: Hash + Ord + Clone + Rand + Send + Sync + 'static,
 
     fn bench_insert(&self, keys: &Vec<K>, vals: &Vec<V>) -> Duration {
         let len = min(keys.len() / 10, MAX_ADD);
-        let chunk =
-            keys[0..len].into_iter()
+        let chunk = keys[0..len]
+            .into_iter()
             .zip(vals[0..len].into_iter())
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect::<Vec<_>>();
@@ -187,89 +194,151 @@ where K: Hash + Ord + Clone + Rand + Send + Sync + 'static,
 }
 
 impl<K, V> Collection<K, V> for HashMap<K, V>
-where K: Hash + Ord + Clone + Rand + Send + Sync,
-      V: Hash + Ord + Clone + Rand + Send + Sync
+where
+    K: Hash + Ord + Clone + Rand + Send + Sync,
+    V: Hash + Ord + Clone + Rand + Send + Sync,
 {
-    fn new() -> Self { HashMap::new() }
+    fn new() -> Self {
+        HashMap::new()
+    }
     fn insert_many(&mut self, chunk: Vec<(K, V)>) {
         for (k, v) in chunk {
             self.insert(k, v);
         }
     }
-    fn insert(&mut self, k: K, v: V) -> Option<V> { self.insert(k, v) }
-    fn remove<Q>(&mut self, k: &Q) -> Option<V> where Q: Ord + Hash + Clone, K: Borrow<Q> {
+    fn insert(&mut self, k: K, v: V) -> Option<V> {
+        self.insert(k, v)
+    }
+    fn remove<Q>(&mut self, k: &Q) -> Option<V>
+    where
+        Q: Ord + Hash + Clone,
+        K: Borrow<Q>,
+    {
         self.remove(k)
     }
-    fn get<Q>(&self, k: &Q) -> Option<&V> where Q: Ord + Hash + Clone, K: Borrow<Q> {
+    fn get<Q>(&self, k: &Q) -> Option<&V>
+    where
+        Q: Ord + Hash + Clone,
+        K: Borrow<Q>,
+    {
         self.get(k)
     }
     fn merge_into(&mut self, other: HashMap<K, V>) {
         self.extend(other.into_iter());
     }
-    fn len(&self) -> usize { self.len() }
+    fn len(&self) -> usize {
+        self.len()
+    }
 }
 
-impl <K, V> Collection<K, V> for BTreeMap<K, V>
-where K: Hash + Ord + Clone + Rand + Send + Sync,
-      V: Hash + Ord + Clone + Rand + Send + Sync
+impl<K, V> Collection<K, V> for BTreeMap<K, V>
+where
+    K: Hash + Ord + Clone + Rand + Send + Sync,
+    V: Hash + Ord + Clone + Rand + Send + Sync,
 {
-    fn new() -> Self { BTreeMap::new() }
+    fn new() -> Self {
+        BTreeMap::new()
+    }
     fn insert_many(&mut self, chunk: Vec<(K, V)>) {
         for (k, v) in chunk {
             self.insert(k, v);
         }
     }
-    fn insert(&mut self, k: K, v: V) -> Option<V> { self.insert(k, v) }
-    fn remove<Q>(&mut self, k: &Q) -> Option<V> where Q: Ord + Hash + Clone, K: Borrow<Q> {
+    fn insert(&mut self, k: K, v: V) -> Option<V> {
+        self.insert(k, v)
+    }
+    fn remove<Q>(&mut self, k: &Q) -> Option<V>
+    where
+        Q: Ord + Hash + Clone,
+        K: Borrow<Q>,
+    {
         self.remove(k)
     }
-    fn get<Q>(&self, k: &Q) -> Option<&V> where Q: Ord + Hash + Clone, K: Borrow<Q> {
+    fn get<Q>(&self, k: &Q) -> Option<&V>
+    where
+        Q: Ord + Hash + Clone,
+        K: Borrow<Q>,
+    {
         self.get(k)
     }
     fn merge_into(&mut self, other: BTreeMap<K, V>) {
         self.extend(other.into_iter())
     }
-    fn len(&self) -> usize { self.len() }
+    fn len(&self) -> usize {
+        self.len()
+    }
 }
 
-struct CMWrap<K: Ord + Clone, V: Clone>(Map<K, V>);
+struct CMWrap<K: Ord + Clone, V: Clone> {
+    map: Map<K, V>,
+    dmap: DirtyMap<K, V>,
+}
 
 impl<K, V> Collection<K, V> for CMWrap<K, V>
-where K: Hash + Ord + Clone + Rand + Send + Sync,
-      V: Hash + Ord + Clone + Rand + Send + Sync
+where
+    K: Hash + Ord + Clone + Rand + Send + Sync,
+    V: Hash + Ord + Clone + Rand + Send + Sync,
 {
-    fn new() -> Self { CMWrap(Map::new()) }
-    fn insert_many(&mut self, chunk: Vec<(K, V)>) { self.0 = self.0.insert_many(chunk) }
+    fn new() -> Self {
+        let map = Map::new();
+        let dmap = map.clone().dirty();
+        CMWrap { map, dmap }
+    }
+
+    fn insert_many(&mut self, chunk: Vec<(K, V)>) {
+        self.map = self.dmap.flush();
+        self.map = self.map.insert_many(chunk);
+        self.dmap = self.map.clone().dirty();
+    }
+
     fn insert(&mut self, k: K, v: V) -> Option<V> {
-        let (m, prev) = self.0.insert(k, v);
-        self.0 = m;
+        let (m, prev) = self.dmap.insert(k, v);
+        self.dmap = m;
         prev
     }
-    fn remove<Q>(&mut self, k: &Q) -> Option<V> where Q: Ord + Hash + Clone, K: Borrow<Q> {
-        let (m, prev) = self.0.remove(k);
-        self.0 = m;
+
+    fn remove<Q>(&mut self, k: &Q) -> Option<V>
+    where
+        Q: Ord + Hash + Clone,
+        K: Borrow<Q>,
+    {
+        let (m, prev) = self.dmap.remove(k);
+        self.dmap = m;
         prev
     }
-    fn get<Q>(&self, k: &Q) -> Option<&V> where Q: Ord + Hash + Clone, K: Borrow<Q> {
-        self.0.get(k)
+
+    fn get<Q>(&self, k: &Q) -> Option<&V>
+    where
+        Q: Ord + Hash + Clone,
+        K: Borrow<Q>,
+    {
+        self.dmap.get(k)
     }
-    fn merge_into(&mut self, other: CMWrap<K, V>) {
-        self.0 = self.0.union(&other.0, |_, _, v| Some(v.clone()))
+
+    fn merge_into(&mut self, mut other: CMWrap<K, V>) {
+        self.map = self.dmap.flush();
+        other.map = other.dmap.flush();
+        self.map = self.map.union(&other.map, |_, _, v| Some(v.clone()));
+        self.dmap = self.map.clone().dirty();
     }
-    fn len(&self) -> usize { self.0.len() }
+
+    fn len(&self) -> usize {
+        self.dmap.flush().len()
+    }
 }
 
 fn usage() {
     println!("usage: <cm|btm|hm> <ptr|str> <size>")
 }
 
-type S = Vec<u8>;
+type S = Arc<str>;
 type P = usize;
 
 fn main() {
     let args = Vec::from_iter(env::args());
-    if args.len() != 4 { usage() }
-    else {
+    if args.len() != 4 {
+        usage()
+    } else {
         let size = args[3].parse::<usize>().unwrap();
         match (args[1].as_ref(), args[2].as_ref()) {
             ("cm", "ptr") => Bench::<CMWrap<P, P>, P, P>::run(size),
@@ -278,7 +347,7 @@ fn main() {
             ("btm", "str") => Bench::<BTreeMap<S, S>, S, S>::run(size),
             ("hm", "ptr") => Bench::<HashMap<P, P>, P, P>::run(size),
             ("hm", "str") => Bench::<HashMap<S, S>, S, S>::run(size),
-            _ => usage() 
+            _ => usage(),
         }
     }
 }

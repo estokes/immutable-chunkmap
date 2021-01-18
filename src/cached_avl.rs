@@ -1,213 +1,94 @@
-use crate::avl::Tree;
-use std::{
-    borrow::Borrow,
-    iter::{IntoIterator, Iterator},
-    sync::Arc,
+use crate::{
+    avl::Tree,
+    chunk::{Chunk, Update, SIZE},
 };
-
-#[derive(Debug, Clone)]
-enum List<T> {
-    Nil,
-    Head(Arc<(T, List<T>)>),
-}
-
-impl<T> List<T> {
-    fn insert(&self, v: T) -> Self {
-        let tl = match self {
-            List::Nil => List::Nil,
-            List::Head(a) => List::Head(Arc::clone(a)),
-        };
-        List::Head(Arc::new((v, tl)))
-    }
-
-    fn iter(&self) -> impl Iterator<Item = &T> {
-        self.into_iter()
-    }
-
-    // examine every element in the list until a match is found,
-    // replace that match with the result of f. Not tail recursive.
-    fn replace(
-        &self,
-        test: impl Fn(usize, &T) -> bool,
-        update: impl FnOnce(&T) -> T,
-    ) -> Self
-    where
-        T: Clone,
-    {
-        fn replace_inner<T>(
-            t: &List<T>,
-            i: usize,
-            test: impl Fn(usize, &T) -> bool,
-            update: impl FnOnce(&T) -> T,
-        ) -> List<T>
-        where
-            T: Clone,
-        {
-            match t {
-                List::Nil => List::Nil,
-                List::Head(a) => {
-                    if test(i, &a.0) {
-                        List::Head(Arc::new((
-                            a.0.clone(),
-                            replace_inner(&a.1, i + 1, test, update),
-                        )))
-                    } else {
-                        List::Head(Arc::new((update(&a.0), a.1.clone())))
-                    }
-                }
-            }
-        }
-        replace_inner(self, 0, test, update)
-    }
-}
-
-impl<'a, T> IntoIterator for &'a List<T> {
-    type Item = &'a T;
-    type IntoIter = ListIter<'a, T>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        ListIter(self)
-    }
-}
-
-struct ListIter<'a, T>(&'a List<T>);
-
-impl<'a, T> Iterator for ListIter<'a, T> {
-    type Item = &'a T;
-
-    fn next(&mut self) -> Option<&'a T> {
-        match &self.0 {
-            List::Nil => None,
-            List::Head(a) => {
-                self.0 = &a.1;
-                Some(&a.0)
-            }
-        }
-    }
-}
+use std::{borrow::Borrow, iter::Iterator};
 
 #[derive(Clone)]
-pub(crate) struct CacheAvl<K: Ord + Clone, V: Clone> {
-    cached: usize,
-    cache: List<(K, Option<V>)>,
-    avl: Tree<K, V>,
+pub(crate) enum CacheAvl<K: Ord + Clone, V: Clone> {
+    Tree(Tree<K, V>),
+    Cached(Chunk<K, Option<V>>, Tree<K, V>),
 }
 
 impl<K: Ord + Clone, V: Clone> CacheAvl<K, V> {
-    pub(crate) fn new() -> Self {
-        CacheAvl {
-            cached: 0,
-            cache: List::Nil,
-            avl: Tree::new(),
+    pub(crate) fn new(avl: Tree<K, V>) -> Self {
+        CacheAvl::Tree(avl)
+    }
+
+    pub(crate) fn cached(&self) -> usize {
+        match self {
+            CacheAvl::Tree(_) => 0,
+            CacheAvl::Cached(c, _) => c.len(),
         }
     }
 
-    pub(crate) fn wrap(avl: Tree<K, V>) -> Self {
-        CacheAvl {
-            cached: 0,
-            cache: List::Nil,
-            avl,
-        }
-    }
-
-    pub(crate) fn is_flushed(&self) -> bool {
-        self.cached() == 0
-    }
-
-    pub(crate) fn flush(&self) -> Self {
-        let ops = self.cache.iter().map(|(k, op)| (k.clone(), op.clone()));
-        let avl = self
-            .avl
-            .update_many(ops, &mut |k, op: Option<V>, _| op.map(|v| (k, v)));
-        CacheAvl {
-            cached: 0,
-            cache: List::Nil,
-            avl,
-        }
-    }
-
-    pub(crate) fn fast_insert(&self, k: K, v: V) -> Self {
-        CacheAvl {
-            cached: self.cached + 1,
-            cache: self.cache.insert((k, Some(v))),
-            avl: self.avl.clone(),
-        }
-    }
-
-    pub fn update<Q, D, F>(&self, q: Q, d: D, mut f: F) -> (Self, Option<V>)
-    where
-        Q: Ord,
-        K: Borrow<Q>,
-        F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
-    {
-        match self
-            .cache
-            .iter()
-            .enumerate()
-            .find(|(_, (k, _))| k.borrow() == &q)
-        {
-            None => {
-                let cached = self.cached;
-                let cache = self.cache.clone();
-                let (avl, prev) = self.avl.update(q, d, &mut f);
-                (CacheAvl { cached, cache, avl }, prev)
-            }
-            Some((i, _)) => {
-                let mut prev = None;
-                let prox_prev = &mut prev;
-                let cache = self.cache.replace(
-                    |j, _| i == j,
-                    move |(k, v)| {
-                        *prox_prev = v.clone();
-                        let kv = match v {
-                            None => None,
-                            Some(v) => Some((k, v)),
-                        };
-                        match f(q, d, kv) {
-                            None => (k.clone(), None),
-                            Some((k, v)) => (k, Some(v)),
-                        }
-                    },
-                );
-                let t = CacheAvl {
-                    cached: self.cached,
-                    cache,
-                    avl: self.avl.clone(),
-                };
-                (t, prev)
+    pub(crate) fn flush(&self) -> Tree<K, V> {
+        match self {
+            CacheAvl::Tree(t) => t.clone(),
+            CacheAvl::Cached(cached, tree) => {
+                let ops = cached.into_iter().map(|(k, op)| (k.clone(), op.clone()));
+                tree.update_many(ops, &mut |k, op: Option<V>, _| op.map(|v| (k, v)))
             }
         }
     }
 
     pub(crate) fn insert(&self, k: K, v: V) -> (Self, Option<V>) {
-        let prev = self.get(&k).cloned();
-        (self.fast_insert(k, v), prev)
-    }
-
-    pub(crate) fn remove<Q>(&self, q: &Q) -> (Self, Option<V>)
-    where
-        Q: ?Sized + Ord,
-        K: Borrow<Q>,
-    {
-        match self.get_full(q) {
-            None => (self.clone(), None),
-            Some((k, v)) => {
-                let t = CacheAvl {
-                    cached: self.cached + 1,
-                    cache: self.cache.insert((k.clone(), None)),
-                    avl: self.avl.clone(),
-                };
-                (t, Some(v.clone()))
-            }
+        let prev = self.get(&k);
+        if self.cached() == SIZE {
+            let t = CacheAvl::Cached(Chunk::singleton(k, Some(v)), self.flush());
+            (t, prev.cloned())
+        } else {
+            let t = match self {
+                CacheAvl::Tree(t) => {
+                    CacheAvl::Cached(Chunk::singleton(k, Some(v)), t.clone())
+                }
+                CacheAvl::Cached(chunk, t) => {
+                    match chunk.update(k, Some(v), true, &mut |k, v, _| Some((k, v))) {
+                        Update::Updated { elts, .. } => CacheAvl::Cached(elts, t.clone()),
+                        Update::UpdateLeft(_, _) | Update::UpdateRight(_, _) => {
+                            unreachable!()
+                        }
+                    }
+                }
+            };
+            (t, prev.cloned())
         }
     }
 
-    pub(crate) fn tree(&self) -> &Tree<K, V> {
-        &self.avl
-    }
-
-    pub(crate) fn cached(&self) -> usize {
-        self.cached
+    pub(crate) fn remove<Q>(&self, q: Q) -> (Self, Option<V>)
+    where
+        Q: Ord,
+        K: Borrow<Q>,
+    {
+        match self.get_full(&q) {
+            None => (self.clone(), None),
+            Some((k, v)) => {
+                if self.cached() == SIZE {
+                    let t = self.flush();
+                    let chunk = Chunk::singleton(k.clone(), None);
+                    (CacheAvl::Cached(chunk, t), Some(v.clone()))
+                } else {
+                    let t = match self {
+                        CacheAvl::Tree(t) => {
+                            let t = t.clone();
+                            let chunk = Chunk::singleton(k.clone(), None);
+                            CacheAvl::Cached(chunk, t)
+                        }
+                        CacheAvl::Cached(chunk, t) => {
+                            match chunk.update(q, (), true, &mut |_, _, _| None) {
+                                Update::Updated { elts, .. } => {
+                                    CacheAvl::Cached(elts, t.clone())
+                                }
+                                Update::UpdateLeft(_, _) | Update::UpdateRight(_, _) => {
+                                    unreachable!()
+                                }
+                            }
+                        }
+                    };
+                    (t, Some(v.clone()))
+                }
+            }
+        }
     }
 
     pub(crate) fn get<'a, Q>(&'a self, q: &Q) -> Option<&'a V>
@@ -215,9 +96,12 @@ impl<K: Ord + Clone, V: Clone> CacheAvl<K, V> {
         Q: ?Sized + Ord,
         K: Borrow<Q>,
     {
-        match self.cache.iter().find(|(k, _)| k.borrow() == q) {
-            None => self.avl.get(q),
-            Some((_, v)) => v.as_ref(),
+        match self {
+            CacheAvl::Tree(t) => t.get(q),
+            CacheAvl::Cached(cached, t) => match cached.get_local(q) {
+                None => t.get(q),
+                Some(i) => cached.val(i).as_ref(),
+            },
         }
     }
 
@@ -226,9 +110,12 @@ impl<K: Ord + Clone, V: Clone> CacheAvl<K, V> {
         Q: ?Sized + Ord,
         K: Borrow<Q>,
     {
-        match self.cache.iter().find(|(k, _)| k.borrow() == q) {
-            None => self.avl.get_key(q),
-            Some((k, _)) => Some(k),
+        match self {
+            CacheAvl::Tree(t) => t.get_key(q),
+            CacheAvl::Cached(cached, t) => match cached.get_local(q) {
+                None => t.get_key(q),
+                Some(i) => Some(cached.key(i)),
+            },
         }
     }
 
@@ -237,10 +124,12 @@ impl<K: Ord + Clone, V: Clone> CacheAvl<K, V> {
         Q: ?Sized + Ord,
         K: Borrow<Q>,
     {
-        match self.cache.iter().find(|(k, _)| k.borrow() == q) {
-            None => self.avl.get_full(q),
-            Some((k, Some(v))) => Some((k, v)),
-            Some((_, None)) => None,
+        match self {
+            CacheAvl::Tree(t) => t.get_full(q),
+            CacheAvl::Cached(cached, t) => match cached.get_local(q) {
+                None => t.get_full(q),
+                Some(i) => cached.val(i).as_ref().map(|v| (cached.key(i), v)),
+            },
         }
     }
 }

@@ -1,4 +1,4 @@
-use crate::{avl, map_c::Map, set::Set};
+use crate::{avl, map_c::{Map, DirtyMap}, set::Set};
 use rand::Rng;
 use std::{
     borrow::Borrow,
@@ -327,29 +327,29 @@ where
 {
     let mut vals = randvec::<(K, V)>(SIZE);
     dedup_with(&mut vals, |(ref k, _)| k);
-    let mut t = Map::new();
+    let mut t = DirtyMap::new();
     let mut i = 0;
     for (k, v) in &vals {
         t = t.insert(k.clone(), v.clone()).0;
-        assert_eq!(t.load().get(k).unwrap(), v);
+        assert_eq!(t.get(k).unwrap(), v);
         i = i + 1;
     }
-    let tg = t.load();
+    let t = t.flush();
     for (k, v) in &vals {
-        assert_eq!(tg.get(k).unwrap(), v);
+        assert_eq!(t.get(k).unwrap(), v);
     }
     t.invariant();
 
     i = 0;
+    let mut t = t.dirty();
     for (k, _) in &vals {
         t = t.remove(k).0;
         i = i + 1;
     }
-    let tg = t.load();
     for (k, _) in &vals {
-        assert_eq!(tg.get(k), Option::None);
+        assert_eq!(t.get(k), Option::None);
     }
-    t.invariant();
+    t.flush().invariant();
 }
 
 make_tests!(test_map_rand_gen);
@@ -363,10 +363,10 @@ where
     dedup_with(&mut vals, |(ref k, _)| k);
     let t = Map::new().insert_many(vals.iter().cloned());
     t.invariant();
-    assert_eq!(vals.len(), t.flushed().len());
+    assert_eq!(vals.len(), t.len());
     vals.sort_unstable_by(|t0, t1| t0.0.cmp(&t1.0));
     let mut i = 0;
-    for (k, v) in &t.flushed() {
+    for (k, v) in &t {
         let (k_, v_) = (&vals[i].0, &vals[i].1);
         assert_eq!(k, k_);
         assert_eq!(v, v_);
@@ -382,10 +382,10 @@ fn test_map_range_small() {
     v.extend((-5000..5000).into_iter());
     let t = Map::new().insert_many(v.iter().map(|x| (*x, *x)));
     t.invariant();
-    assert_eq!(t.flushed().len(), 10000);
+    assert_eq!(t.len(), 10000);
     {
         let mut i = 0;
-        for e in &t.flushed() {
+        for e in &t {
             assert_eq!(e.0, e.1);
             assert_eq!(&v[i], e.0);
             assert!(i < 10000);
@@ -395,7 +395,7 @@ fn test_map_range_small() {
     }
     {
         let mut i = 5000;
-        for e in t.flushed().range(Included(0), Excluded(100)) {
+        for e in t.range(Included(0), Excluded(100)) {
             assert_eq!(e.0, e.1);
             assert_eq!(&v[i], e.0);
             assert!(i < 5100);
@@ -405,7 +405,7 @@ fn test_map_range_small() {
     }
     {
         let mut i = 5000;
-        for e in t.flushed().range(Excluded(0), Included(100)) {
+        for e in t.range(Excluded(0), Included(100)) {
             assert_eq!(e.0, e.1);
             assert_eq!(&v[i + 1], e.0);
             assert!(i < 5100);
@@ -415,7 +415,7 @@ fn test_map_range_small() {
     }
     {
         let mut i = 7300;
-        for e in t.flushed().range(Included(2300), Excluded(3500)) {
+        for e in t.range(Included(2300), Excluded(3500)) {
             assert_eq!(e.0, e.1);
             assert_eq!(&v[i], e.0);
             assert!(i < 8500);
@@ -425,7 +425,7 @@ fn test_map_range_small() {
     }
     {
         let mut i = 7900;
-        for e in t.flushed().range(Included(2900), Unbounded) {
+        for e in t.range(Included(2900), Unbounded) {
             assert_eq!(e.0, e.1);
             assert_eq!(&v[i], e.0);
             assert!(i < 10000);
@@ -435,7 +435,7 @@ fn test_map_range_small() {
     }
     {
         let mut i = 0;
-        for e in t.flushed().range(Included(-5000), Excluded(-4000)) {
+        for e in t.range(Included(-5000), Excluded(-4000)) {
             assert_eq!(e.0, e.1);
             assert_eq!(&v[i], e.0);
             assert!(i < 1000);
@@ -445,14 +445,14 @@ fn test_map_range_small() {
     }
     {
         let mut i = 0;
-        for _ in t.flushed().range(Excluded(-5000), Excluded(-4999)) {
+        for _ in t.range(Excluded(-5000), Excluded(-4999)) {
             i += 1
         }
         assert_eq!(i, 0)
     }
     {
         let mut i = 0;
-        for _ in t.flushed().range(Included(1), Included(0)) {
+        for _ in t.range(Included(1), Included(0)) {
             i += 1
         }
         assert_eq!(i, 0)
@@ -494,7 +494,7 @@ where
         let mut i = start;
         let lbound = Included(vals[i].0.clone());
         let ubound = Excluded(vals[end].0.clone());
-        for (k, v) in t.flushed().range(lbound, ubound) {
+        for (k, v) in t.range(lbound, ubound) {
             let (k_, v_) = (&vals[i].0, &vals[i].1);
             assert_eq!(k, k_);
             assert_eq!(v, v_);
@@ -507,7 +507,7 @@ where
         let mut i = start;
         let lbound = Excluded(vals[i].0.clone());
         let ubound = Included(vals[end].0.clone());
-        for (k, v) in t.flushed().range(lbound, ubound) {
+        for (k, v) in t.range(lbound, ubound) {
             let (k_, v_) = (&vals[i + 1].0, &vals[i + 1].1);
             assert_eq!(k, k_);
             assert_eq!(v, v_);
@@ -520,7 +520,7 @@ where
         let mut i = 0;
         let lbound = Unbounded;
         let ubound = Excluded(vals[end].0.clone());
-        for (k, v) in t.flushed().range(lbound, ubound) {
+        for (k, v) in t.range(lbound, ubound) {
             let (k_, v_) = (&vals[i].0, &vals[i].1);
             assert_eq!(k, k_);
             assert_eq!(v, v_);
@@ -533,8 +533,7 @@ where
         let mut i = end - 1;
         let lbound = Included(vals[start].0.clone());
         let ubound = Excluded(vals[end].0.clone());
-        let tfg = t.flushed();
-        let mut r = tfg.range(lbound, ubound);
+        let mut r = t.range(lbound, ubound);
         while let Some((k, v)) = r.next_back() {
             let (k_, v_) = (&vals[i].0, &vals[i].1);
             assert_eq!(k, k_);
@@ -635,11 +634,10 @@ fn test_union_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
     for k in v0.iter().chain(v1.iter()) {
         *hm.entry(k.clone()).or_insert(0) += 1;
     }
-    let m2g = m2.load();
     for (k, v) in &hm {
-        assert!(m2g.get(k).unwrap() == v)
+        assert!(m2.get(k).unwrap() == v)
     }
-    for (k, v) in &m2.flushed() {
+    for (k, v) in &m2 {
         assert!(hm.get(k).unwrap() == v)
     }
 }
@@ -679,11 +677,10 @@ fn test_intersect_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
             }
         }
     }
-    let m2g = m2.load();
     for (k, v) in &hm2 {
-        assert_eq!(v, m2g.get(k).unwrap())
+        assert_eq!(v, m2.get(k).unwrap())
     }
-    for (k, v) in &m2.flushed() {
+    for (k, v) in &m2 {
         assert_eq!(v, hm2.get(k).unwrap())
     }
 }
@@ -712,11 +709,10 @@ fn test_diff_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
     for k in &v1 {
         hm.remove(k);
     }
-    let m2g = m2.load();
     for (k, ()) in &hm {
-        m2g.get(k).unwrap();
+        m2.get(k).unwrap();
     }
-    for (k, ()) in &m2.flushed() {
+    for (k, ()) in &m2 {
         hm.get(k).unwrap();
     }
 }

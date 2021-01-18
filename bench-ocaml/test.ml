@@ -1,4 +1,4 @@
-open Core
+open Base 
 
 let min_iter = 1_000_000
 
@@ -12,7 +12,7 @@ let random_string () =
   Bytes.to_string s
 
 let random_array size mk k =
-  let s = Hash_set.create ~size k () in
+  let s = Hash_set.create ~size k in
   while Hash_set.length s < size do
     Hash_set.add s (mk ())
   done;
