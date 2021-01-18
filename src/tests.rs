@@ -533,7 +533,8 @@ where
         let mut i = end - 1;
         let lbound = Included(vals[start].0.clone());
         let ubound = Excluded(vals[end].0.clone());
-        let mut r = t.flushed().range(lbound, ubound);
+        let tfg = t.flushed();
+        let mut r = tfg.range(lbound, ubound);
         while let Some((k, v)) = r.next_back() {
             let (k_, v_) = (&vals[i].0, &vals[i].1);
             assert_eq!(k, k_);
