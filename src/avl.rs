@@ -1,4 +1,4 @@
-use crate::chunk::{Chunk, Loc, Update, UpdateChunk, SIZE};
+use crate::chunk::{Chunk, Loc, Update, MutUpdate, UpdateChunk, SIZE};
 use arrayvec::ArrayVec;
 use packed_struct::prelude::*;
 use std::{
@@ -7,9 +7,10 @@ use std::{
     default::Default,
     fmt::{self, Debug, Formatter},
     hash::{Hash, Hasher},
+    iter,
     ops::{Bound, Index},
+    slice,
     sync::{Arc, Weak},
-    iter, slice,
 };
 
 // until we get 128 bit machines with exabytes of memory
@@ -48,14 +49,14 @@ where
 #[derive(Clone)]
 pub(crate) enum WeakTree<K: Ord + Clone, V: Clone> {
     Empty,
-    Node(Weak<Node<K, V>>)
+    Node(Weak<Node<K, V>>),
 }
 
 impl<K: Ord + Clone, V: Clone> WeakTree<K, V> {
     pub(crate) fn upgrade(&self) -> Option<Tree<K, V>> {
         match self {
             WeakTree::Empty => Some(Tree::Empty),
-            WeakTree::Node(n) => Weak::upgrade(n).map(Tree::Node)
+            WeakTree::Node(n) => Weak::upgrade(n).map(Tree::Node),
         }
     }
 }
@@ -360,24 +361,24 @@ where
     pub(crate) fn downgrade(&self) -> WeakTree<K, V> {
         match self {
             Tree::Empty => WeakTree::Empty,
-            Tree::Node(n) => WeakTree::Node(Arc::downgrade(n))
+            Tree::Node(n) => WeakTree::Node(Arc::downgrade(n)),
         }
     }
 
     pub(crate) fn strong_count(&self) -> usize {
         match self {
             Tree::Empty => 0,
-            Tree::Node(n) => Arc::strong_count(n)
+            Tree::Node(n) => Arc::strong_count(n),
         }
     }
 
     pub(crate) fn weak_count(&self) -> usize {
         match self {
             Tree::Empty => 0,
-            Tree::Node(n) => Arc::weak_count(n)
+            Tree::Node(n) => Arc::weak_count(n),
         }
     }
-    
+
     pub(crate) fn range<'a, Q>(
         &'a self,
         lbound: Bound<Q>,
@@ -647,6 +648,11 @@ where
         Tree::Node(Arc::new(n))
     }
 
+    fn in_bal(l: &Tree<K, V>, elts: &Arc<Chunk<K, V>>, r: &Tree<K, V>) -> bool {
+        let (hl, hr) = (l.height(), r.height());
+        !(hl > hr + 1) && !(hr > hl + 1)
+    }
+
     fn bal(l: &Tree<K, V>, elts: &Arc<Chunk<K, V>>, r: &Tree<K, V>) -> Self {
         let (hl, hr) = (l.height(), r.height());
         if hl > hr + 1 {
@@ -781,12 +787,74 @@ where
         while elts.len() > 0 {
             let chunk = elts.drain(0..min(SIZE, elts.len())).collect::<Vec<_>>();
             t = t.update_chunk(chunk, f)
-        };
+        }
         t
     }
 
     pub(crate) fn insert_many<E: IntoIterator<Item = (K, V)>>(&self, elts: E) -> Self {
         self.update_many(elts, &mut |k, v, _| Some((k, v)))
+    }
+
+    pub(crate) fn update_cow<Q, D, F>(&mut self, q: Q, d: D, f: &mut F) -> Option<V>
+    where
+        Q: Ord,
+        K: Borrow<Q>,
+        F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
+    {
+        match self {
+            Tree::Empty => match f(q, d, None) {
+                None => None,
+                Some((k, v)) => {
+                    *self = Tree::create(
+                        &Tree::Empty,
+                        Arc::new(Chunk::singleton(k, v)),
+                        &Tree::Empty,
+                    );
+                    None
+                }
+            },
+            Tree::Node(ref mut tn) => {
+                let leaf = match (&tn.left, &tn.right) {
+                    (&Tree::Empty, &Tree::Empty) => true,
+                    (_, _) => false,
+                };
+                match Arc::make_mut(&mut tn.elts).update_mut(q, d, leaf, f) {
+                    MutUpdate::UpdateLeft(k, d) => {
+                        let (l, prev) = tn.left.update(k, d, f);
+                        *self = Tree::bal(&l, &tn.elts, &tn.right);
+                        prev
+                    }
+                    Update::UpdateRight(k, d) => {
+                        let (r, prev) = tn.right.update(k, d, f);
+                        (Tree::bal(&tn.left, &tn.elts, &r), prev)
+                    }
+                    Update::Updated {
+                        elts,
+                        overflow,
+                        previous,
+                    } => match overflow {
+                        None => {
+                            if elts.len() == 0 {
+                                (Tree::concat(&tn.left, &tn.right), previous)
+                            } else {
+                                (
+                                    Tree::create(&tn.left, Arc::new(elts), &tn.right),
+                                    previous,
+                                )
+                            }
+                        }
+                        Some((ovk, ovv)) => {
+                            let (r, _) = tn.right.insert(ovk, ovv);
+                            if elts.len() == 0 {
+                                (Tree::concat(&tn.left, &r), previous)
+                            } else {
+                                (Tree::bal(&tn.left, &Arc::new(elts), &r), previous)
+                            }
+                        }
+                    },
+                }
+            }
+        }
     }
 
     pub(crate) fn update<Q, D, F>(&self, q: Q, d: D, f: &mut F) -> (Self, Option<V>)

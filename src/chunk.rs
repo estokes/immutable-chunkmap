@@ -1,8 +1,8 @@
 use std::{
     borrow::Borrow,
-    cmp::{Ord, Ordering, min},
+    cmp::{min, Ord, Ordering},
     fmt::{self, Debug, Formatter},
-    iter, slice, vec,
+    iter, mem, slice, vec,
 };
 
 #[derive(PartialEq)]
@@ -46,6 +46,15 @@ pub(crate) enum Update<Q: Ord, K: Ord + Clone + Borrow<Q>, V: Clone, D> {
     UpdateRight(Q, D),
     Updated {
         elts: Chunk<K, V>,
+        overflow: Option<(K, V)>,
+        previous: Option<V>,
+    },
+}
+
+pub(crate) enum MutUpdate<Q: Ord, K: Ord + Clone + Borrow<Q>, V: Clone, D> {
+    UpdateLeft(Q, D),
+    UpdateRight(Q, D),
+    Updated {
         overflow: Option<(K, V)>,
         previous: Option<V>,
     },
@@ -145,9 +154,10 @@ where
     fn overflow_to(&mut self, to: &mut Vec<(K, V)>) {
         if self.len() > SIZE {
             to.extend(
-                self.keys.split_off(SIZE).into_iter().zip(
-                    self.vals.split_off(SIZE).into_iter()
-                )
+                self.keys
+                    .split_off(SIZE)
+                    .into_iter()
+                    .zip(self.vals.split_off(SIZE).into_iter()),
             )
         }
     }
@@ -203,8 +213,11 @@ where
                 elts: &mut Chunk<K, V>,
                 overflow_right: &mut Vec<(K, V)>,
                 m: &mut usize,
-                i: usize
-            ) where K: Ord + Clone, V: Clone {
+                i: usize,
+            ) where
+                K: Ord + Clone,
+                V: Clone,
+            {
                 let n = min(i - *m, SIZE - elts.len());
                 if n > 0 {
                     elts.keys.extend_from_slice(&t.keys[*m..*m + n]);
@@ -213,8 +226,10 @@ where
                 }
                 if *m < i {
                     overflow_right.extend(
-                        t.keys.as_slice()[*m..i].iter().cloned()
-                            .zip(t.vals.as_slice()[*m..i].iter().cloned())
+                        t.keys.as_slice()[*m..i]
+                            .iter()
+                            .cloned()
+                            .zip(t.vals.as_slice()[*m..i].iter().cloned()),
                     );
                     *m = i;
                 }
@@ -235,7 +250,11 @@ where
                 match chunk.next() {
                     None => {
                         copy_up_to(
-                            self, &mut elts, &mut overflow_right, &mut m, self.len()
+                            self,
+                            &mut elts,
+                            &mut overflow_right,
+                            &mut m,
+                            self.len(),
                         );
                         break;
                     }
@@ -243,7 +262,11 @@ where
                         match self.get(&q) {
                             Loc::Here(i) => {
                                 copy_up_to(
-                                    self, &mut elts, &mut overflow_right, &mut m, i
+                                    self,
+                                    &mut elts,
+                                    &mut overflow_right,
+                                    &mut m,
+                                    i,
                                 );
                                 let r = f(q, d, Some((&self.keys[i], &self.vals[i])));
                                 if let Some((k, v)) = r {
@@ -259,7 +282,11 @@ where
                             }
                             Loc::NotPresent(i) => {
                                 copy_up_to(
-                                    self, &mut elts, &mut overflow_right, &mut m, i
+                                    self,
+                                    &mut elts,
+                                    &mut overflow_right,
+                                    &mut m,
+                                    i,
                                 );
                                 if let Some((k, v)) = f(q, d, None) {
                                     if elts.len() < SIZE {
@@ -283,13 +310,18 @@ where
                             Loc::InRight => {
                                 let len = self.len();
                                 copy_up_to(
-                                    self, &mut elts, &mut overflow_right, &mut m, len
+                                    self,
+                                    &mut elts,
+                                    &mut overflow_right,
+                                    &mut m,
+                                    len,
                                 );
                                 if leaf && elts.len() < SIZE {
                                     let (mut keys, mut vals): (Vec<K>, Vec<V>) =
-                                        iter::once((q, d)).chain(chunk)
-                                        .filter_map(|(q, d)| f(q, d, None))
-                                        .unzip();
+                                        iter::once((q, d))
+                                            .chain(chunk)
+                                            .filter_map(|(q, d)| f(q, d, None))
+                                            .unzip();
                                     elts.keys.append(&mut keys);
                                     elts.vals.append(&mut vals);
                                     elts.overflow_to(&mut overflow_right);
@@ -408,6 +440,90 @@ where
                     };
                     Update::Updated {
                         elts,
+                        overflow: None,
+                        previous: None,
+                    }
+                }
+            }
+        }
+    }
+
+    pub(crate) fn update_mut<Q, D, F>(
+        &mut self,
+        q: Q,
+        d: D,
+        leaf: bool,
+        f: &mut F,
+    ) -> MutUpdate<Q, K, V, D>
+    where
+        Q: Ord,
+        K: Borrow<Q>,
+        F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
+    {
+        match self.get(&q) {
+            Loc::Here(i) => match f(q, d, Some((&self.keys[i], &self.vals[i]))) {
+                Some((k, v)) => {
+                    self.keys[i] = k;
+                    MutUpdate::Updated {
+                        overflow: None,
+                        previous: Some(mem::replace(&mut self.vals[i], v)),
+                    }
+                }
+                None => {
+                    self.keys.remove(i);
+                    MutUpdate::Updated {
+                        overflow: None,
+                        previous: Some(self.vals.remove(i)),
+                    }
+                }
+            },
+            Loc::NotPresent(i) => match f(q, d, None) {
+                Some((k, v)) => {
+                    self.keys.insert(i, k);
+                    self.vals.insert(i, v);
+                    let overflow = {
+                        if self.len() <= SIZE {
+                            None
+                        } else {
+                            self.keys
+                                .pop()
+                                .and_then(|k| self.vals.pop().map(move |v| (k, v)))
+                        }
+                    };
+                    MutUpdate::Updated {
+                        overflow,
+                        previous: None,
+                    }
+                }
+                None => MutUpdate::Updated {
+                    overflow: None,
+                    previous: None,
+                }
+            }
+            loc @ Loc::InLeft | loc @ Loc::InRight => {
+                if !leaf || self.len() == SIZE {
+                    match loc {
+                        Loc::InLeft => MutUpdate::UpdateLeft(q, d),
+                        Loc::InRight => MutUpdate::UpdateRight(q, d),
+                        Loc::Here(..) | Loc::NotPresent(..) => unreachable!(),
+                    }
+                } else {
+                    match loc {
+                        Loc::InLeft => {
+                            if let Some((k, v)) = f(q, d, None) {
+                                self.keys.insert(0, k);
+                                self.vals.insert(0, v);
+                            }
+                        }
+                        Loc::InRight => {
+                            if let Some((k, v)) = f(q, d, None) {
+                                self.keys.push(k);
+                                self.vals.push(v);
+                            }
+                        }
+                        _ => unreachable!("bug"),
+                    };
+                    MutUpdate::Updated {
                         overflow: None,
                         previous: None,
                     }
