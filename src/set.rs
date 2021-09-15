@@ -235,6 +235,16 @@ where
         }
     }
 
+    /// insert `k` with copy on write semantics. if `self` is a unique
+    /// reference to the set, then k will be inserted in
+    /// place. Otherwise, only the parts of the set necessary to
+    /// insert `k` will be copied, and then the copies will be
+    /// mutated. self will share all the parts that weren't modfied
+    /// with any previous clones.
+    pub fn insert_cow(&mut self, k: K) -> bool {
+        self.0.insert_cow(k, ()).is_some()
+    }
+
     /// return true if the set contains k, else false. Runs in
     /// log(N) time and constant space. where N is the size of
     /// the set.
@@ -264,6 +274,15 @@ where
     {
         let (t, prev) = self.0.remove(k);
         (Set(t), prev.is_some())
+    }
+
+    /// remove `k` from the set in place with copy on write semantics
+    /// (see `insert_cow`). return true if `k` was in the set.
+    pub fn remove_cow<Q: Sized + Ord>(&mut self, k: &Q) -> bool
+    where
+        K: Borrow<Q>,
+    {
+        self.0.remove_cow(k).is_some()
     }
 
     /// return the union of 2 sets. Runs in O(log(N) + M) time and

@@ -259,6 +259,8 @@ where
         (Map(root), prev)
     }
 
+    /// insert in place using copy on write semantics if self is not a
+    /// unique reference to the map. see `update_cow`.
     pub fn insert_cow(&mut self, k: K, v: V) -> Option<V> {
         self.0.insert_cow(k, v)
     }
@@ -302,6 +304,43 @@ where
         (Map(root), prev)
     }
 
+    /// Perform a copy on write update to the map. In the case that
+    /// self is a unique reference to the map, then the update will be
+    /// performed completly in place. self will be mutated, and no
+    /// previous version will be available. In the case that self has
+    /// a clone, or clones, then only the parts of the map that need
+    /// to be mutated will be copied before the update is
+    /// performed. self will reference the mutated copy, and previous
+    /// versions of the map will not be modified. self will still
+    /// share all the parts of the map that did not need to be mutated
+    /// with any pre existing clones.
+    ///
+    /// COW semantics are a flexible middle way between full
+    /// peristance and full mutability. Needless to say in the case
+    /// where you have a unique reference to the map, using update_cow
+    /// is a lot faster than using update, and a lot more flexible
+    /// than update_many.
+    ///
+    /// Other than copy on write the semanics of this method are
+    /// identical to those of update.
+    ///
+    /// #Examples
+    ///```
+    /// use self::immutable_chunkmap::map::Map;
+    ///
+    /// let mut m = Map::new().update(0, 0, |k, d, _| Some((k, d)));
+    /// let orig = t.clone()
+    /// m.update_cow(1, 1, |k, d, _| Some((k, d))); // copies the original chunk
+    /// m.update_cow(2, 2, |k, d, _| Some((k, d))); // doesn't copy anything
+    /// assert_eq!(m.len(), 3);
+    /// assert_eq!(orig.len(), 1);
+    /// assert_eq!(m.get(&0), Some(&0));
+    /// assert_eq!(m.get(&1), Some(&1));
+    /// assert_eq!(m.get(&2), Some(&2));
+    /// assert_eq!(orig.get(&0), Some(&0));
+    /// assert_eq!(orig.get(&1), None);
+    /// assert_eq!(orig.get(&2), None);
+    ///```
     pub fn update_cow<Q, D, F>(&mut self, q: Q, d: D, mut f: F) -> Option<V>
     where
         Q: Ord,
@@ -459,6 +498,8 @@ where
         (Map(t), prev)
     }
 
+    /// remove in place using copy on write semantics if self is not a
+    /// unique reference to the map. see `update_cow`.
     pub fn remove_cow<Q: Sized + Ord>(&mut self, k: &Q) -> Option<V>
     where
         K: Borrow<Q>,
