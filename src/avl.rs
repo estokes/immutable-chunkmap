@@ -835,6 +835,8 @@ where
                         let prev = tn.left.update_cow(k, d, f);
                         if !Tree::in_bal(&tn.left, &tn.right) {
                             *self = Tree::bal(&tn.left, &tn.elts, &tn.right);
+                        } else {
+                            tn.mutated();
                         }
                         prev
                     }
@@ -842,6 +844,8 @@ where
                         let prev = tn.right.update_cow(k, d, f);
                         if !Tree::in_bal(&tn.left, &tn.right) {
                             *self = Tree::bal(&tn.left, &tn.elts, &tn.right);
+                        } else {
+                            tn.mutated();
                         }
                         prev
                     }
@@ -1032,6 +1036,8 @@ where
                         let p = tn.left.remove_cow(k);
                         if !Tree::in_bal(&tn.left, &tn.right) {
                             *self = Tree::bal(&tn.left, &tn.elts, &tn.right);
+                        } else {
+                            tn.mutated()
                         }
                         p
                     }
@@ -1039,6 +1045,8 @@ where
                         let p = tn.right.remove_cow(k);
                         if !Tree::in_bal(&tn.left, &tn.right) {
                             *self = Tree::bal(&tn.left, &tn.elts, &tn.right)
+                        } else {
+                            tn.mutated()
                         }
                         p
                     }
