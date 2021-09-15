@@ -44,6 +44,13 @@ where
         let has = HeightAndSize::unpack(&self.height_and_size).unwrap();
         *has.height
     }
+
+    fn update_min_max(&mut self) {
+        if let Some((min, max)) = self.elts.min_max_key() {
+            self.min_key = min;
+            self.max_key = max;
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -836,6 +843,7 @@ where
                     MutUpdate::Updated { overflow, previous } => match overflow {
                         None => {
                             if tn.elts.len() > 0 {
+                                tn.update_min_max();
                                 previous
                             } else {
                                 *self = Tree::concat(&tn.left, &tn.right);
@@ -849,6 +857,7 @@ where
                                     *self = Tree::bal(&tn.left, &tn.elts, &tn.right);
                                     previous
                                 } else {
+                                    tn.update_min_max();
                                     previous
                                 }
                             } else {
@@ -1010,6 +1019,7 @@ where
                             *self = Tree::concat(&tn.left, &tn.right);
                             Some(p)
                         } else {
+                            tn.update_min_max();
                             Some(p)
                         }
                     }
