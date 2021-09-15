@@ -259,6 +259,10 @@ where
         (Map(root), prev)
     }
 
+    pub fn insert_cow(&mut self, k: K, v: V) -> Option<V> {
+        self.0.insert_cow(k, v)
+    }
+
     /// return a new map with the binding for q, which can be any
     /// borrowed form of k, updated to the result of f. If f returns
     /// None, the binding will be removed from the new map, otherwise
@@ -296,6 +300,15 @@ where
     {
         let (root, prev) = self.0.update(q, d, &mut f);
         (Map(root), prev)
+    }
+
+    pub fn update_cow<Q, D, F>(&mut self, q: Q, d: D, mut f: F) -> Option<V>
+    where
+        Q: Ord,
+        K: Borrow<Q>,
+        F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
+    {
+        self.0.update_cow(q, d, &mut f)
     }
 
     /// Merge two maps together. Bindings that exist in both maps will

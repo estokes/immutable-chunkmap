@@ -1,4 +1,4 @@
-use crate::chunk::{Chunk, Loc, Update, MutUpdate, UpdateChunk, SIZE};
+use crate::chunk::{Chunk, Loc, MutUpdate, Update, UpdateChunk, SIZE};
 use arrayvec::ArrayVec;
 use packed_struct::prelude::*;
 use std::{
@@ -156,10 +156,10 @@ where
 {
     ubound: Bound<Q>,
     lbound: Bound<Q>,
-    stack: ArrayVec<[(bool, &'a Node<K, V>); MAX_DEPTH]>,
+    stack: ArrayVec<(bool, &'a Node<K, V>), MAX_DEPTH>,
     elts: Option<iter::Zip<slice::Iter<'a, K>, slice::Iter<'a, V>>>,
     current: Option<&'a K>,
-    stack_rev: ArrayVec<[(bool, &'a Node<K, V>); MAX_DEPTH]>,
+    stack_rev: ArrayVec<(bool, &'a Node<K, V>), MAX_DEPTH>,
     elts_rev: Option<iter::Zip<slice::Iter<'a, K>, slice::Iter<'a, V>>>,
     current_rev: Option<&'a K>,
 }
@@ -392,17 +392,16 @@ where
             &Tree::Empty => Iter {
                 lbound,
                 ubound,
-                stack: ArrayVec::<[_; MAX_DEPTH]>::new(),
+                stack: ArrayVec::<_, MAX_DEPTH>::new(),
                 elts: None,
                 current: None,
-                stack_rev: ArrayVec::<[_; MAX_DEPTH]>::new(),
+                stack_rev: ArrayVec::<_, MAX_DEPTH>::new(),
                 elts_rev: None,
                 current_rev: None,
             },
             &Tree::Node(ref n) => {
-                let mut stack = ArrayVec::<[(bool, &'a Node<K, V>); MAX_DEPTH]>::new();
-                let mut stack_rev =
-                    ArrayVec::<[(bool, &'a Node<K, V>); MAX_DEPTH]>::new();
+                let mut stack = ArrayVec::<(bool, &'a Node<K, V>), MAX_DEPTH>::new();
+                let mut stack_rev = ArrayVec::<(bool, &'a Node<K, V>), MAX_DEPTH>::new();
                 stack.push((false, n));
                 stack_rev.push((false, n));
                 Iter {
@@ -638,19 +637,19 @@ where
             size_of_children: ((l.len() + r.len()) as u64).into(),
         };
         let n = Node {
-            elts: elts,
-            min_key: min_key,
-            max_key: max_key,
+            elts,
+            min_key,
+            max_key,
             left: l.clone(),
             right: r.clone(),
-            height_and_size: has.pack(),
+            height_and_size: has.pack().unwrap(),
         };
         Tree::Node(Arc::new(n))
     }
 
-    fn in_bal(l: &Tree<K, V>, elts: &Arc<Chunk<K, V>>, r: &Tree<K, V>) -> bool {
+    fn in_bal(l: &Tree<K, V>, r: &Tree<K, V>) -> bool {
         let (hl, hr) = (l.height(), r.height());
-        !(hl > hr + 1) && !(hr > hl + 1)
+        (hl <= hr + 1) && (hr <= hl + 1)
     }
 
     fn bal(l: &Tree<K, V>, elts: &Arc<Chunk<K, V>>, r: &Tree<K, V>) -> Self {
@@ -814,41 +813,48 @@ where
                 }
             },
             Tree::Node(ref mut tn) => {
+                let tn = Arc::make_mut(tn);
                 let leaf = match (&tn.left, &tn.right) {
                     (&Tree::Empty, &Tree::Empty) => true,
                     (_, _) => false,
                 };
                 match Arc::make_mut(&mut tn.elts).update_mut(q, d, leaf, f) {
                     MutUpdate::UpdateLeft(k, d) => {
-                        let (l, prev) = tn.left.update(k, d, f);
-                        *self = Tree::bal(&l, &tn.elts, &tn.right);
+                        let prev = tn.left.update_cow(k, d, f);
+                        if !Tree::in_bal(&tn.left, &tn.right) {
+                            *self = Tree::bal(&tn.left, &tn.elts, &tn.right);
+                        }
                         prev
                     }
-                    Update::UpdateRight(k, d) => {
-                        let (r, prev) = tn.right.update(k, d, f);
-                        (Tree::bal(&tn.left, &tn.elts, &r), prev)
+                    MutUpdate::UpdateRight(k, d) => {
+                        let prev = tn.right.update_cow(k, d, f);
+                        if !Tree::in_bal(&tn.left, &tn.right) {
+                            *self = Tree::bal(&tn.left, &tn.elts, &tn.right);
+                        }
+                        prev
                     }
-                    Update::Updated {
-                        elts,
-                        overflow,
-                        previous,
-                    } => match overflow {
+                    MutUpdate::Updated { overflow, previous } => match overflow {
                         None => {
-                            if elts.len() == 0 {
-                                (Tree::concat(&tn.left, &tn.right), previous)
+                            if tn.elts.len() > 0 {
+                                previous
                             } else {
-                                (
-                                    Tree::create(&tn.left, Arc::new(elts), &tn.right),
-                                    previous,
-                                )
+                                *self = Tree::concat(&tn.left, &tn.right);
+                                previous
                             }
                         }
                         Some((ovk, ovv)) => {
-                            let (r, _) = tn.right.insert(ovk, ovv);
-                            if elts.len() == 0 {
-                                (Tree::concat(&tn.left, &r), previous)
+                            let _ = tn.right.insert_cow(ovk, ovv);
+                            if tn.elts.len() > 0 {
+                                if !Tree::in_bal(&tn.left, &tn.right) {
+                                    *self = Tree::bal(&tn.left, &tn.elts, &tn.right);
+                                    previous
+                                } else {
+                                    previous
+                                }
                             } else {
-                                (Tree::bal(&tn.left, &Arc::new(elts), &r), previous)
+                                // this should be impossible
+                                *self = Tree::concat(&tn.left, &tn.right);
+                                previous
                             }
                         }
                     },
@@ -920,6 +926,10 @@ where
 
     pub(crate) fn insert(&self, k: K, v: V) -> (Self, Option<V>) {
         self.update(k, v, &mut |k, v, _| Some((k, v)))
+    }
+
+    pub(crate) fn insert_cow(&mut self, k: K, v: V) -> Option<V> {
+        self.update_cow(k, v, &mut |k, v, _| Some((k, v)))
     }
 
     fn min_elts<'a>(&'a self) -> Option<&'a Arc<Chunk<K, V>>> {

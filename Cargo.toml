@@ -12,9 +12,9 @@ repository = "https://github.com/estokes/immutable-chunkmap"
 edition = "2018"
 
 [dependencies]
-arrayvec = "0.5"
-packed_struct = "0.3"
-packed_struct_codegen = "0.3"
+arrayvec = "0.7"
+packed_struct = "0.6"
+packed_struct_codegen = "0.6"
 
 [dev-dependencies]
 paste = "0.1"
