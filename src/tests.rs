@@ -228,11 +228,13 @@ where
         model.insert(k.clone(), v.clone());
     }
     let mut cow = t.clone();
-    for (k, v) in &o {
+    for (i, (k, v)) in o.iter().enumerate() {
         cow.insert_cow(k.clone(), v.clone());
         model.insert(k.clone(), v.clone());
         assert_eq!(cow.get(k), Some(v));
-        if t.len() % CHECK == 0 {
+        if i > 0 && i % CHECK == 0 {
+            let j = rand::thread_rng().gen_range(0..i);
+            let (k, v) = (&o[j].0, &o[j].1);
             let p = cow.remove_cow(k);
             model.remove(k);
             assert_eq!(p.as_ref(), Some(v));
