@@ -459,6 +459,13 @@ where
         (Map(t), prev)
     }
 
+    pub fn remove_cow<Q: Sized + Ord>(&mut self, k: &Q) -> Option<V>
+    where
+        K: Borrow<Q>,
+    {
+        self.0.remove_cow(k)
+    }
+
     /// get the number of elements in the map O(1) time and space
     pub fn len(&self) -> usize {
         self.0.len()

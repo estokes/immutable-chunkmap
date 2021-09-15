@@ -994,6 +994,44 @@ where
         }
     }
 
+    pub(crate) fn remove_cow<Q: ?Sized + Ord>(&mut self, k: &Q) -> Option<V>
+    where
+        K: Borrow<Q>,
+    {
+        match self {
+            Tree::Empty => None,
+            Tree::Node(ref mut tn) => {
+                let tn = Arc::make_mut(tn);
+                match tn.elts.get(k) {
+                    Loc::NotPresent(_) => None,
+                    Loc::Here(i) => {
+                        let (_, p) = Arc::make_mut(&mut tn.elts).remove_elt_at_mut(i);
+                        if tn.elts.len() == 0 {
+                            *self = Tree::concat(&tn.left, &tn.right);
+                            Some(p)
+                        } else {
+                            Some(p)
+                        }
+                    }
+                    Loc::InLeft => {
+                        let p = tn.left.remove_cow(k);
+                        if !Tree::in_bal(&tn.left, &tn.right) {
+                            *self = Tree::bal(&tn.left, &tn.elts, &tn.right);
+                        }
+                        p
+                    }
+                    Loc::InRight => {
+                        let p = tn.right.remove_cow(k);
+                        if !Tree::in_bal(&tn.left, &tn.right) {
+                            *self = Tree::bal(&tn.left, &tn.elts, &tn.right)
+                        }
+                        p
+                    }
+                }
+            }
+        }
+    }
+
     // this is structured as a loop so that the optimizer can inline
     // the closure argument. Sadly it doesn't do that if get_gen is a
     // recursive function, and the difference is >10%. True as of

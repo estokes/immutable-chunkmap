@@ -579,6 +579,16 @@ where
         }
     }
 
+    pub(crate) fn remove_elt_at_mut(&mut self, i: usize) -> (K, V) {
+        if self.len() == 0 {
+            panic!("can't remove from an empty chunk")
+        } else {
+            let k = self.keys.remove(i);
+            let v = self.vals.remove(i);
+            (k, v)
+        }
+    }
+
     pub(crate) fn min_max_key(&self) -> Option<(K, K)> {
         if self.len() == 0 {
             None

@@ -211,6 +211,50 @@ where
 
 make_tests!(test_insert_remove_rand_gen);
 
+fn test_cow_rand_gen<K, V>()
+where
+    K: Ord + Clone + Debug + Rand + Hash,
+    V: Ord + Clone + Debug + Rand + Hash,
+{
+    let mut model: HashMap<K, V> = HashMap::new();
+    let mut v = randvec::<(K, V)>(SIZE);
+    let mut o = randvec::<(K, V)>(SIZE);
+    dedup_with(&mut v, |(ref k, _)| k);
+    dedup_with(&mut o, |(ref k, _)| k);
+    let v = v;
+    let o = o;
+    let t = insert(v.iter().cloned());
+    for (k, v) in &v {
+        model.insert(k.clone(), v.clone());
+    }
+    let mut cow = t.clone();
+    for (k, v) in &o {
+        cow.insert_cow(k.clone(), v.clone());
+        model.insert(k.clone(), v.clone());
+        assert_eq!(cow.get(k), Some(v));
+        if t.len() % CHECK == 0 {
+            let p = cow.remove_cow(k);
+            model.remove(k);
+            assert_eq!(p.as_ref(), Some(v));
+            assert_eq!(cow.get(k), Option::None);
+        }
+    }
+    cow.invariant();
+    t.invariant();
+    // check that the original is unchanged after the cow was modified
+    assert_eq!(t.len(), v.len());
+    for (k, v) in &v {
+        assert_eq!(t.get(k), Some(v))
+    }
+    // check that the cow matches the model
+    assert_eq!(model.len(), cow.len());
+    for (k, v) in &model {
+        assert_eq!(cow.get(k), Some(v))
+    }
+}
+
+make_tests!(test_cow_rand_gen);
+
 #[test]
 fn test_insert_many_small() {
     let v: Vec<i32> = vec![
@@ -470,8 +514,8 @@ where
     vals.sort_unstable_by(|t0, t1| t0.0.cmp(&t1.0));
     let (start, end) = loop {
         let mut r = rand::thread_rng();
-        let i = r.gen_range(0, SIZE - 1);
-        let j = r.gen_range(0, SIZE - 1);
+        let i = r.gen_range(0 .. SIZE);
+        let j = r.gen_range(0 .. SIZE);
         if i == j {
             continue;
         } else if i < j {
