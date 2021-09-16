@@ -1,4 +1,5 @@
 use rand::Rng;
+use arcstr::ArcStr;
 use smallvec::SmallVec;
 use std::{
     time::Duration,
@@ -38,6 +39,16 @@ impl Rand for String {
             s.push(r.gen())
         }
         s
+    }
+}
+
+impl Rand for ArcStr {
+    fn rand<R: Rng>(r: &mut R) -> Self {
+        let mut s = String::new();
+        for _ in 0..STRSIZE {
+            s.push(r.gen())
+        }
+        ArcStr::from(&s)
     }
 }
 

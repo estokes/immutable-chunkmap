@@ -45,15 +45,16 @@ def run(exe, bench, kind):
         avg3(result['remove'])
     return result
             
-def plot(fname, title, xlbl, ylbl, cm, hm, btm, oc):
+def plot(fname, title, xlbl, ylbl, cm, cow, hm, btm, oc):
     fig, ax = plt.subplots()
     labels = ['1k', '10k', '100k', '1m', '10m']
     x = np.arange(len(labels))
-    width = 0.20
+    width = 0.15
     rects_hm = ax.bar(x, hm, width, label="HashMap")
     rects_cm = ax.bar(x + width, cm, width, label="Chunkmap")
-    rects_bt = ax.bar(x + width*2, btm, width, label="BtreeMap")
-    rects_oc = ax.bar(x + width*3, oc, width, label="OCaml Map")
+    rects_cow = ax.bar(x + width*2, cow, width, label="Chunkmap COW")
+    rects_bt = ax.bar(x + width*3, btm, width, label="BtreeMap")
+    rects_oc = ax.bar(x + width*4, oc, width, label="OCaml Map")
     ax.set_ylabel(xlbl)
     ax.set_xlabel(ylbl)
     ax.set_title(title)
@@ -70,6 +71,10 @@ def load_results(args):
     except:
         return {
             'cm': {
+                'ptr': proto(),
+                'str': proto()
+            },
+            'cow': {
                 'ptr': proto(),
                 'str': proto()
             },
@@ -97,6 +102,7 @@ def chart(args, results):
         args.data_path + '/usize_insert.png',
         'insert', "ns / insert", "final size",
         results['cm']['ptr']['insert'],
+        results['cow']['ptr']['insert'],
         results['hm']['ptr']['insert'],
         results['btm']['ptr']['insert'],
         results['oc']['ptr']['insert']
@@ -105,6 +111,7 @@ def chart(args, results):
         args.data_path + '/usize_insert_many.png',
         "insert many", "ns / insert", "final size",
         results['cm']['ptr']['insert_many'],
+        results['cow']['ptr']['insert_many'],
         results['hm']['ptr']['insert_many'],
         results['btm']['ptr']['insert_many'],
         results['oc']['ptr']['insert_many']
@@ -113,6 +120,7 @@ def chart(args, results):
         args.data_path + '/usize_insert_many_par.png',
         "insert many (all cores)", "ns / insert", "final size",
         results['cm']['ptr']['insert_many_par'],
+        results['cow']['ptr']['insert_many_par'],
         results['hm']['ptr']['insert_many_par'],
         results['btm']['ptr']['insert_many_par'],
         results['oc']['ptr']['insert_many_par']
@@ -121,6 +129,7 @@ def chart(args, results):
         args.data_path + '/usize_remove.png',
         "remove", "ns / remove", "initial size",
         results['cm']['ptr']['remove'],
+        results['cow']['ptr']['remove'],
         results['hm']['ptr']['remove'],
         results['btm']['ptr']['remove'],
         results['oc']['ptr']['remove']
@@ -129,6 +138,7 @@ def chart(args, results):
         args.data_path + '/usize_get.png',
         "get", "ns / get", "size",
         results['cm']['ptr']['get'],
+        results['cow']['ptr']['get'],
         results['hm']['ptr']['get'],
         results['btm']['ptr']['get'],
         results['oc']['ptr']['get']
@@ -137,6 +147,7 @@ def chart(args, results):
         args.data_path + '/usize_get_parallel.png',
         "get (all cores)", "ns / get", "size",
         results['cm']['ptr']['get_parallel'],
+        results['cow']['ptr']['get_parallel'],
         results['hm']['ptr']['get_parallel'],
         results['btm']['ptr']['get_parallel'],
         results['oc']['ptr']['get_parallel']
@@ -145,6 +156,7 @@ def chart(args, results):
         args.data_path + '/str_insert.png',
         'insert', "ns / insert", "final size",
         results['cm']['str']['insert'],
+        results['cow']['str']['insert'],
         results['hm']['str']['insert'],
         results['btm']['str']['insert'],
         results['oc']['str']['insert']
@@ -153,6 +165,7 @@ def chart(args, results):
         args.data_path + '/str_insert_many.png',
         "insert many", "ns / insert", "final size",
         results['cm']['str']['insert_many'],
+        results['cow']['str']['insert_many'],
         results['hm']['str']['insert_many'],
         results['btm']['str']['insert_many'],
         results['oc']['str']['insert_many']
@@ -161,6 +174,7 @@ def chart(args, results):
         args.data_path + '/str_insert_many_par.png',
         "insert many (all cores)", "ns / insert", "final size",
         results['cm']['str']['insert_many_par'],
+        results['cow']['str']['insert_many_par'],
         results['hm']['str']['insert_many_par'],
         results['btm']['str']['insert_many_par'],
         results['oc']['str']['insert_many_par']
@@ -169,6 +183,7 @@ def chart(args, results):
         args.data_path + '/str_remove.png',
         "remove", "ns / remove", "initial size",
         results['cm']['str']['remove'],
+        results['cow']['str']['remove'],
         results['hm']['str']['remove'],
         results['btm']['str']['remove'],
         results['oc']['str']['remove']
@@ -177,6 +192,7 @@ def chart(args, results):
         args.data_path + '/str_get.png',
         "get", "ns / get", "size",
         results['cm']['str']['get'],
+        results['cow']['str']['get'],
         results['hm']['str']['get'],
         results['btm']['str']['get'],
         results['oc']['str']['get']
@@ -185,6 +201,7 @@ def chart(args, results):
         args.data_path + '/str_get_parallel.png',
         "get (all cores)", "ns / get", "size",
         results['cm']['str']['get_parallel'],
+        results['cow']['str']['get_parallel'],
         results['hm']['str']['get_parallel'],
         results['btm']['str']['get_parallel'],
         results['oc']['str']['get_parallel']
@@ -194,7 +211,7 @@ parser = argparse.ArgumentParser(description = "run benchmarks")
 parser.add_argument(
     '--run',
     required = False,
-    choices = ['all', 'cm', 'hm', 'btm', 'oc']
+    choices = ['all', 'cm', 'cow', 'hm', 'btm', 'oc']
 )
 parser.add_argument('--data-path', required = True)
 parser.add_argument('--chart', default = False, action = 'store_const', const = True)
@@ -205,6 +222,9 @@ results = load_results(args)
 if args.run == 'all' or args.run == 'cm':
     results['cm']['ptr'] = run('target/release/bench', 'cm', 'ptr')
     results['cm']['str'] = run('target/release/bench', 'cm', 'str')
+if args.run == 'all' or args.run == 'cow':
+    results['cow']['ptr'] = run('target/release/bench', 'cow', 'ptr')
+    results['cow']['str'] = run('target/release/bench', 'cow', 'str')
 if args.run == 'all' or args.run == 'hm':
     results['hm']['ptr'] = run('target/release/bench', 'hm', 'ptr')
     results['hm']['str'] = run('target/release/bench', 'hm', 'str')

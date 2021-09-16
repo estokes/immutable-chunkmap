@@ -1,4 +1,5 @@
 mod utils;
+use arcstr::ArcStr;
 use smallvec::SmallVec;
 use std::{
     env, mem, thread,
@@ -259,11 +260,38 @@ where K: Hash + Ord + Clone + Rand + Send + Sync,
     fn len(&self) -> usize { self.0.len() }
 }
 
+struct COWrap<K: Ord + Clone, V: Clone>(Map<K, V>);
+
+impl<K, V> Collection<K, V> for COWrap<K, V>
+where K: Hash + Ord + Clone + Rand + Send + Sync,
+      V: Hash + Ord + Clone + Rand + Send + Sync
+{
+    fn new() -> Self { COWrap(Map::new()) }
+    fn insert_many(&mut self, chunk: Vec<(K, V)>) {
+        for (k, v) in chunk {
+            self.0.insert_cow(k, v);
+        }
+    }
+    fn insert(&mut self, k: K, v: V) -> Option<V> {
+        self.0.insert_cow(k, v)
+    }
+    fn remove<Q>(&mut self, k: &Q) -> Option<V> where Q: Ord + Hash + Clone, K: Borrow<Q> {
+        self.0.remove_cow(k)
+    }
+    fn get<Q>(&self, k: &Q) -> Option<&V> where Q: Ord + Hash + Clone, K: Borrow<Q> {
+        self.0.get(k)
+    }
+    fn merge_into(&mut self, other: COWrap<K, V>) {
+        self.0 = self.0.union(&other.0, |_, _, v| Some(v.clone()))
+    }
+    fn len(&self) -> usize { self.0.len() }
+}
+
 fn usage() {
     println!("usage: <cm|btm|hm> <ptr|str> <size>")
 }
 
-type S = Vec<u8>;
+type S = ArcStr;
 type P = usize;
 
 fn main() {
@@ -274,6 +302,8 @@ fn main() {
         match (args[1].as_ref(), args[2].as_ref()) {
             ("cm", "ptr") => Bench::<CMWrap<P, P>, P, P>::run(size),
             ("cm", "str") => Bench::<CMWrap<S, S>, S, S>::run(size),
+            ("cow", "ptr") => Bench::<COWrap<P, P>, P, P>::run(size),
+            ("cow", "str") => Bench::<COWrap<S, S>, S, S>::run(size),
             ("btm", "ptr") => Bench::<BTreeMap<P, P>, P, P>::run(size),
             ("btm", "str") => Bench::<BTreeMap<S, S>, S, S>::run(size),
             ("hm", "ptr") => Bench::<HashMap<P, P>, P, P>::run(size),

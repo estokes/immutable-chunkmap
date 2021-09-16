@@ -5,6 +5,8 @@ authors = ["Eric Stokes <letaris@gmail.com>"]
 edition = "2018"
 
 [profile.release]
+codegen-units = 1
+opt-level = 3
 lto = true
 
 [dependencies]
@@ -12,3 +14,4 @@ smallvec = "1.0"
 immutable-chunkmap = {path = "../"}
 rand = ">= 0.3"
 num_cpus = ">= 1.0"
+arcstr = "1"
