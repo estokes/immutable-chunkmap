@@ -328,8 +328,8 @@ where
     ///```
     /// use self::immutable_chunkmap::map::Map;
     ///
-    /// let mut m = Map::new().update(0, 0, |k, d, _| Some((k, d)));
-    /// let orig = t.clone()
+    /// let mut m = Map::new().update(0, 0, |k, d, _| Some((k, d))).0;
+    /// let orig = m.clone();
     /// m.update_cow(1, 1, |k, d, _| Some((k, d))); // copies the original chunk
     /// m.update_cow(2, 2, |k, d, _| Some((k, d))); // doesn't copy anything
     /// assert_eq!(m.len(), 3);
