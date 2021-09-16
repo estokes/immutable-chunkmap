@@ -1,3 +1,12 @@
+1.0.0 "the cake is not a lie"
+* Add copy on write mutable operations. They are 2-10x faster, and
+  bring modification performance within an order of magnitude of
+  BTreeMap in most cases.
+
+* bump dependencies, update readme, and refresh the benchmarks
+
+* feels like 1.0 to me!
+
 0.5.9
 * add weak references to maps and sets as well as methods to get the
   strong and weak count of map/set references.
