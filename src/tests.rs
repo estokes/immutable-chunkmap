@@ -1,4 +1,4 @@
-use crate::{avl, map::MapM, set::SetM, chunk::DEFAULT_SIZE};
+use crate::{avl, chunk::DEFAULT_SIZE, map::MapM, set::SetM};
 use rand::Rng;
 use std::{
     borrow::Borrow,
@@ -25,7 +25,7 @@ macro_rules! make_tests {
                 $name::<i32, i32>();
             }
         }
-        
+
         paste::item! {
             #[test]
             fn [<$name _i32_usize>]() {
@@ -74,7 +74,7 @@ macro_rules! make_tests {
                 $name::<(Arc<str>, Arc<str>), usize>();
             }
         }
-    }
+    };
 }
 
 trait Rand: Sized {
@@ -146,7 +146,6 @@ where
     t
 }
 
-
 #[test]
 fn test_insert_int_seq_asc() {
     let t = insert((0..SIZE).into_iter().map(|i| (i, i)));
@@ -193,7 +192,7 @@ where
 {
     let mut v = randvec::<(K, V)>(SIZE);
     dedup_with(&mut v, |(ref k, _)| k);
-    let mut t = avl::Tree::new();
+    let mut t = avl::Tree::<_, _, DEFAULT_SIZE>::new();
     for (k, v) in &v {
         let (tn, p) = t.insert(k.clone(), v.clone());
         assert_eq!(p, None);
@@ -262,7 +261,8 @@ fn test_insert_many_small() {
     let v: Vec<i32> = vec![
         1, 9, 16, 11, 7, 12, 8, 12, 12, 11, 9, 12, 9, 7, 16, 9, 1, 9, 1, 1, 22, 112,
     ];
-    let mut t = avl::Tree::new().insert_many(v.iter().map(|k| (*k, *k)));
+    let mut t =
+        avl::Tree::<_, _, DEFAULT_SIZE>::new().insert_many(v.iter().map(|k| (*k, *k)));
     t.invariant();
     for k in &v {
         assert_eq!(t.get(k).unwrap(), k)
@@ -285,8 +285,9 @@ fn test_insert_many_small() {
 }
 
 fn dedup_with<K, T, F>(v: &mut Vec<T>, f: F)
-where F: Fn(&T) -> &K,
-      K: Ord + Clone + Hash,
+where
+    F: Fn(&T) -> &K,
+    K: Ord + Clone + Hash,
 {
     let mut seen = HashSet::new();
     let mut i = 0;
@@ -307,7 +308,8 @@ where
 {
     let mut v = randvec::<(K, V)>(SIZE);
     dedup_with(&mut v, |(ref k, _)| k);
-    let mut t = avl::Tree::new().insert_many(v.iter().map(|(k, v)| (k.clone(), v.clone())));
+    let mut t = avl::Tree::<_, _, DEFAULT_SIZE>::new()
+        .insert_many(v.iter().map(|(k, v)| (k.clone(), v.clone())));
     t.invariant();
     for (k, v) in &v {
         assert_eq!(t.get(k).unwrap(), v)
@@ -352,11 +354,14 @@ where
         assert_eq!(t.get(k), Some(v));
     }
     let mut i = 0;
-    t = t.update_many(v2.iter().map(|(k, v)| (k.clone(), v.clone())), &mut |k, v, cur| {
-        i += 1;
-        assert_eq!(cur, Some((&k, &v)));
-        None
-    });
+    t = t.update_many(
+        v2.iter().map(|(k, v)| (k.clone(), v.clone())),
+        &mut |k, v, cur| {
+            i += 1;
+            assert_eq!(cur, Some((&k, &v)));
+            None
+        },
+    );
     t.invariant();
     assert_eq!(i, v2.len());
     for (k, _) in &v2 {
@@ -516,8 +521,8 @@ where
     vals.sort_unstable_by(|t0, t1| t0.0.cmp(&t1.0));
     let (start, end) = loop {
         let mut r = rand::thread_rng();
-        let i = r.gen_range(0 .. SIZE);
-        let j = r.gen_range(0 .. SIZE);
+        let i = r.gen_range(0..SIZE);
+        let j = r.gen_range(0..SIZE);
         if i == j {
             continue;
         } else if i < j {
