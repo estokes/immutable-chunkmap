@@ -1,4 +1,4 @@
-use crate::{avl, map::Map, set::Set};
+use crate::{avl, map::MapM, set::SetM, chunk::DEFAULT_SIZE};
 use rand::Rng;
 use std::{
     borrow::Borrow,
@@ -129,7 +129,7 @@ fn permutation<T: Clone>(v: &Vec<T>) -> Vec<T> {
     p.into_iter().map(|(_, v)| v.clone()).collect::<Vec<T>>()
 }
 
-fn insert<I, K, V>(r: I) -> avl::Tree<K, V>
+fn insert<I, K, V>(r: I) -> avl::Tree<K, V, DEFAULT_SIZE>
 where
     I: IntoIterator<Item = (K, V)>,
     K: Ord + Clone + Debug,
@@ -373,7 +373,7 @@ where
 {
     let mut vals = randvec::<(K, V)>(SIZE);
     dedup_with(&mut vals, |(ref k, _)| k);
-    let mut t = Map::new();
+    let mut t = MapM::new();
     let mut i = 0;
     for (k, v) in &vals {
         t = t.insert(k.clone(), v.clone()).0;
@@ -405,7 +405,7 @@ where
 {
     let mut vals = randvec::<(K, V)>(SIZE);
     dedup_with(&mut vals, |(ref k, _)| k);
-    let t = Map::new().insert_many(vals.iter().cloned());
+    let t = MapM::new().insert_many(vals.iter().cloned());
     t.invariant();
     assert_eq!(vals.len(), t.len());
     vals.sort_unstable_by(|t0, t1| t0.0.cmp(&t1.0));
@@ -424,7 +424,7 @@ make_tests!(test_map_iter_gen);
 fn test_map_range_small() {
     let mut v = Vec::new();
     v.extend((-5000..5000).into_iter());
-    let t = Map::new().insert_many(v.iter().map(|x| (*x, *x)));
+    let t = MapM::new().insert_many(v.iter().map(|x| (*x, *x)));
     t.invariant();
     assert_eq!(t.len(), 10000);
     {
@@ -510,7 +510,7 @@ where
 {
     let mut vals = randvec::<(K, V)>(SIZE);
     dedup_with(&mut vals, |(ref k, _)| k);
-    let mut t: Map<K, V> = Map::new();
+    let mut t: MapM<K, V> = MapM::new();
     t = t.insert_many(vals.iter().map(|(k, v)| (k.clone(), v.clone())));
     t.invariant();
     vals.sort_unstable_by(|t0, t1| t0.0.cmp(&t1.0));
@@ -594,7 +594,7 @@ make_tests!(test_map_range_gen);
 fn test_set_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
     let mut v = randvec::<T>(SIZE);
     dedup_with(&mut v, |k| k);
-    let mut t = Set::new();
+    let mut t = SetM::new();
     let mut i = 0;
     for k in &v {
         let (tn, p) = t.insert(k.clone());
@@ -653,10 +653,10 @@ fn test_ord() {
             break;
         }
     }
-    let s0 = v0.iter().map(|v| v.clone()).collect::<Set<_>>();
-    let s1 = v1.iter().map(|v| v.clone()).collect::<Set<_>>();
-    let s2 = v2.iter().map(|v| v.clone()).collect::<Set<_>>();
-    let s3 = v3.iter().map(|v| v.clone()).collect::<Set<_>>();
+    let s0 = v0.iter().map(|v| v.clone()).collect::<SetM<_>>();
+    let s1 = v1.iter().map(|v| v.clone()).collect::<SetM<_>>();
+    let s2 = v2.iter().map(|v| v.clone()).collect::<SetM<_>>();
+    let s3 = v3.iter().map(|v| v.clone()).collect::<SetM<_>>();
     assert!(s0 == s1);
     assert_eq!(s0.cmp(&s1), Ordering::Equal);
     assert!(s0 != s2);
@@ -670,8 +670,8 @@ fn test_union_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
     let mut v1 = randvec::<T>(SIZE);
     dedup_with(&mut v0, |k| k);
     dedup_with(&mut v1, |k| k);
-    let m0 = Map::from_iter(v0.iter().map(|k| (k.clone(), 1)));
-    let m1 = Map::from_iter(v1.iter().map(|k| (k.clone(), 1)));
+    let m0 = MapM::from_iter(v0.iter().map(|k| (k.clone(), 1)));
+    let m1 = MapM::from_iter(v1.iter().map(|k| (k.clone(), 1)));
     let m2 = m0.union(&m1, |_, v0, v1| Some(v0 + v1));
     m2.invariant();
     let mut hm = HashMap::new();
@@ -699,8 +699,8 @@ fn test_intersect_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
     let mut v1 = randvec::<T>(SIZE);
     dedup_with(&mut v0, |k| k);
     dedup_with(&mut v1, |k| k);
-    let m0 = Map::from_iter(v0.iter().map(|k| (k.clone(), 1)));
-    let m1 = Map::from_iter(v1.iter().map(|k| (k.clone(), 1)));
+    let m0 = MapM::from_iter(v0.iter().map(|k| (k.clone(), 1)));
+    let m1 = MapM::from_iter(v1.iter().map(|k| (k.clone(), 1)));
     let m2 = m0.intersect(&m1, |_, v0, v1| Some(v0 + v1));
     m2.invariant();
     let mut hm0 = HashMap::new();
@@ -742,8 +742,8 @@ fn test_diff_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
     let mut v1 = randvec::<T>(SIZE);
     dedup_with(&mut v0, |k| k);
     dedup_with(&mut v1, |k| k);
-    let m0 = Map::from_iter(v0.iter().map(|k| (k.clone(), ())));
-    let m1 = Map::from_iter(v1.iter().map(|k| (k.clone(), ())));
+    let m0 = MapM::from_iter(v0.iter().map(|k| (k.clone(), ())));
+    let m1 = MapM::from_iter(v1.iter().map(|k| (k.clone(), ())));
     let m2 = m0.diff(&m1, |_, (), ()| None);
     m2.invariant();
     let mut hm = HashMap::new();

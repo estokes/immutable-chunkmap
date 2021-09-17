@@ -412,8 +412,10 @@ where
                 current_rev: None,
             },
             &Tree::Node(ref n) => {
-                let mut stack = ArrayVec::<(bool, &'a Node<K, V>), MAX_DEPTH>::new();
-                let mut stack_rev = ArrayVec::<(bool, &'a Node<K, V>), MAX_DEPTH>::new();
+                let mut stack =
+                    ArrayVec::<(bool, &'a Node<K, V, SIZE>), MAX_DEPTH>::new();
+                let mut stack_rev =
+                    ArrayVec::<(bool, &'a Node<K, V, SIZE>), MAX_DEPTH>::new();
                 stack.push((false, n));
                 stack_rev.push((false, n));
                 Iter {

@@ -1,3 +1,4 @@
+pub use crate::chunk::DEFAULT_SIZE;
 use crate::avl::{Iter, Tree, WeakTree};
 use std::{
     borrow::Borrow,
@@ -49,22 +50,22 @@ use std::{
 #[derive(Clone)]
 pub struct Map<K: Ord + Clone, V: Clone, const SIZE: usize>(Tree<K, V, SIZE>);
 
-/// Map using chunk size 32, faster to update, slower to search
-pub type MapS<K: Ord + Clone, V: Clone> = Map<K, V, 32>;
+/// Map using a smaller chunk size, faster to update, slower to search
+pub type MapS<K, V> = Map<K, V, {DEFAULT_SIZE / 4}>;
 
-/// Map using chunk size 128, a good balance of update and search
-pub type MapM<K: Ord + Clone, V: Clone> = Map<K, V, 128>;
+/// Map using the default chunk size, a good balance of update and search
+pub type MapM<K, V> = Map<K, V, DEFAULT_SIZE>;
 
-/// Map using chunk size 512, faster to search, slower to update
-pub type MapL<K: Ord + Clone, V: Clone> = Map<K, V, 512>;
+/// Map using a larger chunk size, faster to search, slower to update
+pub type MapL<K, V> = Map<K, V, {DEFAULT_SIZE * 4}>;
 
 /// A weak reference to a map.
 #[derive(Clone)]
 pub struct WeakMapRef<K: Ord + Clone, V: Clone, const SIZE: usize>(WeakTree<K, V, SIZE>);
 
-pub type WeakMapRefS<K: Ord + Clone, V: Clone> = WeakMapRef<K, V, 32>;
-pub type WeakMapRefM<K: Ord + Clone, V: Clone> = WeakMapRef<K, V, 128>;
-pub type WeakMapRefL<K: Ord + Clone, V: Clone> = WeakMapRef<K, V, 512>;
+pub type WeakMapRefS<K, V> = WeakMapRef<K, V, {DEFAULT_SIZE / 4}>;
+pub type WeakMapRefM<K, V> = WeakMapRef<K, V, DEFAULT_SIZE>;
+pub type WeakMapRefL<K, V> = WeakMapRef<K, V, {DEFAULT_SIZE * 4}>;
 
 impl<K, V, const SIZE: usize> WeakMapRef<K, V, SIZE>
 where

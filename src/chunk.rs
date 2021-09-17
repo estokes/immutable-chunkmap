@@ -28,8 +28,15 @@ elts is a sorted array of pairs, increasing the SIZE has several effects;
 -- icreases the overall amount of memory allocated for each change to
    the tree
 */
+pub(crate) const DEFAULT_SIZE: usize = 128;
 
-pub(crate) enum UpdateChunk<Q: Ord, K: Ord + Clone + Borrow<Q>, V: Clone, D, const SIZE: usize> {
+pub(crate) enum UpdateChunk<
+    Q: Ord,
+    K: Ord + Clone + Borrow<Q>,
+    V: Clone,
+    D,
+    const SIZE: usize,
+> {
     UpdateLeft(Vec<(Q, D)>),
     UpdateRight(Vec<(Q, D)>),
     Updated {
@@ -45,7 +52,8 @@ pub(crate) enum UpdateChunk<Q: Ord, K: Ord + Clone + Borrow<Q>, V: Clone, D, con
     },
 }
 
-pub(crate) enum Update<Q: Ord, K: Ord + Clone + Borrow<Q>, V: Clone, D, const SIZE: usize> {
+pub(crate) enum Update<Q: Ord, K: Ord + Clone + Borrow<Q>, V: Clone, D, const SIZE: usize>
+{
     UpdateLeft(Q, D),
     UpdateRight(Q, D),
     Updated {
@@ -72,8 +80,8 @@ pub(crate) struct Chunk<K, V, const SIZE: usize> {
 
 impl<K, V, const SIZE: usize> Debug for Chunk<K, V, SIZE>
 where
-    K: Debug + Ord + Clone,
-    V: Debug + Clone,
+    K: Debug,
+    V: Debug,
 {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         f.debug_map().entries(self.into_iter()).finish()
@@ -502,8 +510,8 @@ where
                 None => MutUpdate::Updated {
                     overflow: None,
                     previous: None,
-                }
-            }
+                },
+            },
             loc @ Loc::InLeft | loc @ Loc::InRight => {
                 if !leaf || self.len() == SIZE {
                     match loc {
@@ -641,11 +649,7 @@ where
     }
 }
 
-impl<K, V, const SIZE: usize> IntoIterator for Chunk<K, V, SIZE>
-where
-    K: Ord + Clone,
-    V: Clone,
-{
+impl<K, V, const SIZE: usize> IntoIterator for Chunk<K, V, SIZE> {
     type Item = (K, V);
     type IntoIter = iter::Zip<vec::IntoIter<K>, vec::IntoIter<V>>;
     fn into_iter(self) -> Self::IntoIter {
@@ -653,11 +657,7 @@ where
     }
 }
 
-impl<'a, K, V, const SIZE: usize> IntoIterator for &'a Chunk<K, V, SIZE>
-where
-    K: 'a + Ord + Clone,
-    V: 'a + Clone,
-{
+impl<'a, K, V, const SIZE: usize> IntoIterator for &'a Chunk<K, V, SIZE>{
     type Item = (&'a K, &'a V);
     type IntoIter = iter::Zip<slice::Iter<'a, K>, slice::Iter<'a, V>>;
     fn into_iter(self) -> Self::IntoIter {

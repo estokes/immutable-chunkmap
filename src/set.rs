@@ -1,3 +1,4 @@
+pub use crate::chunk::DEFAULT_SIZE;
 use crate::avl::{Iter, Tree, WeakTree};
 use std::{
     borrow::Borrow,
@@ -32,21 +33,21 @@ use std::{
 #[derive(Clone)]
 pub struct Set<K: Ord + Clone, const SIZE: usize>(Tree<K, (), SIZE>);
 
-/// set with chunk size 32, faster to update, slower to search
-pub type SetS<K: Ord + Clone> = Set<K, 32>;
+/// set with a smaller chunk size, faster to update, slower to search
+pub type SetS<K> = Set<K, {DEFAULT_SIZE / 4}>;
 
-/// set with chunk size 128, a good balance of search and update performance
-pub type SetM<K: Ord + Clone> = Set<K, 128>;
+/// set with the default chunk size, a good balance of search and update performance
+pub type SetM<K> = Set<K, DEFAULT_SIZE>;
 
-/// set with chunk size 512, faster to search, slower to update
-pub type SetL<K: Ord + Clone> = Set<K, 512>;
+/// set with a larger chunk size, faster to search, slower to update
+pub type SetL<K> = Set<K, {DEFAULT_SIZE * 4}>;
 
 #[derive(Clone)]
 pub struct WeakSetRef<K: Ord + Clone, const SIZE: usize>(WeakTree<K, (), SIZE>);
 
-pub type WeakSetRefS<K: Ord + Clone> = WeakSetRef<K, 32>;
-pub type WeakSetRefM<K: Ord + Clone> = WeakSetRef<K, 128>;
-pub type WeakSetRefL<K: Ord + Clone> = WeakSetRef<K, 512>;
+pub type WeakSetRefS<K> = WeakSetRef<K, 32>;
+pub type WeakSetRefM<K> = WeakSetRef<K, 128>;
+pub type WeakSetRefL<K> = WeakSetRef<K, 512>;
 
 impl<K, const SIZE: usize> WeakSetRef<K, SIZE>
 where
