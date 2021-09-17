@@ -1,7 +1,10 @@
 1.0.0 "the cake is not a lie"
-* Add copy on write mutable operations. They are 2-10x faster, and
-  bring modification performance within an order of magnitude of
-  BTreeMap in most cases.
+* Add copy on write mutable operations. They are 10x faster than plain
+  insert/remove, and bring update performance within an 2-3x of
+  BTreeMap (with ArcStr keys).
+
+* Chunk size is now configurable with a const generic parameter. Three
+  different sizes are exposed as default type aliases.
 
 * bump dependencies, update readme, and refresh the benchmarks
 
