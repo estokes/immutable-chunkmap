@@ -15,21 +15,25 @@ pub(crate) enum Loc {
 
 /*
 elts is a sorted array of pairs, increasing the SIZE has several effects;
--- decreases the height of the tree for a given number of
-elements, decreasing the amount of indirection necessary to
-get to any given key.
--- decreases the number of objects allocated on the heap each
-time a key is added or removed
--- increases the size of each allocation
--- icreases the overall amount of memory allocated for each change to the tree
- */
-pub(crate) const SIZE: usize = 128;
 
-pub(crate) enum UpdateChunk<Q: Ord, K: Ord + Clone + Borrow<Q>, V: Clone, D> {
+-- decreases the height of the tree for a given number of elements,
+   decreasing the amount of indirection necessary to get to any given
+   key.
+
+-- decreases the number of objects allocated on the heap each time a
+   key is added or removed
+
+-- increases the size of each allocation
+
+-- icreases the overall amount of memory allocated for each change to
+   the tree
+*/
+
+pub(crate) enum UpdateChunk<Q: Ord, K: Ord + Clone + Borrow<Q>, V: Clone, D, const SIZE: usize> {
     UpdateLeft(Vec<(Q, D)>),
     UpdateRight(Vec<(Q, D)>),
     Updated {
-        elts: Chunk<K, V>,
+        elts: Chunk<K, V, SIZE>,
         update_left: Vec<(Q, D)>,
         update_right: Vec<(Q, D)>,
         overflow_right: Vec<(K, V)>,
@@ -41,11 +45,11 @@ pub(crate) enum UpdateChunk<Q: Ord, K: Ord + Clone + Borrow<Q>, V: Clone, D> {
     },
 }
 
-pub(crate) enum Update<Q: Ord, K: Ord + Clone + Borrow<Q>, V: Clone, D> {
+pub(crate) enum Update<Q: Ord, K: Ord + Clone + Borrow<Q>, V: Clone, D, const SIZE: usize> {
     UpdateLeft(Q, D),
     UpdateRight(Q, D),
     Updated {
-        elts: Chunk<K, V>,
+        elts: Chunk<K, V, SIZE>,
         overflow: Option<(K, V)>,
         previous: Option<V>,
     },
@@ -61,12 +65,12 @@ pub(crate) enum MutUpdate<Q: Ord, K: Ord + Clone + Borrow<Q>, V: Clone, D> {
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct Chunk<K, V> {
+pub(crate) struct Chunk<K, V, const SIZE: usize> {
     keys: Vec<K>,
     vals: Vec<V>,
 }
 
-impl<K, V> Debug for Chunk<K, V>
+impl<K, V, const SIZE: usize> Debug for Chunk<K, V, SIZE>
 where
     K: Debug + Ord + Clone,
     V: Debug + Clone,
@@ -76,7 +80,7 @@ where
     }
 }
 
-impl<K, V> Chunk<K, V>
+impl<K, V, const SIZE: usize> Chunk<K, V, SIZE>
 where
     K: Ord + Clone,
     V: Clone,
@@ -168,7 +172,7 @@ where
         chunk: Vec<(Q, D)>,
         leaf: bool,
         f: &mut F,
-    ) -> UpdateChunk<Q, K, V, D>
+    ) -> UpdateChunk<Q, K, V, D, SIZE>
     where
         Q: Ord,
         K: Borrow<Q>,
@@ -208,9 +212,9 @@ where
             }
         } else {
             #[inline(always)]
-            fn copy_up_to<K, V>(
-                t: &Chunk<K, V>,
-                elts: &mut Chunk<K, V>,
+            fn copy_up_to<K, V, const SIZE: usize>(
+                t: &Chunk<K, V, SIZE>,
+                elts: &mut Chunk<K, V, SIZE>,
                 overflow_right: &mut Vec<(K, V)>,
                 m: &mut usize,
                 i: usize,
@@ -360,7 +364,7 @@ where
         d: D,
         leaf: bool,
         f: &mut F,
-    ) -> Update<Q, K, V, D>
+    ) -> Update<Q, K, V, D, SIZE>
     where
         Q: Ord,
         K: Borrow<Q>,
@@ -533,8 +537,8 @@ where
     }
 
     pub(crate) fn intersect<F>(
-        c0: &Chunk<K, V>,
-        c1: &Chunk<K, V>,
+        c0: &Chunk<K, V, SIZE>,
+        c1: &Chunk<K, V, SIZE>,
         r: &mut Vec<(K, V)>,
         f: &mut F,
     ) where
@@ -637,7 +641,7 @@ where
     }
 }
 
-impl<K, V> IntoIterator for Chunk<K, V>
+impl<K, V, const SIZE: usize> IntoIterator for Chunk<K, V, SIZE>
 where
     K: Ord + Clone,
     V: Clone,
@@ -649,7 +653,7 @@ where
     }
 }
 
-impl<'a, K, V> IntoIterator for &'a Chunk<K, V>
+impl<'a, K, V, const SIZE: usize> IntoIterator for &'a Chunk<K, V, SIZE>
 where
     K: 'a + Ord + Clone,
     V: 'a + Clone,

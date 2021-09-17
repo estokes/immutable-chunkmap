@@ -29,10 +29,10 @@ use std::{
 /// # Examples
 /// ```
 /// use std::string::String;
-/// use self::immutable_chunkmap::map::Map;
+/// use self::immutable_chunkmap::map::MapM;
 ///
 /// let m =
-///    Map::new()
+///    MapM::new()
 ///    .insert(String::from("1"), 1).0
 ///    .insert(String::from("2"), 2).0
 ///    .insert(String::from("3"), 3).0;
@@ -47,23 +47,36 @@ use std::{
 /// }
 /// ```
 #[derive(Clone)]
-pub struct Map<K: Ord + Clone, V: Clone>(Tree<K, V>);
+pub struct Map<K: Ord + Clone, V: Clone, const SIZE: usize>(Tree<K, V, SIZE>);
+
+/// Map using chunk size 32, faster to update, slower to search
+pub type MapS<K: Ord + Clone, V: Clone> = Map<K, V, 32>;
+
+/// Map using chunk size 128, a good balance of update and search
+pub type MapM<K: Ord + Clone, V: Clone> = Map<K, V, 128>;
+
+/// Map using chunk size 512, faster to search, slower to update
+pub type MapL<K: Ord + Clone, V: Clone> = Map<K, V, 512>;
 
 /// A weak reference to a map.
 #[derive(Clone)]
-pub struct WeakMapRef<K: Ord + Clone, V: Clone>(WeakTree<K, V>);
+pub struct WeakMapRef<K: Ord + Clone, V: Clone, const SIZE: usize>(WeakTree<K, V, SIZE>);
 
-impl<K, V> WeakMapRef<K, V>
+pub type WeakMapRefS<K: Ord + Clone, V: Clone> = WeakMapRef<K, V, 32>;
+pub type WeakMapRefM<K: Ord + Clone, V: Clone> = WeakMapRef<K, V, 128>;
+pub type WeakMapRefL<K: Ord + Clone, V: Clone> = WeakMapRef<K, V, 512>;
+
+impl<K, V, const SIZE: usize> WeakMapRef<K, V, SIZE>
 where
     K: Ord + Clone,
     V: Clone,
 {
-    pub fn upgrade(&self) -> Option<Map<K, V>> {
+    pub fn upgrade(&self) -> Option<Map<K, V, SIZE>> {
         self.0.upgrade().map(Map)
     }
 }
 
-impl<K, V> Hash for Map<K, V>
+impl<K, V, const SIZE: usize> Hash for Map<K, V, SIZE>
 where
     K: Hash + Ord + Clone,
     V: Hash + Clone,
@@ -73,54 +86,54 @@ where
     }
 }
 
-impl<K, V> Default for Map<K, V>
+impl<K, V, const SIZE: usize> Default for Map<K, V, SIZE>
 where
     K: Ord + Clone,
     V: Clone,
 {
-    fn default() -> Map<K, V> {
+    fn default() -> Map<K, V, SIZE> {
         Map::new()
     }
 }
 
-impl<K, V> PartialEq for Map<K, V>
+impl<K, V, const SIZE: usize> PartialEq for Map<K, V, SIZE>
 where
     K: PartialEq + Ord + Clone,
     V: PartialEq + Clone,
 {
-    fn eq(&self, other: &Map<K, V>) -> bool {
+    fn eq(&self, other: &Map<K, V, SIZE>) -> bool {
         self.0 == other.0
     }
 }
 
-impl<K, V> Eq for Map<K, V>
+impl<K, V, const SIZE: usize> Eq for Map<K, V, SIZE>
 where
     K: Eq + Ord + Clone,
     V: Eq + Clone,
 {
 }
 
-impl<K, V> PartialOrd for Map<K, V>
+impl<K, V, const SIZE: usize> PartialOrd for Map<K, V, SIZE>
 where
     K: Ord + Clone,
     V: PartialOrd + Clone,
 {
-    fn partial_cmp(&self, other: &Map<K, V>) -> Option<Ordering> {
+    fn partial_cmp(&self, other: &Map<K, V, SIZE>) -> Option<Ordering> {
         self.0.partial_cmp(&other.0)
     }
 }
 
-impl<K, V> Ord for Map<K, V>
+impl<K, V, const SIZE: usize> Ord for Map<K, V, SIZE>
 where
     K: Ord + Clone,
     V: Ord + Clone,
 {
-    fn cmp(&self, other: &Map<K, V>) -> Ordering {
+    fn cmp(&self, other: &Map<K, V, SIZE>) -> Ordering {
         self.0.cmp(&other.0)
     }
 }
 
-impl<K, V> Debug for Map<K, V>
+impl<K, V, const SIZE: usize> Debug for Map<K, V, SIZE>
 where
     K: Debug + Ord + Clone,
     V: Debug + Clone,
@@ -130,7 +143,7 @@ where
     }
 }
 
-impl<'a, Q, K, V> Index<&'a Q> for Map<K, V>
+impl<'a, Q, K, V, const SIZE: usize> Index<&'a Q> for Map<K, V, SIZE>
 where
     Q: Ord,
     K: Ord + Clone + Borrow<Q>,
@@ -142,7 +155,7 @@ where
     }
 }
 
-impl<K, V> FromIterator<(K, V)> for Map<K, V>
+impl<K, V, const SIZE: usize> FromIterator<(K, V)> for Map<K, V, SIZE>
 where
     K: Ord + Clone,
     V: Clone,
@@ -152,19 +165,19 @@ where
     }
 }
 
-impl<'a, K, V> IntoIterator for &'a Map<K, V>
+impl<'a, K, V, const SIZE: usize> IntoIterator for &'a Map<K, V, SIZE>
 where
     K: 'a + Borrow<K> + Ord + Clone,
     V: 'a + Clone,
 {
     type Item = (&'a K, &'a V);
-    type IntoIter = Iter<'a, K, K, V>;
+    type IntoIter = Iter<'a, K, K, V, SIZE>;
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
     }
 }
 
-impl<K, V> Map<K, V>
+impl<K, V, const SIZE: usize> Map<K, V, SIZE>
 where
     K: Ord + Clone,
     V: Clone,
@@ -175,7 +188,7 @@ where
     }
 
     /// Create a weak reference to this map
-    pub fn downgrade(&self) -> WeakMapRef<K, V> {
+    pub fn downgrade(&self) -> WeakMapRef<K, V, SIZE> {
         WeakMapRef(self.0.downgrade())
     }
 
@@ -196,12 +209,12 @@ where
     ///
     /// #Examples
     ///```
-    /// use self::immutable_chunkmap::map::Map;
+    /// use self::immutable_chunkmap::map::MapM;
     ///
     /// let mut v = vec![(1, 3), (10, 1), (-12, 2), (44, 0), (50, -1)];
     /// v.sort_unstable_by_key(|&(k, _)| k);
     ///
-    /// let m = Map::new().insert_many(v.iter().map(|(k, v)| (*k, *v)));
+    /// let m = MapM::new().insert_many(v.iter().map(|(k, v)| (*k, *v)));
     ///
     /// for (k, v) in &v {
     ///   assert_eq!(m.get(k), Option::Some(v))
@@ -227,9 +240,9 @@ where
     /// #Examples
     /// ```
     /// use std::iter::FromIterator;
-    /// use self::immutable_chunkmap::map::Map;
+    /// use self::immutable_chunkmap::map::MapM;
     ///
-    /// let m = Map::from_iter((0..4).map(|k| (k, k)));
+    /// let m = MapM::from_iter((0..4).map(|k| (k, k)));
     /// let m = m.update_many(
     ///     (0..4).map(|x| (x, ())),
     ///     |k, (), cur| cur.map(|(_, c)| (k, c + 1))
@@ -275,9 +288,9 @@ where
     ///
     /// # Examples
     /// ```
-    /// use self::immutable_chunkmap::map::Map;
+    /// use self::immutable_chunkmap::map::MapM;
     ///
-    /// let (m, _) = Map::new().update(0, 0, |k, d, _| Some((k, d)));
+    /// let (m, _) = MapM::new().update(0, 0, |k, d, _| Some((k, d)));
     /// let (m, _) = m.update(1, 1, |k, d, _| Some((k, d)));
     /// let (m, _) = m.update(2, 2, |k, d, _| Some((k, d)));
     /// assert_eq!(m.get(&0), Some(&0));
@@ -326,9 +339,9 @@ where
     ///
     /// #Examples
     ///```
-    /// use self::immutable_chunkmap::map::Map;
+    /// use self::immutable_chunkmap::map::MapM;
     ///
-    /// let mut m = Map::new().update(0, 0, |k, d, _| Some((k, d))).0;
+    /// let mut m = MapM::new().update(0, 0, |k, d, _| Some((k, d))).0;
     /// let orig = m.clone();
     /// m.update_cow(1, 1, |k, d, _| Some((k, d))); // copies the original chunk
     /// m.update_cow(2, 2, |k, d, _| Some((k, d))); // doesn't copy anything
@@ -362,17 +375,17 @@ where
     /// # Examples
     /// ```
     /// use std::iter::FromIterator;
-    /// use self::immutable_chunkmap::map::Map;
+    /// use self::immutable_chunkmap::map::MapM;
     ///
-    /// let m0 = Map::from_iter((0..10).map(|k| (k, 1)));
-    /// let m1 = Map::from_iter((10..20).map(|k| (k, 1)));
+    /// let m0 = MapM::from_iter((0..10).map(|k| (k, 1)));
+    /// let m1 = MapM::from_iter((10..20).map(|k| (k, 1)));
     /// let m2 = m0.union(&m1, |_k, _v0, _v1| panic!("no intersection expected"));
     ///
     /// for i in 0..20 {
     ///     assert!(m2.get(&i).is_some())
     /// }
     ///
-    /// let m3 = Map::from_iter((5..9).map(|k| (k, 1)));
+    /// let m3 = MapM::from_iter((5..9).map(|k| (k, 1)));
     /// let m4 = m3.union(&m2, |_k, v0, v1| Some(v0 + v1));
     ///
     /// for i in 0..20 {
@@ -382,7 +395,7 @@ where
     ///    )
     /// }
     /// ```
-    pub fn union<F>(&self, other: &Map<K, V>, mut f: F) -> Self
+    pub fn union<F>(&self, other: &Map<K, V, SIZE>, mut f: F) -> Self
     where
         F: FnMut(&K, &V, &V) -> Option<V>,
     {
@@ -400,10 +413,10 @@ where
     /// # Examples
     ///```
     /// use std::iter::FromIterator;
-    /// use self::immutable_chunkmap::map::Map;
+    /// use self::immutable_chunkmap::map::MapM;
     ///
-    /// let m0 = Map::from_iter((0..100000).map(|k| (k, 1)));
-    /// let m1 = Map::from_iter((50..30000).map(|k| (k, 1)));
+    /// let m0 = MapM::from_iter((0..100000).map(|k| (k, 1)));
+    /// let m1 = MapM::from_iter((50..30000).map(|k| (k, 1)));
     /// let m2 = m0.intersect(&m1, |_k, v0, v1| Some(v0 + v1));
     ///
     /// for i in 0..100000 {
@@ -414,7 +427,7 @@ where
     ///     }
     /// }
     /// ```
-    pub fn intersect<F>(&self, other: &Map<K, V>, mut f: F) -> Self
+    pub fn intersect<F>(&self, other: &Map<K, V, SIZE>, mut f: F) -> Self
     where
         F: FnMut(&K, &V, &V) -> Option<V>,
     {
@@ -430,10 +443,10 @@ where
     /// # Examples
     ///```
     /// use std::iter::FromIterator;
-    /// use self::immutable_chunkmap::map::Map;
+    /// use self::immutable_chunkmap::map::MapM;
     ///
-    /// let m0 = Map::from_iter((0..10000).map(|k| (k, 1)));
-    /// let m1 = Map::from_iter((50..3000).map(|k| (k, 1)));
+    /// let m0 = MapM::from_iter((0..10000).map(|k| (k, 1)));
+    /// let m1 = MapM::from_iter((50..3000).map(|k| (k, 1)));
     /// let m2 = m0.diff(&m1, |_k, _v0, _v1| None);
     ///
     /// m2.invariant();
@@ -447,7 +460,7 @@ where
     ///     }
     /// }
     /// ```
-    pub fn diff<F>(&self, other: &Map<K, V>, mut f: F) -> Self
+    pub fn diff<F>(&self, other: &Map<K, V, SIZE>, mut f: F) -> Self
     where
         F: FnMut(&K, &V, &V) -> Option<V>,
         K: Debug,
@@ -520,7 +533,7 @@ where
     /// tree, and M is the number of elements you examine.
     ///
     /// if lbound >= ubound the returned iterator will be empty
-    pub fn range<'a, Q>(&'a self, lbound: Bound<Q>, ubound: Bound<Q>) -> Iter<'a, Q, K, V>
+    pub fn range<'a, Q>(&'a self, lbound: Bound<Q>, ubound: Bound<Q>) -> Iter<'a, Q, K, V, SIZE>
     where
         Q: Ord,
         K: Borrow<Q>,
@@ -529,7 +542,7 @@ where
     }
 }
 
-impl<K, V> Map<K, V>
+impl<K, V, const SIZE: usize> Map<K, V, SIZE>
 where
     K: Ord + Clone + Debug,
     V: Clone + Debug,
