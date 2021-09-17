@@ -30,21 +30,34 @@ use std::{
 /// for k in &m { println!("{}", k) }
 /// ```
 #[derive(Clone)]
-pub struct Set<K: Ord + Clone>(Tree<K, ()>);
+pub struct Set<K: Ord + Clone, const SIZE: usize>(Tree<K, (), SIZE>);
+
+/// set with chunk size 32, faster to update, slower to search
+pub type SetS<K: Ord + Clone> = Set<K, 32>;
+
+/// set with chunk size 128, a good balance of search and update performance
+pub type SetM<K: Ord + Clone> = Set<K, 128>;
+
+/// set with chunk size 512, faster to search, slower to update
+pub type SetL<K: Ord + Clone> = Set<K, 512>;
 
 #[derive(Clone)]
-pub struct WeakSetRef<K: Ord + Clone>(WeakTree<K, ()>);
+pub struct WeakSetRef<K: Ord + Clone, const SIZE: usize>(WeakTree<K, (), SIZE>);
 
-impl<K> WeakSetRef<K>
+pub type WeakSetRefS<K: Ord + Clone> = WeakSetRef<K, 32>;
+pub type WeakSetRefM<K: Ord + Clone> = WeakSetRef<K, 128>;
+pub type WeakSetRefL<K: Ord + Clone> = WeakSetRef<K, 512>;
+
+impl<K, const SIZE: usize> WeakSetRef<K, SIZE>
 where
     K: Ord + Clone,
 {
-    pub fn upgrade(&self) -> Option<Set<K>> {
+    pub fn upgrade(&self) -> Option<Set<K, SIZE>> {
         self.0.upgrade().map(Set)
     }
 }
 
-impl<K> Hash for Set<K>
+impl<K, const SIZE: usize> Hash for Set<K, SIZE>
 where
     K: Hash + Ord + Clone,
 {
@@ -53,45 +66,45 @@ where
     }
 }
 
-impl<K> Default for Set<K>
+impl<K, const SIZE: usize> Default for Set<K, SIZE>
 where
     K: Ord + Clone,
 {
-    fn default() -> Set<K> {
+    fn default() -> Set<K, SIZE> {
         Set::new()
     }
 }
 
-impl<K> PartialEq for Set<K>
+impl<K, const SIZE: usize> PartialEq for Set<K, SIZE>
 where
     K: Ord + Clone,
 {
-    fn eq(&self, other: &Set<K>) -> bool {
+    fn eq(&self, other: &Set<K, SIZE>) -> bool {
         self.0 == other.0
     }
 }
 
-impl<K> Eq for Set<K> where K: Eq + Ord + Clone {}
+impl<K, const SIZE: usize> Eq for Set<K, SIZE> where K: Eq + Ord + Clone {}
 
-impl<K> PartialOrd for Set<K>
+impl<K, const SIZE: usize> PartialOrd for Set<K, SIZE>
 where
     K: Ord + Clone,
 {
-    fn partial_cmp(&self, other: &Set<K>) -> Option<Ordering> {
+    fn partial_cmp(&self, other: &Set<K, SIZE>) -> Option<Ordering> {
         self.0.partial_cmp(&other.0)
     }
 }
 
-impl<K> Ord for Set<K>
+impl<K, const SIZE: usize> Ord for Set<K, SIZE>
 where
     K: Ord + Clone,
 {
-    fn cmp(&self, other: &Set<K>) -> Ordering {
+    fn cmp(&self, other: &Set<K, SIZE>) -> Ordering {
         self.0.cmp(&other.0)
     }
 }
 
-impl<K> Debug for Set<K>
+impl<K, const SIZE: usize> Debug for Set<K, SIZE>
 where
     K: Debug + Ord + Clone,
 {
@@ -100,7 +113,7 @@ where
     }
 }
 
-impl<K> FromIterator<K> for Set<K>
+impl<K, const SIZE: usize> FromIterator<K> for Set<K, SIZE>
 where
     K: Ord + Clone,
 {
@@ -109,9 +122,11 @@ where
     }
 }
 
-pub struct SetIter<'a, Q: Ord, K: 'a + Clone + Ord + Borrow<Q>>(Iter<'a, Q, K, ()>);
+pub struct SetIter<'a, Q: Ord, K: 'a + Clone + Ord + Borrow<Q>, const SIZE: usize>(
+    Iter<'a, Q, K, (), SIZE>,
+);
 
-impl<'a, Q, K> Iterator for SetIter<'a, Q, K>
+impl<'a, Q, K, const SIZE: usize> Iterator for SetIter<'a, Q, K, SIZE>
 where
     Q: Ord,
     K: 'a + Clone + Ord + Borrow<Q>,
@@ -122,7 +137,7 @@ where
     }
 }
 
-impl<'a, Q, K> DoubleEndedIterator for SetIter<'a, Q, K>
+impl<'a, Q, K, const SIZE: usize> DoubleEndedIterator for SetIter<'a, Q, K, SIZE>
 where
     Q: Ord,
     K: 'a + Clone + Ord + Borrow<Q>,
@@ -132,18 +147,18 @@ where
     }
 }
 
-impl<'a, K> IntoIterator for &'a Set<K>
+impl<'a, K, const SIZE: usize> IntoIterator for &'a Set<K, SIZE>
 where
     K: 'a + Borrow<K> + Ord + Clone,
 {
     type Item = &'a K;
-    type IntoIter = SetIter<'a, K, K>;
+    type IntoIter = SetIter<'a, K, K, SIZE>;
     fn into_iter(self) -> Self::IntoIter {
         SetIter(self.0.into_iter())
     }
 }
 
-impl<K> Set<K>
+impl<K, const SIZE: usize> Set<K, SIZE>
 where
     K: Ord + Clone,
 {
@@ -153,7 +168,7 @@ where
     }
 
     /// Create a weak reference to this set
-    pub fn downgrade(&self) -> WeakSetRef<K> {
+    pub fn downgrade(&self) -> WeakSetRef<K, SIZE> {
         WeakSetRef(self.0.downgrade())
     }
 
@@ -302,7 +317,7 @@ where
     ///     assert!(s2.contains(&i));
     /// }
     /// ```
-    pub fn union(&self, other: &Set<K>) -> Self {
+    pub fn union(&self, other: &Set<K, SIZE>) -> Self {
         Set(Tree::union(&self.0, &other.0, &mut |_, (), ()| Some(())))
     }
 
@@ -326,7 +341,7 @@ where
     ///         assert!(s2.contains(&i));
     ///     }
     /// }
-    pub fn intersect(&self, other: &Set<K>) -> Self {
+    pub fn intersect(&self, other: &Set<K, SIZE>) -> Self {
         Set(Tree::intersect(
             &self.0,
             &other.0,
@@ -355,7 +370,7 @@ where
     ///     assert!(s2.contains(&i));
     /// }
     /// ```
-    pub fn diff(&self, other: &Set<K>) -> Self
+    pub fn diff(&self, other: &Set<K, SIZE>) -> Self
     where
         K: Debug,
     {
@@ -375,7 +390,7 @@ where
     /// tree, and M is the number of elements you examine.
     ///
     /// if lbound >= ubound the returned iterator will be empty
-    pub fn range<'a, Q>(&'a self, lbound: Bound<Q>, ubound: Bound<Q>) -> SetIter<'a, Q, K>
+    pub fn range<'a, Q>(&'a self, lbound: Bound<Q>, ubound: Bound<Q>) -> SetIter<'a, Q, K, SIZE>
     where
         Q: Ord,
         K: 'a + Clone + Ord + Borrow<Q>,
@@ -384,7 +399,7 @@ where
     }
 }
 
-impl<K> Set<K>
+impl<K, const SIZE: usize> Set<K, SIZE>
 where
     K: Ord + Clone + Debug,
 {
