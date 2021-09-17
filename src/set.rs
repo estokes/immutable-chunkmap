@@ -15,10 +15,10 @@ use std::{
 /// # Examples
 /// ```
 /// use std::string::String;
-/// use self::immutable_chunkmap::set::Set;
+/// use self::immutable_chunkmap::set::SetM;
 ///
 /// let m =
-///    Set::new()
+///    SetM::new()
 ///    .insert(String::from("1")).0
 ///    .insert(String::from("2")).0
 ///    .insert(String::from("3")).0;
@@ -189,12 +189,12 @@ where
     ///
     /// #Examples
     ///```
-    /// use self::immutable_chunkmap::set::Set;
+    /// use self::immutable_chunkmap::set::SetM;
     ///
     /// let mut v = vec![1, 10, -12, 44, 50];
     /// v.sort_unstable();
     ///
-    /// let m = Set::new().insert_many(v.iter().map(|k| *k));
+    /// let m = SetM::new().insert_many(v.iter().map(|k| *k));
     ///
     /// for k in &v {
     ///   assert_eq!(m.contains(k), true)
@@ -309,10 +309,10 @@ where
     /// # Examples
     /// ```
     /// use std::iter::FromIterator;
-    /// use self::immutable_chunkmap::set::Set;
+    /// use self::immutable_chunkmap::set::SetM;
     ///
-    /// let s0 = Set::from_iter(0..10);
-    /// let s1 = Set::from_iter(5..15);
+    /// let s0 = SetM::from_iter(0..10);
+    /// let s1 = SetM::from_iter(5..15);
     /// let s2 = s0.union(&s1);
     /// for i in 0..15 {
     ///     assert!(s2.contains(&i));
@@ -328,10 +328,10 @@ where
     ///
     /// # Examples
     /// use std::iter::FromIterator;
-    /// use self::immutable_chunkmap::set::Set;
+    /// use self::immutable_chunkmap::set::SetM;
     ///
-    /// let s0 = Set::from_iter(0..100);
-    /// let s1 = Set::from_iter(20..50);
+    /// let s0 = SetM::from_iter(0..100);
+    /// let s1 = SetM::from_iter(20..50);
     /// let s2 = s0.intersect(&s1);
     ///
     /// assert!(s2.len() == 30);
@@ -357,10 +357,10 @@ where
     /// # Examples
     /// ```
     /// use std::iter::FromIterator;
-    /// use self::immutable_chunkmap::set::Set;
+    /// use self::immutable_chunkmap::set::SetM;
     ///
-    /// let s0 = Set::from_iter(0..100);
-    /// let s1 = Set::from_iter(0..50);
+    /// let s0 = SetM::from_iter(0..100);
+    /// let s1 = SetM::from_iter(0..50);
     /// let s2 = s0.diff(&s1);
     ///
     /// assert!(s2.len() == 50);
