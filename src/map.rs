@@ -51,21 +51,21 @@ use std::{
 pub struct Map<K: Ord + Clone, V: Clone, const SIZE: usize>(Tree<K, V, SIZE>);
 
 /// Map using a smaller chunk size, faster to update, slower to search
-pub type MapS<K, V> = Map<K, V, {DEFAULT_SIZE / 4}>;
+pub type MapS<K, V> = Map<K, V, {DEFAULT_SIZE / 2}>;
 
 /// Map using the default chunk size, a good balance of update and search
 pub type MapM<K, V> = Map<K, V, DEFAULT_SIZE>;
 
 /// Map using a larger chunk size, faster to search, slower to update
-pub type MapL<K, V> = Map<K, V, {DEFAULT_SIZE * 4}>;
+pub type MapL<K, V> = Map<K, V, {DEFAULT_SIZE * 2}>;
 
 /// A weak reference to a map.
 #[derive(Clone)]
 pub struct WeakMapRef<K: Ord + Clone, V: Clone, const SIZE: usize>(WeakTree<K, V, SIZE>);
 
-pub type WeakMapRefS<K, V> = WeakMapRef<K, V, {DEFAULT_SIZE / 4}>;
+pub type WeakMapRefS<K, V> = WeakMapRef<K, V, {DEFAULT_SIZE / 2}>;
 pub type WeakMapRefM<K, V> = WeakMapRef<K, V, DEFAULT_SIZE>;
-pub type WeakMapRefL<K, V> = WeakMapRef<K, V, {DEFAULT_SIZE * 4}>;
+pub type WeakMapRefL<K, V> = WeakMapRef<K, V, {DEFAULT_SIZE * 2}>;
 
 impl<K, V, const SIZE: usize> WeakMapRef<K, V, SIZE>
 where

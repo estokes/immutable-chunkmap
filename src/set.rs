@@ -34,13 +34,13 @@ use std::{
 pub struct Set<K: Ord + Clone, const SIZE: usize>(Tree<K, (), SIZE>);
 
 /// set with a smaller chunk size, faster to update, slower to search
-pub type SetS<K> = Set<K, {DEFAULT_SIZE / 4}>;
+pub type SetS<K> = Set<K, {DEFAULT_SIZE / 2}>;
 
 /// set with the default chunk size, a good balance of search and update performance
 pub type SetM<K> = Set<K, DEFAULT_SIZE>;
 
 /// set with a larger chunk size, faster to search, slower to update
-pub type SetL<K> = Set<K, {DEFAULT_SIZE * 4}>;
+pub type SetL<K> = Set<K, {DEFAULT_SIZE * 2}>;
 
 #[derive(Clone)]
 pub struct WeakSetRef<K: Ord + Clone, const SIZE: usize>(WeakTree<K, (), SIZE>);
