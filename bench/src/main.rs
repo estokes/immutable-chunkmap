@@ -1,6 +1,5 @@
 mod utils;
 use arcstr::ArcStr;
-use smallvec::SmallVec;
 use std::{
     env, mem, thread,
     borrow::Borrow,
@@ -12,7 +11,7 @@ use std::{
     sync::{Arc, RwLock, mpsc::channel},
     time::{Duration, Instant},
 };
-use immutable_chunkmap::map::Map;
+use immutable_chunkmap::map::{Map, DEFAULT_SIZE};
 use crate::utils::Rand;
 
 const MIN_ITER: usize = 1000000;
@@ -233,9 +232,9 @@ where K: Hash + Ord + Clone + Rand + Send + Sync,
     fn len(&self) -> usize { self.len() }
 }
 
-struct CMWrap<K: Ord + Clone, V: Clone>(Map<K, V>);
+struct CMWrap<K: Ord + Clone, V: Clone, const SIZE: usize>(Map<K, V, SIZE>);
 
-impl<K, V> Collection<K, V> for CMWrap<K, V>
+impl<K, V, const SIZE: usize> Collection<K, V> for CMWrap<K, V, SIZE>
 where K: Hash + Ord + Clone + Rand + Send + Sync,
       V: Hash + Ord + Clone + Rand + Send + Sync
 {
@@ -254,15 +253,15 @@ where K: Hash + Ord + Clone + Rand + Send + Sync,
     fn get<Q>(&self, k: &Q) -> Option<&V> where Q: Ord + Hash + Clone, K: Borrow<Q> {
         self.0.get(k)
     }
-    fn merge_into(&mut self, other: CMWrap<K, V>) {
+    fn merge_into(&mut self, other: CMWrap<K, V, SIZE>) {
         self.0 = self.0.union(&other.0, |_, _, v| Some(v.clone()))
     }
     fn len(&self) -> usize { self.0.len() }
 }
 
-struct COWrap<K: Ord + Clone, V: Clone>(Map<K, V>);
+struct COWrap<K: Ord + Clone, V: Clone, const SIZE: usize>(Map<K, V, SIZE>);
 
-impl<K, V> Collection<K, V> for COWrap<K, V>
+impl<K, V, const SIZE: usize> Collection<K, V> for COWrap<K, V, SIZE>
 where K: Hash + Ord + Clone + Rand + Send + Sync,
       V: Hash + Ord + Clone + Rand + Send + Sync
 {
@@ -281,7 +280,7 @@ where K: Hash + Ord + Clone + Rand + Send + Sync,
     fn get<Q>(&self, k: &Q) -> Option<&V> where Q: Ord + Hash + Clone, K: Borrow<Q> {
         self.0.get(k)
     }
-    fn merge_into(&mut self, other: COWrap<K, V>) {
+    fn merge_into(&mut self, other: COWrap<K, V, SIZE>) {
         self.0 = self.0.union(&other.0, |_, _, v| Some(v.clone()))
     }
     fn len(&self) -> usize { self.0.len() }
@@ -300,10 +299,18 @@ fn main() {
     else {
         let size = args[3].parse::<usize>().unwrap();
         match (args[1].as_ref(), args[2].as_ref()) {
-            ("cm", "ptr") => Bench::<CMWrap<P, P>, P, P>::run(size),
-            ("cm", "str") => Bench::<CMWrap<S, S>, S, S>::run(size),
-            ("cow", "ptr") => Bench::<COWrap<P, P>, P, P>::run(size),
-            ("cow", "str") => Bench::<COWrap<S, S>, S, S>::run(size),
+            ("cm", "ptr") => Bench::<CMWrap<P, P, DEFAULT_SIZE>, P, P>::run(size),
+            ("cm", "str") => Bench::<CMWrap<S, S, DEFAULT_SIZE>, S, S>::run(size),
+            ("cmS", "ptr") => Bench::<CMWrap<P, P, {DEFAULT_SIZE / 4}>, P, P>::run(size),
+            ("cmS", "str") => Bench::<CMWrap<S, S, {DEFAULT_SIZE / 4}>, S, S>::run(size),
+            ("cmL", "ptr") => Bench::<CMWrap<P, P, {DEFAULT_SIZE * 4}>, P, P>::run(size),
+            ("cmL", "str") => Bench::<CMWrap<S, S, {DEFAULT_SIZE * 4}>, S, S>::run(size),
+            ("cow", "ptr") => Bench::<COWrap<P, P, DEFAULT_SIZE>, P, P>::run(size),
+            ("cow", "str") => Bench::<COWrap<S, S, DEFAULT_SIZE>, S, S>::run(size),
+            ("cowS", "ptr") => Bench::<COWrap<P, P, {DEFAULT_SIZE / 4}>, P, P>::run(size),
+            ("cowS", "str") => Bench::<COWrap<S, S, {DEFAULT_SIZE / 4}>, S, S>::run(size),
+            ("cowL", "ptr") => Bench::<COWrap<P, P, {DEFAULT_SIZE * 4}>, P, P>::run(size),
+            ("cowL", "str") => Bench::<COWrap<S, S, {DEFAULT_SIZE * 4}>, S, S>::run(size),
             ("btm", "ptr") => Bench::<BTreeMap<P, P>, P, P>::run(size),
             ("btm", "str") => Bench::<BTreeMap<S, S>, S, S>::run(size),
             ("hm", "ptr") => Bench::<HashMap<P, P>, P, P>::run(size),
