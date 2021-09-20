@@ -27,7 +27,7 @@ pub struct HeightAndSize {
 
 #[derive(Clone, Debug)]
 pub(crate) struct Node<K: Ord + Clone, V: Clone, const SIZE: usize> {
-    elts: Arc<Chunk<K, V, SIZE>>,
+    elts: Chunk<K, V, SIZE>,
     min_key: K,
     max_key: K,
     left: Tree<K, V, SIZE>,
@@ -260,7 +260,7 @@ where
             let (visited, current) = self.stack[top];
             if visited {
                 if self.any_elts_in_bounds(current) {
-                    self.elts = Some((&(*current.elts)).into_iter());
+                    self.elts = Some((&current.elts).into_iter());
                 }
                 self.stack.pop();
                 match current.right {
@@ -323,7 +323,7 @@ where
             let (visited, current) = self.stack_rev[top];
             if visited {
                 if self.any_elts_in_bounds(current) {
-                    self.elts_rev = Some((&(*current.elts)).into_iter());
+                    self.elts_rev = Some((&current.elts).into_iter());
                 }
                 self.stack_rev.pop();
                 match current.left {
@@ -432,14 +432,14 @@ where
         }
     }
 
-    fn add_min_elts(&self, elts: &Arc<Chunk<K, V, SIZE>>) -> Self {
+    fn add_min_elts(&self, elts: &Chunk<K, V, SIZE>) -> Self {
         match self {
             Tree::Empty => Tree::create(&Tree::Empty, elts.clone(), &Tree::Empty),
             Tree::Node(ref n) => Tree::bal(&n.left.add_min_elts(elts), &n.elts, &n.right),
         }
     }
 
-    fn add_max_elts(&self, elts: &Arc<Chunk<K, V, SIZE>>) -> Self {
+    fn add_max_elts(&self, elts: &Chunk<K, V, SIZE>) -> Self {
         match self {
             Tree::Empty => Tree::create(&Tree::Empty, elts.clone(), &Tree::Empty),
             Tree::Node(ref n) => Tree::bal(&n.left, &n.elts, &n.right.add_max_elts(elts)),
@@ -451,7 +451,7 @@ where
     // a balanced tree.
     fn join(
         l: &Tree<K, V, SIZE>,
-        elts: &Arc<Chunk<K, V, SIZE>>,
+        elts: &Chunk<K, V, SIZE>,
         r: &Tree<K, V, SIZE>,
     ) -> Self {
         match (l, r) {
@@ -475,7 +475,7 @@ where
     /// if there is a possible intersection return the intersecting
     /// chunk. In the case of an intersection there may also be an
     /// intersection at the left and/or right nodes.
-    fn split(&self, vmin: &K, vmax: &K) -> (Self, Option<Arc<Chunk<K, V, SIZE>>>, Self) {
+    fn split(&self, vmin: &K, vmax: &K) -> (Self, Option<Chunk<K, V, SIZE>>, Self) {
         match self {
             Tree::Empty => (Tree::Empty, None, Tree::Empty),
             Tree::Node(ref n) => {
@@ -666,7 +666,7 @@ where
 
     fn create(
         l: &Tree<K, V, SIZE>,
-        elts: Arc<Chunk<K, V, SIZE>>,
+        elts: Chunk<K, V, SIZE>,
         r: &Tree<K, V, SIZE>,
     ) -> Self {
         let (min_key, max_key) = elts.min_max_key().unwrap();
@@ -690,11 +690,7 @@ where
         (hl <= hr + 1) && (hr <= hl + 1)
     }
 
-    fn bal(
-        l: &Tree<K, V, SIZE>,
-        elts: &Arc<Chunk<K, V, SIZE>>,
-        r: &Tree<K, V, SIZE>,
-    ) -> Self {
+    fn bal(l: &Tree<K, V, SIZE>, elts: &Chunk<K, V, SIZE>, r: &Tree<K, V, SIZE>) -> Self {
         let (hl, hr) = (l.height(), r.height());
         if hl > hr + 1 {
             match *l {
@@ -755,11 +751,9 @@ where
             return self.clone();
         }
         match self {
-            &Tree::Empty => Tree::create(
-                &Tree::Empty,
-                Arc::new(Chunk::create_with(chunk, f)),
-                &Tree::Empty,
-            ),
+            &Tree::Empty => {
+                Tree::create(&Tree::Empty, Chunk::create_with(chunk, f), &Tree::Empty)
+            }
             &Tree::Node(ref tn) => {
                 let leaf = match (&tn.left, &tn.right) {
                     (&Tree::Empty, &Tree::Empty) => true,
@@ -846,11 +840,8 @@ where
             Tree::Empty => match f(q, d, None) {
                 None => None,
                 Some((k, v)) => {
-                    *self = Tree::create(
-                        &Tree::Empty,
-                        Arc::new(Chunk::singleton(k, v)),
-                        &Tree::Empty,
-                    );
+                    *self =
+                        Tree::create(&Tree::Empty, Chunk::singleton(k, v), &Tree::Empty);
                     None
                 }
             },
@@ -860,7 +851,7 @@ where
                     (&Tree::Empty, &Tree::Empty) => true,
                     (_, _) => false,
                 };
-                match Arc::make_mut(&mut tn.elts).update_mut(q, d, leaf, f) {
+                match tn.elts.update_mut(q, d, leaf, f) {
                     MutUpdate::UpdateLeft(k, d) => {
                         let prev = tn.left.update_cow(k, d, f);
                         if !Tree::in_bal(&tn.left, &tn.right) {
@@ -921,11 +912,7 @@ where
             Tree::Empty => match f(q, d, None) {
                 None => (self.clone(), None),
                 Some((k, v)) => (
-                    Tree::create(
-                        &Tree::Empty,
-                        Arc::new(Chunk::singleton(k, v)),
-                        &Tree::Empty,
-                    ),
+                    Tree::create(&Tree::Empty, Chunk::singleton(k, v), &Tree::Empty),
                     None,
                 ),
             },
@@ -952,10 +939,7 @@ where
                             if elts.len() == 0 {
                                 (Tree::concat(&tn.left, &tn.right), previous)
                             } else {
-                                (
-                                    Tree::create(&tn.left, Arc::new(elts), &tn.right),
-                                    previous,
-                                )
+                                (Tree::create(&tn.left, elts, &tn.right), previous)
                             }
                         }
                         Some((ovk, ovv)) => {
@@ -980,7 +964,7 @@ where
         self.update_cow(k, v, &mut |k, v, _| Some((k, v)))
     }
 
-    fn min_elts<'a>(&'a self) -> Option<&'a Arc<Chunk<K, V, SIZE>>> {
+    fn min_elts<'a>(&'a self) -> Option<&'a Chunk<K, V, SIZE>> {
         match self {
             &Tree::Empty => None,
             &Tree::Node(ref tn) => match tn.left {
@@ -1027,7 +1011,7 @@ where
                     if elts.len() == 0 {
                         (Tree::concat(&tn.left, &tn.right), Some(p))
                     } else {
-                        (Tree::create(&tn.left, Arc::new(elts), &tn.right), Some(p))
+                        (Tree::create(&tn.left, elts, &tn.right), Some(p))
                     }
                 }
                 Loc::InLeft => {
@@ -1053,7 +1037,7 @@ where
                 match tn.elts.get(k) {
                     Loc::NotPresent(_) => None,
                     Loc::Here(i) => {
-                        let (_, p) = Arc::make_mut(&mut tn.elts).remove_elt_at_mut(i);
+                        let (_, p) = tn.elts.remove_elt_at_mut(i);
                         if tn.elts.len() == 0 {
                             *self = Tree::concat(&tn.left, &tn.right);
                             Some(p)
