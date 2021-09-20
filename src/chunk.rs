@@ -405,7 +405,8 @@ where
                     None => None,
                     Some((k, v)) => {
                         if inner.keys.len() == SIZE {
-                            let (ok, ov) = (inner.keys.pop().unwrap(), inner.vals.pop().unwrap());
+                            let (ok, ov) =
+                                (inner.keys.pop().unwrap(), inner.vals.pop().unwrap());
                             inner.keys.push(k);
                             inner.vals.push(v);
                             Some((ok, ov))
@@ -512,7 +513,8 @@ where
                 Some((k, v)) => {
                     let inner = Arc::make_mut(&mut self.0);
                     let overflow = if inner.keys.len() == SIZE {
-                        let (ok, ov) = (inner.keys.pop().unwrap(), inner.vals.pop().unwrap());
+                        let (ok, ov) =
+                            (inner.keys.pop().unwrap(), inner.vals.pop().unwrap());
                         inner.keys.insert(i, k);
                         inner.vals.insert(i, v);
                         Some((ok, ov))
@@ -589,33 +591,25 @@ where
 
     pub(crate) fn remove_elt_at(&self, i: usize) -> Self {
         let mut elts = Chunk::empty();
-        let inner = Arc::make_mut(&mut elts.0);
-        if inner.keys.len() == 0 {
+        let t = Arc::make_mut(&mut elts.0);
+        if self.keys.len() == 0 {
             panic!("can't remove from an empty chunk")
         } else if self.len() == 1 {
             assert_eq!(i, 0);
             elts
         } else if i == 0 {
-            inner.keys.extend(self.keys[1..self.len()].iter().cloned());
-            inner.vals.extend(self.vals[1..self.len()].iter().cloned());
+            t.keys.extend(self.keys[1..self.len()].iter().cloned());
+            t.vals.extend(self.vals[1..self.len()].iter().cloned());
             elts
-        } else if i == inner.keys.len() - 1 {
-            inner
-                .keys
-                .extend(self.keys[0..self.len() - 1].iter().cloned());
-            inner
-                .vals
-                .extend(self.vals[0..self.len() - 1].iter().cloned());
+        } else if i == self.keys.len() - 1 {
+            t.keys.extend(self.keys[0..self.len() - 1].iter().cloned());
+            t.vals.extend(self.vals[0..self.len() - 1].iter().cloned());
             elts
         } else {
-            inner.keys.extend(self.keys[0..i].iter().cloned());
-            inner
-                .keys
-                .extend(self.keys[i + 1..self.len()].iter().cloned());
-            inner.vals.extend(self.vals[0..i].iter().cloned());
-            inner
-                .vals
-                .extend(self.vals[i + 1..self.len()].iter().cloned());
+            t.keys.extend(self.keys[0..i].iter().cloned());
+            t.keys.extend(self.keys[i + 1..self.len()].iter().cloned());
+            t.vals.extend(self.vals[0..i].iter().cloned());
+            t.vals.extend(self.vals[i + 1..self.len()].iter().cloned());
             elts
         }
     }
