@@ -7,7 +7,7 @@ use std::{
     default::Default,
     fmt::{self, Debug, Formatter},
     hash::{Hash, Hasher},
-    iter,
+    iter, mem,
     ops::{Bound, Index},
     slice,
     sync::{Arc, Weak},
@@ -459,9 +459,9 @@ where
             (_, Tree::Empty) => l.add_max_elts(elts),
             (Tree::Node(ref ln), Tree::Node(ref rn)) => {
                 let (ln_height, rn_height) = (ln.height(), rn.height());
-                if ln_height > rn_height + 2 {
+                if ln_height > rn_height + 1 {
                     Tree::bal(&ln.left, &ln.elts, &Tree::join(&ln.right, elts, r))
-                } else if rn_height > ln_height + 2 {
+                } else if rn_height > ln_height + 1 {
                     Tree::bal(&Tree::join(l, elts, &rn.left), &rn.elts, &rn.right)
                 } else {
                     Tree::create(l, elts.clone(), r)
@@ -690,6 +690,39 @@ where
         (hl <= hr + 1) && (hr <= hl + 1)
     }
 
+    fn compact(self) -> Self {
+        match self {
+            Tree::Empty => self,
+            Tree::Node(ref tn) => {
+                let len = tn.elts.len();
+                if len > SIZE >> 1 {
+                    self
+                } else {
+                    match tn.right.min_elts() {
+                        None => self,
+                        Some(chunk) => {
+                            let n = SIZE - len;
+                            let to_add =
+                                chunk.into_iter().map(|(k, v)| (k.clone(), v.clone()));
+                            let overflow = chunk
+                                .into_iter()
+                                .skip(n)
+                                .map(|(k, v)| (k.clone(), v.clone()));
+                            let elts = tn.elts.append(to_add);
+                            let t =
+                                Tree::bal(&tn.left, &elts, &tn.right.remove_min_elts());
+                            if n >= chunk.len() {
+                                t
+                            } else {
+                                t.insert_many(overflow)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     fn bal(l: &Tree<K, V, SIZE>, elts: &Chunk<K, V, SIZE>, r: &Tree<K, V, SIZE>) -> Self {
         let (hl, hr) = (l.height(), r.height());
         if hl > hr + 1 {
@@ -769,7 +802,7 @@ where
                         let l = tn.left.update_chunk(update_left, f);
                         let r = tn.right.insert_chunk(overflow_right);
                         let r = r.update_chunk(update_right, f);
-                        Tree::bal(&l, &Arc::new(elts), &r)
+                        Tree::bal(&l, &Arc::new(elts), &r).compact()
                     }
                     UpdateChunk::Removed {
                         not_done,
@@ -783,11 +816,11 @@ where
                     }
                     UpdateChunk::UpdateLeft(chunk) => {
                         let l = tn.left.update_chunk(chunk, f);
-                        Tree::bal(&l, &tn.elts, &tn.right)
+                        Tree::bal(&l, &tn.elts, &tn.right).compact()
                     }
                     UpdateChunk::UpdateRight(chunk) => {
                         let r = tn.right.update_chunk(chunk, f);
-                        Tree::bal(&tn.left, &tn.elts, &r)
+                        Tree::bal(&tn.left, &tn.elts, &r).compact()
                     }
                 }
             }
@@ -855,7 +888,7 @@ where
                     MutUpdate::UpdateLeft(k, d) => {
                         let prev = tn.left.update_cow(k, d, f);
                         if !Tree::in_bal(&tn.left, &tn.right) {
-                            *self = Tree::bal(&tn.left, &tn.elts, &tn.right);
+                            *self = Tree::bal(&tn.left, &tn.elts, &tn.right).compact();
                         } else {
                             tn.mutated();
                         }
@@ -864,7 +897,7 @@ where
                     MutUpdate::UpdateRight(k, d) => {
                         let prev = tn.right.update_cow(k, d, f);
                         if !Tree::in_bal(&tn.left, &tn.right) {
-                            *self = Tree::bal(&tn.left, &tn.elts, &tn.right);
+                            *self = Tree::bal(&tn.left, &tn.elts, &tn.right).compact();
                         } else {
                             tn.mutated();
                         }
@@ -884,7 +917,8 @@ where
                             let _ = tn.right.insert_cow(ovk, ovv);
                             if tn.elts.len() > 0 {
                                 if !Tree::in_bal(&tn.left, &tn.right) {
-                                    *self = Tree::bal(&tn.left, &tn.elts, &tn.right);
+                                    *self = Tree::bal(&tn.left, &tn.elts, &tn.right)
+                                        .compact();
                                     previous
                                 } else {
                                     tn.mutated();
@@ -924,11 +958,11 @@ where
                 match tn.elts.update(q, d, leaf, f) {
                     Update::UpdateLeft(k, d) => {
                         let (l, prev) = tn.left.update(k, d, f);
-                        (Tree::bal(&l, &tn.elts, &tn.right), prev)
+                        (Tree::bal(&l, &tn.elts, &tn.right).compact(), prev)
                     }
                     Update::UpdateRight(k, d) => {
                         let (r, prev) = tn.right.update(k, d, f);
-                        (Tree::bal(&tn.left, &tn.elts, &r), prev)
+                        (Tree::bal(&tn.left, &tn.elts, &r).compact(), prev)
                     }
                     Update::Updated {
                         elts,
@@ -947,7 +981,10 @@ where
                             if elts.len() == 0 {
                                 (Tree::concat(&tn.left, &r), previous)
                             } else {
-                                (Tree::bal(&tn.left, &Arc::new(elts), &r), previous)
+                                (
+                                    Tree::bal(&tn.left, &Arc::new(elts), &r).compact(),
+                                    previous,
+                                )
                             }
                         }
                     },
@@ -966,8 +1003,8 @@ where
 
     fn min_elts<'a>(&'a self) -> Option<&'a Chunk<K, V, SIZE>> {
         match self {
-            &Tree::Empty => None,
-            &Tree::Node(ref tn) => match tn.left {
+            Tree::Empty => None,
+            Tree::Node(ref tn) => match tn.left {
                 Tree::Empty => Some(&tn.elts),
                 Tree::Node(_) => tn.left.min_elts(),
             },
@@ -976,8 +1013,8 @@ where
 
     fn remove_min_elts(&self) -> Self {
         match self {
-            &Tree::Empty => panic!("remove min elt"),
-            &Tree::Node(ref tn) => match tn.left {
+            Tree::Empty => panic!("remove min elt"),
+            Tree::Node(ref tn) => match tn.left {
                 Tree::Empty => tn.right.clone(),
                 Tree::Node(_) => {
                     Tree::bal(&tn.left.remove_min_elts(), &tn.elts, &tn.right)
@@ -988,8 +1025,8 @@ where
 
     fn concat(l: &Tree<K, V, SIZE>, r: &Tree<K, V, SIZE>) -> Tree<K, V, SIZE> {
         match (l, r) {
-            (&Tree::Empty, _) => r.clone(),
-            (_, &Tree::Empty) => l.clone(),
+            (Tree::Empty, _) => r.clone(),
+            (_, Tree::Empty) => l.clone(),
             (_, _) => {
                 let elts = r.min_elts().unwrap();
                 Tree::bal(l, elts, &r.remove_min_elts())
@@ -1011,16 +1048,16 @@ where
                     if elts.len() == 0 {
                         (Tree::concat(&tn.left, &tn.right), Some(p))
                     } else {
-                        (Tree::create(&tn.left, elts, &tn.right), Some(p))
+                        (Tree::create(&tn.left, elts, &tn.right).compact(), Some(p))
                     }
                 }
                 Loc::InLeft => {
                     let (l, p) = tn.left.remove(k);
-                    (Tree::bal(&l, &tn.elts, &tn.right), p)
+                    (Tree::bal(&l, &tn.elts, &tn.right).compact(), p)
                 }
                 Loc::InRight => {
                     let (r, p) = tn.right.remove(k);
-                    (Tree::bal(&tn.left, &tn.elts, &r), p)
+                    (Tree::bal(&tn.left, &tn.elts, &r).compact(), p)
                 }
             },
         }
@@ -1043,13 +1080,14 @@ where
                             Some(p)
                         } else {
                             tn.mutated();
+                            *self = mem::replace(self, Tree::Empty).compact();
                             Some(p)
                         }
                     }
                     Loc::InLeft => {
                         let p = tn.left.remove_cow(k);
                         if !Tree::in_bal(&tn.left, &tn.right) {
-                            *self = Tree::bal(&tn.left, &tn.elts, &tn.right);
+                            *self = Tree::bal(&tn.left, &tn.elts, &tn.right).compact();
                         } else {
                             tn.mutated()
                         }
@@ -1058,7 +1096,7 @@ where
                     Loc::InRight => {
                         let p = tn.right.remove_cow(k);
                         if !Tree::in_bal(&tn.left, &tn.right) {
-                            *self = Tree::bal(&tn.left, &tn.elts, &tn.right)
+                            *self = Tree::bal(&tn.left, &tn.elts, &tn.right).compact();
                         } else {
                             tn.mutated()
                         }

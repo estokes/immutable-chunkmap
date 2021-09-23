@@ -625,6 +625,18 @@ where
         }
     }
 
+    pub(crate) fn append<I: IntoIterator<Item = (K, V)>>(&self, other: I) -> Self {
+        let mut elts = self.clone();
+        let inner = Arc::make_mut(&mut elts.0);
+        for (k, v) in other {
+            if inner.keys.len() < SIZE {
+                inner.keys.push(k);
+                inner.vals.push(v);
+            }
+        }
+        elts
+    }
+    
     pub(crate) fn min_max_key(&self) -> Option<(K, K)> {
         if self.len() == 0 {
             None
