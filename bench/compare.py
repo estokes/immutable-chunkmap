@@ -25,7 +25,7 @@ def compare(k, res0, res1, cmp0, cmp1):
     
 parser = argparse.ArgumentParser(description = "compare benchmarks")
 parser.add_argument('data', nargs=2, metavar = 'FILE')
-parser.add_argument('compare', nargs=2, choices = ['cm', 'hm', 'btm', 'oc'])
+parser.add_argument('compare', nargs=2, choices = ['cm', 'cow', 'hm', 'btm', 'oc'])
 args = parser.parse_args()
 
 res0 = load_results(args.data[0])
