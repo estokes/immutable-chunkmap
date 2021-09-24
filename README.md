@@ -18,13 +18,13 @@ an Intel Core i7 8550U under Linux with a locked frequency of 1.8 GHz.
 * BTreeMap: from the Rust standard library
 * HashMap: from the Rust standard library
 
-![alt text](bench/charts/intel_corei7-8550U/usize_get.png "average lookup time")
+![alt text](bench/charts/intel_corei7-8550U_arrayvec_compact/usize_get.png "average lookup time")
 
 Chunkmap is very close to BTreeMap for random accesses using keys
 without hashing. Obviously if you don't need ordered data use a
 HashMap.
 
-![alt text](bench/charts/intel_corei7-8550U/usize_insert.png "average insert time")
+![alt text](bench/charts/intel_corei7-8550U_arrayvec_compact/usize_insert.png "average insert time")
 
 Insertion performance, while not as good as most mutable data
 structures, is not awful when using COW mode exclusively. In the case
@@ -33,7 +33,7 @@ using insert_many. In some cases, e.g. building a map from scratch
 using sorted inputs this can be faster than even a HashMap. The below
 case is more typical, adding 10% of a data set to the map.
 
-![alt text](bench/charts/intel_corei7-8550U/usize_insert_many.png "insert many")
+![alt text](bench/charts/intel_corei7-8550U_arrayvec_compact/usize_insert_many.png "insert many")
 
 A note about the COW bar on this graph. It represents using only
 mutable COW operations on the map, it is perfectly possible to use an
