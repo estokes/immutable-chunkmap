@@ -1,6 +1,6 @@
 [package]
 name = "immutable-chunkmap"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["Eric Stokes <letaris@gmail.com>"]
 publish = true
 description = "A fast immutable map and set with batch insert and update methods, COW operations, and big O efficient implementations of set and merge operations"
