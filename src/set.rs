@@ -1,5 +1,5 @@
-pub use crate::chunk::DEFAULT_SIZE;
 use crate::avl::{Iter, Tree, WeakTree};
+pub use crate::chunk::DEFAULT_SIZE;
 use std::{
     borrow::Borrow,
     cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd},
@@ -9,6 +9,17 @@ use std::{
     iter::FromIterator,
     ops::Bound,
 };
+
+#[cfg(feature = "serde")]
+use serde::{
+    de::{SeqAccess, Visitor},
+    ser::SerializeSeq,
+    Deserialize, Deserializer, Serialize, Serializer,
+};
+
+#[cfg(feature = "serde")]
+use std::marker::PhantomData;
+
 /// This set uses a similar strategy to BTreeSet to ensure cache
 /// efficient performance on modern hardware while still providing
 /// log(N) get, insert, and remove operations.
@@ -34,13 +45,13 @@ use std::{
 pub struct Set<K: Ord + Clone, const SIZE: usize>(Tree<K, (), SIZE>);
 
 /// set with a smaller chunk size, faster to update, slower to search
-pub type SetS<K> = Set<K, {DEFAULT_SIZE / 2}>;
+pub type SetS<K> = Set<K, { DEFAULT_SIZE / 2 }>;
 
 /// set with the default chunk size, a good balance of search and update performance
 pub type SetM<K> = Set<K, DEFAULT_SIZE>;
 
 /// set with a larger chunk size, faster to search, slower to update
-pub type SetL<K> = Set<K, {DEFAULT_SIZE * 2}>;
+pub type SetL<K> = Set<K, { DEFAULT_SIZE * 2 }>;
 
 #[derive(Clone)]
 pub struct WeakSetRef<K: Ord + Clone, const SIZE: usize>(WeakTree<K, (), SIZE>);
@@ -157,6 +168,35 @@ where
     fn into_iter(self) -> Self::IntoIter {
         SetIter(self.0.into_iter())
     }
+}
+
+#[cfg(feature = "serde")]
+impl<V, const SIZE: usize> Serialize for Set<V, SIZE>
+where
+    V: Serialize + Clone + Ord,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut seq = serializer.serialize_seq(Some(self.len()))?;
+        for v in self {
+            seq.serialize_element(v)?
+        }
+        seq.end()
+    }
+}
+
+#[cfg(feature = "serde")]
+struct SetVisitor<V: Clone + Ord, const SIZE: usize> {
+    marker: PhantomData<fn() -> Set<V, SIZE>>,
+}
+
+#[cfg(feature = "serde")]
+impl<'a, V, const SIZE: usize> Visitor<'a> for SetVisitor<V, SIZE>
+   where V: Deserialize<'a> + Clone + Ord
+{
+    
 }
 
 impl<K, const SIZE: usize> Set<K, SIZE>
@@ -391,7 +431,11 @@ where
     /// tree, and M is the number of elements you examine.
     ///
     /// if lbound >= ubound the returned iterator will be empty
-    pub fn range<'a, Q>(&'a self, lbound: Bound<Q>, ubound: Bound<Q>) -> SetIter<'a, Q, K, SIZE>
+    pub fn range<'a, Q>(
+        &'a self,
+        lbound: Bound<Q>,
+        ubound: Bound<Q>,
+    ) -> SetIter<'a, Q, K, SIZE>
     where
         Q: Ord,
         K: 'a + Clone + Ord + Borrow<Q>,

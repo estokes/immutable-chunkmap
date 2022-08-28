@@ -189,7 +189,7 @@ where
 }
 
 #[cfg(feature = "serde")]
-impl<'a, K, V, const SIZE: usize> Serialize for Map<K, V, SIZE>
+impl<K, V, const SIZE: usize> Serialize for Map<K, V, SIZE>
 where
     K: Serialize + Clone + Ord,
     V: Serialize + Clone,
