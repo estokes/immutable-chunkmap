@@ -20,9 +20,9 @@ const MAX_DEPTH: usize = 64;
 #[packed_struct(bit_numbering = "msb0", endian = "lsb")]
 pub struct HeightAndSize {
     #[packed_field(bits = "0:7")]
-    height: Integer<u8, packed_bits::Bits6>,
+    height: Integer<u8, packed_bits::Bits<6>>,
     #[packed_field(bits = "8:63")]
-    size_of_children: Integer<u64, packed_bits::Bits56>,
+    size_of_children: Integer<u64, packed_bits::Bits<56>>,
 }
 
 #[derive(Clone, Debug)]
