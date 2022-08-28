@@ -1,5 +1,5 @@
-pub use crate::chunk::DEFAULT_SIZE;
 use crate::avl::{Iter, Tree, WeakTree};
+pub use crate::chunk::DEFAULT_SIZE;
 use std::{
     borrow::Borrow,
     cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd},
@@ -9,6 +9,16 @@ use std::{
     iter::FromIterator,
     ops::{Bound, Index},
 };
+
+#[cfg(feature = "serde")]
+use serde::{
+    de::{MapAccess, Visitor},
+    ser::SerializeMap,
+    Deserialize, Deserializer, Serialize, Serializer,
+};
+
+#[cfg(feature = "serde")]
+use std::marker::PhantomData;
 
 /// This Map uses a similar strategy to BTreeMap to ensure cache
 /// efficient performance on modern hardware while still providing
@@ -51,21 +61,21 @@ use std::{
 pub struct Map<K: Ord + Clone, V: Clone, const SIZE: usize>(Tree<K, V, SIZE>);
 
 /// Map using a smaller chunk size, faster to update, slower to search
-pub type MapS<K, V> = Map<K, V, {DEFAULT_SIZE / 2}>;
+pub type MapS<K, V> = Map<K, V, { DEFAULT_SIZE / 2 }>;
 
 /// Map using the default chunk size, a good balance of update and search
 pub type MapM<K, V> = Map<K, V, DEFAULT_SIZE>;
 
 /// Map using a larger chunk size, faster to search, slower to update
-pub type MapL<K, V> = Map<K, V, {DEFAULT_SIZE * 2}>;
+pub type MapL<K, V> = Map<K, V, { DEFAULT_SIZE * 2 }>;
 
 /// A weak reference to a map.
 #[derive(Clone)]
 pub struct WeakMapRef<K: Ord + Clone, V: Clone, const SIZE: usize>(WeakTree<K, V, SIZE>);
 
-pub type WeakMapRefS<K, V> = WeakMapRef<K, V, {DEFAULT_SIZE / 2}>;
+pub type WeakMapRefS<K, V> = WeakMapRef<K, V, { DEFAULT_SIZE / 2 }>;
 pub type WeakMapRefM<K, V> = WeakMapRef<K, V, DEFAULT_SIZE>;
-pub type WeakMapRefL<K, V> = WeakMapRef<K, V, {DEFAULT_SIZE * 2}>;
+pub type WeakMapRefL<K, V> = WeakMapRef<K, V, { DEFAULT_SIZE * 2 }>;
 
 impl<K, V, const SIZE: usize> WeakMapRef<K, V, SIZE>
 where
@@ -175,6 +185,69 @@ where
     type IntoIter = Iter<'a, K, K, V, SIZE>;
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'a, K, V, const SIZE: usize> Serialize for Map<K, V, SIZE>
+where
+    K: Serialize + Clone + Ord,
+    V: Serialize + Clone,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(self.len()))?;
+        for (k, v) in self {
+            map.serialize_entry(k, v)?
+        }
+        map.end()
+    }
+}
+
+#[cfg(feature = "serde")]
+struct MapVisitor<K: Clone + Ord, V: Clone, const SIZE: usize> {
+    marker: PhantomData<fn() -> Map<K, V, SIZE>>,
+}
+
+#[cfg(feature = "serde")]
+impl<'a, K, V, const SIZE: usize> Visitor<'a> for MapVisitor<K, V, SIZE>
+where
+    K: Deserialize<'a> + Clone + Ord,
+    V: Deserialize<'a> + Clone,
+{
+    type Value = Map<K, V, SIZE>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("expected an immutable_chunkmap::Map")
+    }
+
+    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+    where
+        A: MapAccess<'a>,
+    {
+        let mut t = Map::<K, V, SIZE>::new();
+        while let Some((k, v)) = map.next_entry()? {
+            t.insert_cow(k, v);
+        }
+        Ok(t)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'a, K, V, const SIZE: usize> Deserialize<'a> for Map<K, V, SIZE>
+where
+    K: Deserialize<'a> + Clone + Ord,
+    V: Deserialize<'a> + Clone,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'a>,
+    {
+        deserializer.deserialize_map(MapVisitor {
+            marker: PhantomData,
+        })
     }
 }
 
@@ -534,7 +607,11 @@ where
     /// tree, and M is the number of elements you examine.
     ///
     /// if lbound >= ubound the returned iterator will be empty
-    pub fn range<'a, Q>(&'a self, lbound: Bound<Q>, ubound: Bound<Q>) -> Iter<'a, Q, K, V, SIZE>
+    pub fn range<'a, Q>(
+        &'a self,
+        lbound: Bound<Q>,
+        ubound: Bound<Q>,
+    ) -> Iter<'a, Q, K, V, SIZE>
     where
         Q: Ord,
         K: Borrow<Q>,
