@@ -1,3 +1,6 @@
+1.0.2
+* stop depending on serde
+
 1.0.1
 * replace vec chunks with arrayvec chunks to eliminate an indirection
 * implement tree compaction to keep inner chunks from getting too sparse
