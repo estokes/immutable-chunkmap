@@ -194,9 +194,40 @@ struct SetVisitor<V: Clone + Ord, const SIZE: usize> {
 
 #[cfg(feature = "serde")]
 impl<'a, V, const SIZE: usize> Visitor<'a> for SetVisitor<V, SIZE>
-   where V: Deserialize<'a> + Clone + Ord
+where
+    V: Deserialize<'a> + Clone + Ord,
 {
-    
+    type Value = Set<V, SIZE>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("expecting an immutable_chunkmap::Set")
+    }
+
+    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+    where
+        A: SeqAccess<'a>,
+    {
+        let mut t = Set::<V, SIZE>::new();
+        while let Some(v) = seq.next_element()? {
+            t.insert_cow(v);
+        }
+        Ok(t)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'a, V, const SIZE: usize> Deserialize<'a> for Set<V, SIZE>
+where
+    V: Deserialize<'a> + Clone + Ord,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'a>,
+    {
+        deserializer.deserialize_seq(SetVisitor {
+            marker: PhantomData,
+        })
+    }
 }
 
 impl<K, const SIZE: usize> Set<K, SIZE>
