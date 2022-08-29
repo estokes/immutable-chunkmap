@@ -12,6 +12,7 @@ use std::{
     sync::Arc,
     vec::Vec,
 };
+use serde::{Serialize, Deserialize};
 
 const STRSIZE: usize = 10;
 const SIZE: usize = 500000;
@@ -772,4 +773,15 @@ fn test_diff() {
     test_diff_gen::<usize>();
     test_diff_gen::<Arc<str>>();
     test_diff_gen::<(i32, Arc<str>)>();
+}
+
+#[cfg(feature = "serde")]
+#[test]
+fn test_serde_map() {
+    let k = randvec::<i32>(SIZE);
+    let v = randvec::<i32>(SIZE);
+    let m0 = MapM::from_iter(k.iter().zip(v.iter()).map(|(k, v)| (*k, *v)));
+    let json = serde_json::to_string(&m0).unwrap();
+    let m1: MapM<i32, i32> = serde_json::from_str(&json).unwrap();
+    assert_eq!(&m0, &m1)
 }
