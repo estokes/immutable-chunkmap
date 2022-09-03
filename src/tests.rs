@@ -794,3 +794,30 @@ fn test_serde_set() {
     let s1: SetM<i32> = serde_json::from_str(&json).unwrap();
     assert_eq!(&s0, &s1)
 }
+
+#[cfg(feature = "rayon")]
+#[test]
+fn test_rayon_map() {
+    use rayon::prelude::*;
+    let k = randvec::<i32>(SIZE);
+    let v = randvec::<i32>(SIZE);
+    let m0 = MapM::from_iter(k.iter().zip(v.iter()).map(|(k, v)| (*k, *v)));
+    let sum_par: i64 = m0.into_par_iter().map(|(_, v)| *v as i64).sum();
+    let sum_seq: i64 = m0.into_iter().map(|(_, v)| *v as i64).sum();
+    assert_eq!(sum_par, sum_seq);
+    let m1 = m0.into_par_iter().map(|(k, v)| (*k, *v)).collect::<MapM<_, _>>();
+    assert_eq!(m0, m1)
+}
+
+#[cfg(feature = "rayon")]
+#[test]
+fn test_rayon_set() {
+    use rayon::prelude::*;
+    let v = randvec::<i32>(SIZE);
+    let s0 = SetM::from_iter(v.iter().copied());
+    let sum_par: i64 = s0.into_par_iter().map(|v| *v as i64).sum();
+    let sum_seq: i64 = s0.into_iter().map(|v| *v as i64).sum();
+    assert_eq!(sum_par, sum_seq);
+    let s1 = s0.into_par_iter().map(|v| *v).collect::<SetM<_>>();
+    assert_eq!(s0, s1)
+}

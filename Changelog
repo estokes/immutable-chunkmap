@@ -1,8 +1,11 @@
+1.0.4
+* add optional rayon support for map and set
+
 1.0.3
 * add optional serde support for map and set
 
 1.0.2
-* stop depending on serde
+* stop depending on serde by default
 
 1.0.1
 * replace vec chunks with arrayvec chunks to eliminate an indirection
