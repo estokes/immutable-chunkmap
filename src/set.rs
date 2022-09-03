@@ -167,7 +167,7 @@ where
 
 impl<'a, K, const SIZE: usize> IntoIterator for &'a Set<K, SIZE>
 where
-    K: 'a + Borrow<K> + Ord + Clone,
+    K: 'a + Ord + Clone,
 {
     type Item = &'a K;
     type IntoIter = SetIter<'a, K, K, SIZE>;
@@ -239,7 +239,7 @@ where
 #[cfg(feature = "rayon")]
 impl<'a, V, const SIZE: usize> IntoParallelIterator for &'a Set<V, SIZE>
 where
-    V: 'a + Borrow<V> + Ord + Clone + Send + Sync,
+    V: 'a + Ord + Clone + Send + Sync,
 {
     type Item = &'a V;
     type Iter = rayon::vec::IntoIter<&'a V>;

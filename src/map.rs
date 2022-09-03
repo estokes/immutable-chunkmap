@@ -184,7 +184,7 @@ where
 
 impl<'a, K, V, const SIZE: usize> IntoIterator for &'a Map<K, V, SIZE>
 where
-    K: 'a + Borrow<K> + Ord + Clone,
+    K: 'a + Ord + Clone,
     V: 'a + Clone,
 {
     type Item = (&'a K, &'a V);
@@ -260,7 +260,7 @@ where
 #[cfg(feature = "rayon")]
 impl<'a, K, V, const SIZE: usize> IntoParallelIterator for &'a Map<K, V, SIZE>
 where
-    K: 'a + Borrow<K> + Ord + Clone + Send + Sync,
+    K: 'a + Ord + Clone + Send + Sync,
     V: Clone + Send + Sync,
 {
     type Item = (&'a K, &'a V);

@@ -351,7 +351,7 @@ where
 
 impl<'a, K, V, const SIZE: usize> IntoIterator for &'a Tree<K, V, SIZE>
 where
-    K: 'a + Borrow<K> + Ord + Clone,
+    K: 'a + Ord + Clone,
     V: 'a + Clone,
 {
     type Item = (&'a K, &'a V);
