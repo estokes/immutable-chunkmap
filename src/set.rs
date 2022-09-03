@@ -20,6 +20,12 @@ use serde::{
 #[cfg(feature = "serde")]
 use std::marker::PhantomData;
 
+#[cfg(feature = "rayon")]
+use rayon::{
+    iter::{FromParallelIterator, IntoParallelIterator},
+    prelude::*,
+};
+
 /// This set uses a similar strategy to BTreeSet to ensure cache
 /// efficient performance on modern hardware while still providing
 /// log(N) get, insert, and remove operations.
@@ -227,6 +233,38 @@ where
         deserializer.deserialize_seq(SetVisitor {
             marker: PhantomData,
         })
+    }
+}
+
+#[cfg(feature = "rayon")]
+impl<'a, V, const SIZE: usize> IntoParallelIterator for &'a Set<V, SIZE>
+where
+    V: 'a + Borrow<V> + Ord + Clone + Send + Sync,
+{
+    type Item = &'a V;
+    type Iter = rayon::vec::IntoIter<&'a V>;
+
+    fn into_par_iter(self) -> Self::Iter {
+        self.into_iter().collect::<Vec<_>>().into_par_iter()
+    }
+}
+
+#[cfg(feature = "rayon")]
+impl<V, const SIZE: usize> FromParallelIterator<V> for Set<V, SIZE>
+where
+    V: Ord + Clone + Send + Sync,
+{
+    fn from_par_iter<I>(i: I) -> Self
+    where
+        I: IntoParallelIterator<Item = V>,
+    {
+        i.into_par_iter()
+            .fold_with(Set::new(), |mut m, v| {
+                m.insert_cow(v);
+                m
+            })
+            .reduce_with(|m0, m1| m0.union(&m1))
+            .unwrap_or_else(Set::new)
     }
 }
 

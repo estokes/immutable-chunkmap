@@ -12,7 +12,7 @@ repository = "https://github.com/estokes/immutable-chunkmap"
 edition = "2018"
 
 [features]
-default = ["rayon"]
+default = []
 serde = ["dep:serde", "packed_struct/use_serde"]
 rayon = ["dep:rayon"]
 
