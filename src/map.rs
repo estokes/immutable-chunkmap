@@ -20,6 +20,9 @@ use serde::{
 #[cfg(feature = "serde")]
 use std::marker::PhantomData;
 
+#[cfg(feature = "rayon")]
+use rayon::iter::IntoParallelIterator;
+
 /// This Map uses a similar strategy to BTreeMap to ensure cache
 /// efficient performance on modern hardware while still providing
 /// log(N) get, insert, and remove operations.
@@ -248,6 +251,20 @@ where
         deserializer.deserialize_map(MapVisitor {
             marker: PhantomData,
         })
+    }
+}
+
+#[cfg(feature = "rayon")]
+impl<'a, K, V, const SIZE: usize> IntoParallelIterator for &'a Map<K, V, SIZE>
+where
+    K: 'a + Borrow<K> + Ord + Clone + Send + Sync,
+    V: Clone + Send + Sync,
+{
+    type Item = (&'a K, &'a V);
+    type Iter = rayon::vec::IntoIter<(&'a K, &'a V)>;
+
+    fn into_par_iter(self) -> Self::Iter {
+        self.into_iter().collect::<Vec<_>>().into_par_iter()
     }
 }
 
