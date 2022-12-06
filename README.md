@@ -40,3 +40,6 @@ mutable COW operations on the map, it is perfectly possible to use an
 actual insert_many call instead of mutable COW operations if it's
 faster in your application, which as you can see, depends on the size
 of the map.
+
+# License
+This project is dual licensed under the MIT or the Apache 2 at your discretion.
