@@ -789,7 +789,12 @@ where
         }
         match self {
             &Tree::Empty => {
-                Tree::create(&Tree::Empty, Chunk::create_with(chunk, f), &Tree::Empty)
+                let chunk = Chunk::create_with(chunk, f);
+                if chunk.len() == 0 {
+                    Tree::Empty
+                } else {
+                    Tree::create(&Tree::Empty, chunk, &Tree::Empty)
+                }
             }
             &Tree::Node(ref tn) => {
                 let leaf = match (&tn.left, &tn.right) {

@@ -1,3 +1,8 @@
+1.0.5
+* add remove_many, a small wrapper around update_many
+* fix a bug in update_many where trying to remove elements that don't
+  exist in the map could cause a panic. Add a test for this case.
+
 1.0.4
 * add optional rayon support for map and set
 

@@ -338,6 +338,19 @@ where
         Map(self.0.insert_many(elts))
     }
 
+    /// This will remove many elements at once, and is potentially a
+    /// lot faster than removing elements one by one, especially if
+    /// the data is sorted. It is just a wrapper around the more
+    /// general update_many method.
+    pub fn remove_many<Q, E>(&self, elts: E) -> Self
+    where
+        E: IntoIterator<Item = Q>,
+        Q: Ord,
+        K: Borrow<Q>,
+    {
+        self.update_many(elts.into_iter().map(|q| (q, ())), |_, _, _| None)
+    }
+
     /// This method updates multiple bindings in one call. Given an
     /// iterator of an arbitrary type (Q, D), where Q is any borrowed
     /// form of K, an update function taking Q, D, the current binding

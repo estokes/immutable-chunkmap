@@ -805,7 +805,10 @@ fn test_rayon_map() {
     let sum_par: i64 = m0.into_par_iter().map(|(_, v)| *v as i64).sum();
     let sum_seq: i64 = m0.into_iter().map(|(_, v)| *v as i64).sum();
     assert_eq!(sum_par, sum_seq);
-    let m1 = m0.into_par_iter().map(|(k, v)| (*k, *v)).collect::<MapM<_, _>>();
+    let m1 = m0
+        .into_par_iter()
+        .map(|(k, v)| (*k, *v))
+        .collect::<MapM<_, _>>();
     assert_eq!(m0, m1)
 }
 
@@ -820,4 +823,91 @@ fn test_rayon_set() {
     assert_eq!(sum_par, sum_seq);
     let s1 = s0.into_par_iter().map(|v| *v).collect::<SetM<_>>();
     assert_eq!(s0, s1)
+}
+
+fn remove_random_contig_slice(
+    v: &Vec<(i32, i32)>,
+    map: &MapM<i32, i32>,
+) -> (HashMap<i32, i32>, MapM<i32, i32>) {
+    let start = rand::thread_rng().gen_range(0..v.len() - 1);
+    let end = rand::thread_rng().gen_range(start..v.len());
+    let r = v
+        .iter()
+        .enumerate()
+        .filter_map(|(i, kv)| {
+            if i >= start && i < end {
+                Some(kv)
+            } else {
+                None
+            }
+        })
+        .copied()
+        .collect::<HashMap<_, _>>();
+    let map_r = map.update_many(r.iter().map(|(k, _)| (*k, ())), |_, _, _| None);
+    map_r.invariant();
+    (r, map_r)
+}
+
+fn remove_random_entries(
+    v: &Vec<(i32, i32)>,
+    map: &MapM<i32, i32>,
+) -> (HashMap<i32, i32>, MapM<i32, i32>) {
+    let mut rng = rand::thread_rng();
+    let r = v
+        .iter()
+        .filter(|(_, _)| rng.gen_range(0..4) == 0)
+        .copied()
+        .collect::<HashMap<_, _>>();
+    let map_r = map.update_many(r.iter().map(|(k, _)| (*k, ())), |_, _, _| None);
+    map_r.invariant();
+    (r, map_r)
+}
+
+fn remove_maybe_nonexist_entries(map: &MapM<i32, i32>) -> (HashMap<i32, i32>, MapM<i32, i32>) {
+    let size = rand::thread_rng().gen_range(10..SIZE);
+    let r = randvec::<(i32, i32)>(size).into_iter().collect::<HashMap<_, _>>();
+    let map_r = map.update_many(r.iter().map(|(k, _)| (*k, ())), |_, _, _| None);
+    map_r.invariant();
+    (r, map_r)
+}
+
+fn check_removed(
+    v: &Vec<(i32, i32)>,
+    r: &HashMap<i32, i32>,
+    map_r: &MapM<i32, i32>,
+) {
+    let expected_len = v.iter().fold(v.len(), |len, (k, _)| {
+        if r.contains_key(k) {
+            len - 1
+        } else {
+            len
+        }
+    });
+    assert_eq!(map_r.len(), expected_len);
+    for (k, v) in v {
+        if r.contains_key(k) {
+            assert_eq!(None, map_r.get(k));
+        } else {
+            assert_eq!(Some(v), map_r.get(k));
+        }
+    }
+}
+
+#[test]
+fn test_remove_many_patterns() {
+    let size = rand::thread_rng().gen_range(10..SIZE);
+    let mut v = randvec::<(i32, i32)>(size);
+    dedup_with(&mut v, |(k, _)| k);
+    v.sort_by_key(|(k, _)| *k);
+    let map = MapM::from_iter(v.iter().copied());
+    map.invariant();
+    for (k, v) in &v {
+        assert_eq!(Some(v), map.get(k));
+    }
+    let (r, map_r) = remove_random_contig_slice(&v, &map);
+    check_removed(&v, &r, &map_r);
+    let (r, map_r) = remove_random_entries(&v, &map);
+    check_removed(&v, &r, &map_r);
+    let (r, map_r) = remove_maybe_nonexist_entries(&map);
+    check_removed(&v, &r, &map_r);
 }
