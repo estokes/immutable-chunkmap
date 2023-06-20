@@ -140,7 +140,7 @@ where
     }
 }
 
-pub struct SetIter<'a, Q: Ord, K: 'a + Clone + Ord + Borrow<Q>, const SIZE: usize>(
+pub struct SetIter<'a, Q: Ord + ?Sized, K: 'a + Clone + Ord + Borrow<Q>, const SIZE: usize>(
     Iter<'a, Q, K, (), SIZE>,
 );
 
@@ -506,7 +506,7 @@ where
         ubound: Bound<&'a Q>,
     ) -> SetIter<'a, Q, K, SIZE>
     where
-        Q: Ord,
+        Q: Ord + ?Sized,
         K: 'a + Clone + Ord + Borrow<Q>,
     {
         SetIter(self.0.range(lbound, ubound))

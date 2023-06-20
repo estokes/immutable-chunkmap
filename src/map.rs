@@ -666,7 +666,7 @@ where
         ubound: Bound<&'a Q>,
     ) -> Iter<'a, Q, K, V, SIZE>
     where
-        Q: Ord,
+        Q: Ord + ?Sized,
         K: Borrow<Q>,
     {
         self.0.range(lbound, ubound)

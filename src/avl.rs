@@ -162,7 +162,7 @@ where
 
 pub struct Iter<'a, Q, K, V, const SIZE: usize>
 where
-    Q: Ord,
+    Q: Ord + ?Sized,
     K: 'a + Borrow<Q> + Ord + Clone,
     V: 'a + Clone,
 {
@@ -397,7 +397,7 @@ where
         ubound: Bound<&'a Q>,
     ) -> Iter<'a, Q, K, V, SIZE>
     where
-        Q: Ord,
+        Q: Ord + ?Sized,
         K: Borrow<Q>,
     {
         match self {

@@ -1,3 +1,6 @@
+1.1.1
+* fix ?Sized on range
+
 1.1.0
 * fix the arguments to range to have the correct borrow type
 
