@@ -166,8 +166,8 @@ where
     K: 'a + Borrow<Q> + Ord + Clone,
     V: 'a + Clone,
 {
-    ubound: Bound<Q>,
-    lbound: Bound<Q>,
+    ubound: Bound<&'a Q>,
+    lbound: Bound<&'a Q>,
     stack: ArrayVec<(bool, &'a Node<K, V, SIZE>), MAX_DEPTH>,
     elts: Option<iter::Zip<slice::Iter<'a, K>, slice::Iter<'a, V>>>,
     current: Option<&'a K>,
@@ -393,8 +393,8 @@ where
 
     pub(crate) fn range<'a, Q>(
         &'a self,
-        lbound: Bound<Q>,
-        ubound: Bound<Q>,
+        lbound: Bound<&'a Q>,
+        ubound: Bound<&'a Q>,
     ) -> Iter<'a, Q, K, V, SIZE>
     where
         Q: Ord,

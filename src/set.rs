@@ -502,8 +502,8 @@ where
     /// if lbound >= ubound the returned iterator will be empty
     pub fn range<'a, Q>(
         &'a self,
-        lbound: Bound<Q>,
-        ubound: Bound<Q>,
+        lbound: Bound<&'a Q>,
+        ubound: Bound<&'a Q>,
     ) -> SetIter<'a, Q, K, SIZE>
     where
         Q: Ord,
