@@ -8,7 +8,7 @@ use std::{
     hash::Hash,
     i32,
     iter::{FromIterator, IntoIterator},
-    ops::Bound::{Excluded, Included, Unbounded},
+    ops::Bound::{Excluded, Included},
     sync::Arc,
     vec::Vec,
 };
@@ -444,7 +444,7 @@ fn test_map_range_small() {
     }
     {
         let mut i = 5000;
-        for e in t.range(Included(&0), Excluded(&100)) {
+        for e in t.range(0..100) {
             assert_eq!(e.0, e.1);
             assert_eq!(&v[i], e.0);
             assert!(i < 5100);
@@ -454,7 +454,7 @@ fn test_map_range_small() {
     }
     {
         let mut i = 5000;
-        for e in t.range(Excluded(&0), Included(&100)) {
+        for e in t.range((Excluded(&0), Included(&100))) {
             assert_eq!(e.0, e.1);
             assert_eq!(&v[i + 1], e.0);
             assert!(i < 5100);
@@ -464,7 +464,7 @@ fn test_map_range_small() {
     }
     {
         let mut i = 7300;
-        for e in t.range(Included(&2300), Excluded(&3500)) {
+        for e in t.range(2300..3500) {
             assert_eq!(e.0, e.1);
             assert_eq!(&v[i], e.0);
             assert!(i < 8500);
@@ -474,7 +474,7 @@ fn test_map_range_small() {
     }
     {
         let mut i = 7900;
-        for e in t.range(Included(&2900), Unbounded) {
+        for e in t.range(2900..) {
             assert_eq!(e.0, e.1);
             assert_eq!(&v[i], e.0);
             assert!(i < 10000);
@@ -484,7 +484,7 @@ fn test_map_range_small() {
     }
     {
         let mut i = 0;
-        for e in t.range(Included(&-5000), Excluded(&-4000)) {
+        for e in t.range(-5000..-4000) {
             assert_eq!(e.0, e.1);
             assert_eq!(&v[i], e.0);
             assert!(i < 1000);
@@ -494,14 +494,14 @@ fn test_map_range_small() {
     }
     {
         let mut i = 0;
-        for _ in t.range(Excluded(&-5000), Excluded(&-4999)) {
+        for _ in t.range((Excluded(&-5000), Excluded(&-4999))) {
             i += 1
         }
         assert_eq!(i, 0)
     }
     {
         let mut i = 0;
-        for _ in t.range(Included(&1), Included(&0)) {
+        for _ in t.range(1..=0) {
             i += 1
         }
         assert_eq!(i, 0)
@@ -541,9 +541,7 @@ where
     );
     {
         let mut i = start;
-        let lbound = Included(&vals[i].0);
-        let ubound = Excluded(&vals[end].0);
-        for (k, v) in t.range(lbound, ubound) {
+        for (k, v) in t.range(&vals[i].0..&vals[end].0) {
             let (k_, v_) = (&vals[i].0, &vals[i].1);
             assert_eq!(k, k_);
             assert_eq!(v, v_);
@@ -556,7 +554,7 @@ where
         let mut i = start;
         let lbound = Excluded(&vals[i].0);
         let ubound = Included(&vals[end].0);
-        for (k, v) in t.range(lbound, ubound) {
+        for (k, v) in t.range((lbound, ubound)) {
             let (k_, v_) = (&vals[i + 1].0, &vals[i + 1].1);
             assert_eq!(k, k_);
             assert_eq!(v, v_);
@@ -567,9 +565,7 @@ where
     }
     {
         let mut i = 0;
-        let lbound = Unbounded;
-        let ubound = Excluded(&vals[end].0);
-        for (k, v) in t.range(lbound, ubound) {
+        for (k, v) in t.range(..&vals[end].0) {
             let (k_, v_) = (&vals[i].0, &vals[i].1);
             assert_eq!(k, k_);
             assert_eq!(v, v_);
@@ -580,9 +576,7 @@ where
     }
     {
         let mut i = end - 1;
-        let lbound = Included(&vals[start].0);
-        let ubound = Excluded(&vals[end].0);
-        let mut r = t.range(lbound, ubound);
+        let mut r = t.range(&vals[start].0..&vals[end].0);
         while let Some((k, v)) = r.next_back() {
             let (k_, v_) = (&vals[i].0, &vals[i].1);
             assert_eq!(k, k_);
@@ -863,26 +857,30 @@ fn remove_random_entries(
     (r, map_r)
 }
 
-fn remove_maybe_nonexist_entries(map: &MapM<i32, i32>) -> (HashMap<i32, i32>, MapM<i32, i32>) {
+fn remove_maybe_nonexist_entries(
+    map: &MapM<i32, i32>,
+) -> (HashMap<i32, i32>, MapM<i32, i32>) {
     let size = rand::thread_rng().gen_range(10..SIZE);
-    let r = randvec::<(i32, i32)>(size).into_iter().collect::<HashMap<_, _>>();
+    let r = randvec::<(i32, i32)>(size)
+        .into_iter()
+        .collect::<HashMap<_, _>>();
     let map_r = map.update_many(r.iter().map(|(k, _)| (*k, ())), |_, _, _| None);
     map_r.invariant();
     (r, map_r)
 }
 
-fn check_removed(
-    v: &Vec<(i32, i32)>,
-    r: &HashMap<i32, i32>,
-    map_r: &MapM<i32, i32>,
-) {
-    let expected_len = v.iter().fold(v.len(), |len, (k, _)| {
-        if r.contains_key(k) {
-            len - 1
-        } else {
-            len
-        }
-    });
+fn check_removed(v: &Vec<(i32, i32)>, r: &HashMap<i32, i32>, map_r: &MapM<i32, i32>) {
+    let expected_len =
+        v.iter().fold(
+            v.len(),
+            |len, (k, _)| {
+                if r.contains_key(k) {
+                    len - 1
+                } else {
+                    len
+                }
+            },
+        );
     assert_eq!(map_r.len(), expected_len);
     for (k, v) in v {
         if r.contains_key(k) {

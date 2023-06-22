@@ -7,7 +7,7 @@ use std::{
     fmt::{self, Debug, Formatter},
     hash::{Hash, Hasher},
     iter::FromIterator,
-    ops::Bound,
+    ops::{RangeBounds, RangeFull},
 };
 
 #[cfg(feature = "serde")]
@@ -140,13 +140,18 @@ where
     }
 }
 
-pub struct SetIter<'a, Q: Ord + ?Sized, K: 'a + Clone + Ord + Borrow<Q>, const SIZE: usize>(
-    Iter<'a, Q, K, (), SIZE>,
-);
+pub struct SetIter<
+    'a,
+    R: RangeBounds<Q> + 'a,
+    Q: Ord + ?Sized,
+    K: 'a + Clone + Ord + Borrow<Q>,
+    const SIZE: usize,
+>(Iter<'a, R, Q, K, (), SIZE>);
 
-impl<'a, Q, K, const SIZE: usize> Iterator for SetIter<'a, Q, K, SIZE>
+impl<'a, R, Q, K, const SIZE: usize> Iterator for SetIter<'a, R, Q, K, SIZE>
 where
-    Q: Ord,
+    Q: Ord + ?Sized,
+    R: RangeBounds<Q> + 'a,
     K: 'a + Clone + Ord + Borrow<Q>,
 {
     type Item = &'a K;
@@ -155,9 +160,10 @@ where
     }
 }
 
-impl<'a, Q, K, const SIZE: usize> DoubleEndedIterator for SetIter<'a, Q, K, SIZE>
+impl<'a, R, Q, K, const SIZE: usize> DoubleEndedIterator for SetIter<'a, R, Q, K, SIZE>
 where
-    Q: Ord,
+    Q: Ord + ?Sized,
+    R: RangeBounds<Q> + 'a,
     K: 'a + Clone + Ord + Borrow<Q>,
 {
     fn next_back(&mut self) -> Option<Self::Item> {
@@ -170,7 +176,7 @@ where
     K: 'a + Ord + Clone,
 {
     type Item = &'a K;
-    type IntoIter = SetIter<'a, K, K, SIZE>;
+    type IntoIter = SetIter<'a, RangeFull, K, K, SIZE>;
     fn into_iter(self) -> Self::IntoIter {
         SetIter(self.0.into_iter())
     }
@@ -500,16 +506,13 @@ where
     /// tree, and M is the number of elements you examine.
     ///
     /// if lbound >= ubound the returned iterator will be empty
-    pub fn range<'a, Q>(
-        &'a self,
-        lbound: Bound<&'a Q>,
-        ubound: Bound<&'a Q>,
-    ) -> SetIter<'a, Q, K, SIZE>
+    pub fn range<'a, Q, R>(&'a self, r: R) -> SetIter<'a, R, Q, K, SIZE>
     where
-        Q: Ord + ?Sized,
+        Q: Ord + ?Sized + 'a,
         K: 'a + Clone + Ord + Borrow<Q>,
+        R: RangeBounds<Q> + 'a,
     {
-        SetIter(self.0.range(lbound, ubound))
+        SetIter(self.0.range(r))
     }
 }
 

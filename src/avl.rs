@@ -8,7 +8,8 @@ use std::{
     fmt::{self, Debug, Formatter},
     hash::{Hash, Hasher},
     iter,
-    ops::{Bound, Index},
+    marker::PhantomData,
+    ops::{Bound, Index, RangeBounds, RangeFull},
     slice,
     sync::{Arc, Weak},
 };
@@ -160,44 +161,46 @@ where
     }
 }
 
-pub struct Iter<'a, Q, K, V, const SIZE: usize>
+pub struct Iter<'a, R, Q, K, V, const SIZE: usize>
 where
     Q: Ord + ?Sized,
+    R: RangeBounds<Q> + 'a,
     K: 'a + Borrow<Q> + Ord + Clone,
     V: 'a + Clone,
 {
-    ubound: Bound<&'a Q>,
-    lbound: Bound<&'a Q>,
+    q: PhantomData<Q>,
     stack: ArrayVec<(bool, &'a Node<K, V, SIZE>), MAX_DEPTH>,
     elts: Option<iter::Zip<slice::Iter<'a, K>, slice::Iter<'a, V>>>,
     current: Option<&'a K>,
     stack_rev: ArrayVec<(bool, &'a Node<K, V, SIZE>), MAX_DEPTH>,
     elts_rev: Option<iter::Zip<slice::Iter<'a, K>, slice::Iter<'a, V>>>,
     current_rev: Option<&'a K>,
+    bounds: R,
 }
 
-impl<'a, Q, K, V, const SIZE: usize> Iter<'a, Q, K, V, SIZE>
+impl<'a, R, Q, K, V, const SIZE: usize> Iter<'a, R, Q, K, V, SIZE>
 where
-    Q: Ord,
+    Q: Ord + ?Sized,
+    R: RangeBounds<Q> + 'a,
     K: 'a + Borrow<Q> + Ord + Clone,
     V: 'a + Clone,
 {
     // is at least one element of the chunk in bounds
     fn any_elts_above_lbound(&self, n: &'a Node<K, V, SIZE>) -> bool {
         let l = n.elts.len();
-        match self.lbound {
+        match self.bounds.start_bound() {
             Bound::Unbounded => true,
-            Bound::Included(ref bound) => l == 0 || n.elts.key(l - 1).borrow() >= bound,
-            Bound::Excluded(ref bound) => l == 0 || n.elts.key(l - 1).borrow() > bound,
+            Bound::Included(bound) => l == 0 || n.elts.key(l - 1).borrow() >= bound,
+            Bound::Excluded(bound) => l == 0 || n.elts.key(l - 1).borrow() > bound,
         }
     }
 
     fn any_elts_below_ubound(&self, n: &'a Node<K, V, SIZE>) -> bool {
         let l = n.elts.len();
-        match self.ubound {
+        match self.bounds.end_bound() {
             Bound::Unbounded => true,
-            Bound::Included(ref bound) => l == 0 || n.elts.key(0).borrow() <= bound,
-            Bound::Excluded(ref bound) => l == 0 || n.elts.key(0).borrow() < bound,
+            Bound::Included(bound) => l == 0 || n.elts.key(0).borrow() <= bound,
+            Bound::Excluded(bound) => l == 0 || n.elts.key(0).borrow() < bound,
         }
     }
 
@@ -206,25 +209,26 @@ where
     }
 
     fn above_lbound(&self, k: &'a K) -> bool {
-        match self.lbound {
+        match self.bounds.start_bound() {
             Bound::Unbounded => true,
-            Bound::Included(ref bound) => k.borrow() >= bound,
-            Bound::Excluded(ref bound) => k.borrow() > bound,
+            Bound::Included(bound) => k.borrow() >= bound,
+            Bound::Excluded(bound) => k.borrow() > bound,
         }
     }
 
     fn below_ubound(&self, k: &'a K) -> bool {
-        match self.ubound {
+        match self.bounds.end_bound() {
             Bound::Unbounded => true,
-            Bound::Included(ref bound) => k.borrow() <= bound,
-            Bound::Excluded(ref bound) => k.borrow() < bound,
+            Bound::Included(bound) => k.borrow() <= bound,
+            Bound::Excluded(bound) => k.borrow() < bound,
         }
     }
 }
 
-impl<'a, Q, K, V, const SIZE: usize> Iterator for Iter<'a, Q, K, V, SIZE>
+impl<'a, R, Q, K, V, const SIZE: usize> Iterator for Iter<'a, R, Q, K, V, SIZE>
 where
-    Q: Ord,
+    Q: Ord + ?Sized,
+    R: RangeBounds<Q> + 'a,
     K: 'a + Borrow<Q> + Ord + Clone,
     V: 'a + Clone,
 {
@@ -286,9 +290,11 @@ where
     }
 }
 
-impl<'a, Q, K, V, const SIZE: usize> DoubleEndedIterator for Iter<'a, Q, K, V, SIZE>
+impl<'a, R, Q, K, V, const SIZE: usize> DoubleEndedIterator
+    for Iter<'a, R, Q, K, V, SIZE>
 where
-    Q: Ord,
+    Q: Ord + ?Sized,
+    R: RangeBounds<Q> + 'a,
     K: 'a + Borrow<Q> + Ord + Clone,
     V: 'a + Clone,
 {
@@ -355,9 +361,9 @@ where
     V: 'a + Clone,
 {
     type Item = (&'a K, &'a V);
-    type IntoIter = Iter<'a, K, K, V, SIZE>;
+    type IntoIter = Iter<'a, RangeFull, K, K, V, SIZE>;
     fn into_iter(self) -> Self::IntoIter {
-        self.range(Bound::Unbounded, Bound::Unbounded)
+        self.range(..)
     }
 }
 
@@ -391,19 +397,16 @@ where
         }
     }
 
-    pub(crate) fn range<'a, Q>(
-        &'a self,
-        lbound: Bound<&'a Q>,
-        ubound: Bound<&'a Q>,
-    ) -> Iter<'a, Q, K, V, SIZE>
+    pub(crate) fn range<'a, Q, R>(&'a self, r: R) -> Iter<'a, R, Q, K, V, SIZE>
     where
-        Q: Ord + ?Sized,
+        Q: Ord + ?Sized + 'a,
         K: Borrow<Q>,
+        R: RangeBounds<Q> + 'a,
     {
         match self {
             &Tree::Empty => Iter {
-                lbound,
-                ubound,
+                q: PhantomData,
+                bounds: r,
                 stack: ArrayVec::<_, MAX_DEPTH>::new(),
                 elts: None,
                 current: None,
@@ -419,8 +422,8 @@ where
                 stack.push((false, n));
                 stack_rev.push((false, n));
                 Iter {
-                    lbound,
-                    ubound,
+                    q: PhantomData,
+                    bounds: r,
                     stack,
                     elts: None,
                     current: None,

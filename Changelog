@@ -1,3 +1,11 @@
+2.0.0
+
+* fix the range api to match the standard library. Sorry about the
+  previous two releases, it's actually quite a subtle api and I
+  consistently got it wrong. I also got semantic versioning wrong, and
+  I'm really sorry about that, I hope nothing broke annoyingly for
+  anyone (aside from for me :))
+
 1.1.1
 * fix ?Sized on range
 

@@ -7,7 +7,7 @@ use std::{
     fmt::{self, Debug, Formatter},
     hash::{Hash, Hasher},
     iter::FromIterator,
-    ops::{Bound, Index},
+    ops::{Index, RangeBounds, RangeFull},
 };
 
 #[cfg(feature = "serde")]
@@ -188,7 +188,7 @@ where
     V: 'a + Clone,
 {
     type Item = (&'a K, &'a V);
-    type IntoIter = Iter<'a, K, K, V, SIZE>;
+    type IntoIter = Iter<'a, RangeFull, K, K, V, SIZE>;
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
     }
@@ -660,16 +660,13 @@ where
     /// tree, and M is the number of elements you examine.
     ///
     /// if lbound >= ubound the returned iterator will be empty
-    pub fn range<'a, Q>(
-        &'a self,
-        lbound: Bound<&'a Q>,
-        ubound: Bound<&'a Q>,
-    ) -> Iter<'a, Q, K, V, SIZE>
+    pub fn range<'a, Q, R>(&'a self, r: R) -> Iter<'a, R, Q, K, V, SIZE>
     where
-        Q: Ord + ?Sized,
+        Q: Ord + ?Sized + 'a,
         K: Borrow<Q>,
+        R: RangeBounds<Q> + 'a,
     {
-        self.0.range(lbound, ubound)
+        self.0.range(r)
     }
 }
 
