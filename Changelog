@@ -1,3 +1,8 @@
+2.0.1
+
+* implement get_mut_cow to improve the ergonomics of using nested 
+  maps with COW operations
+
 2.0.0
 
 * fix the range api to match the standard library. Sorry about the
