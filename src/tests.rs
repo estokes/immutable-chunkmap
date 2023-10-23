@@ -239,6 +239,14 @@ where
             assert_eq!(p.as_ref(), Some(v));
             assert_eq!(cow.get(k), Option::None);
         }
+        if i > 0 && i % CHECK == 1 {
+            let j = rand::thread_rng().gen_range(0..i);
+            let k = &o[j].0;
+            let v: V = random();
+            cow.get_mut_cow(k).iter_mut().for_each(|val| **val = v.clone());
+            model.get_mut(k).iter_mut().for_each(|val| **val = v.clone());
+            assert_eq!(cow.get(k), model.get(k))
+        } 
     }
     cow.invariant();
     t.invariant();

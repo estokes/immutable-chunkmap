@@ -7,7 +7,7 @@ use std::{
     fmt::{self, Debug, Formatter},
     hash::{Hash, Hasher},
     iter::FromIterator,
-    ops::{Index, RangeBounds, RangeFull},
+    ops::{Index, RangeBounds, RangeFull, IndexMut},
 };
 
 #[cfg(feature = "serde")]
@@ -169,6 +169,17 @@ where
     type Output = V;
     fn index(&self, k: &Q) -> &V {
         self.get(k).expect("element not found for key")
+    }
+}
+
+impl<'a, Q, K, V, const SIZE: usize> IndexMut<&'a Q> for Map<K, V, SIZE>
+where
+    Q: Ord,
+    K: Ord + Clone + Borrow<Q>,
+    V: Clone,
+{
+    fn index_mut(&mut self, k: &'a Q) -> &mut Self::Output {
+        self.get_mut_cow(k).expect("element not found for key")
     }
 }
 
@@ -631,6 +642,9 @@ where
     /// - required to reach `k`
     /// - have a strong count > 1
     ///
+    /// This operation is also triggered by mut indexing on the map, e.g. `&mut m[k]` 
+    /// calls `get_mut_cow` on `m`
+    /// 
     /// # Example
     /// ```
     /// use self::immutable_chunkmap::map::MapM as Map;
@@ -638,7 +652,11 @@ where
     /// let mut m = Map::from_iter((0..100).map(|k| (k, Map::from_iter(0..100).map(|k| (k, 1)))));
     /// let orig = m.clone();
     /// 
-    /// m.get_mut_cow(0).iter(|m| m.get_mut_cow(0).iter(|i| *i += 1));
+    /// if let Some(inner) = m.get_mut_cow(0) {
+    ///     if let Some(v) = inner.get_mut_cow(0) {
+    ///         *v += 1
+    ///     }
+    /// }
     /// 
     /// assert_eq!(m.get(0).and_then(|m| m.get(0)), Some(2));
     /// assert_eq!(orig.get(0).and_then(|m| m.get(0)), Some(1));
