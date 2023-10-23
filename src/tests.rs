@@ -228,7 +228,7 @@ where
     }
     let mut cow = t.clone();
     for (i, (k, v)) in o.iter().enumerate() {
-        cow.insert_cow(k.clone(), v.clone());
+        *cow.get_or_insert_cow(k.clone(), || v.clone()) = v.clone();
         model.insert(k.clone(), v.clone());
         assert_eq!(cow.get(k), Some(v));
         if i > 0 && i % CHECK == 0 {

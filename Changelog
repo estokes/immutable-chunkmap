@@ -1,3 +1,7 @@
+2.0.2
+
+* implement get_or_insert_cow and get_or_default_cow
+
 2.0.1
 
 * implement get_mut_cow to improve the ergonomics of using nested 
