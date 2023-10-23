@@ -626,6 +626,30 @@ where
         self.0.get_full(k)
     }
 
+    /// Get a mutable reference to the value mapped to `k` using copy on write semantics. 
+    /// This works as `Arc::make_mut`, it will only clone the parts of the tree that are,
+    /// - required to reach `k`
+    /// - have a strong count > 1
+    ///
+    /// # Example
+    /// ```
+    /// use self::immutable_chunkmap::map::MapM as Map;
+    ///  
+    /// let mut m = Map::from_iter((0..100).map(|k| (k, Map::from_iter(0..100).map(|k| (k, 1)))));
+    /// let orig = m.clone();
+    /// 
+    /// m.get_mut_cow(0).iter(|m| m.get_mut_cow(0).iter(|i| *i += 1));
+    /// 
+    /// assert_eq!(m.get(0).and_then(|m| m.get(0)), Some(2));
+    /// assert_eq!(orig.get(0).and_then(|m| m.get(0)), Some(1));
+    /// ```
+    pub fn get_mut_cow<'a, Q: ?Sized + Ord>(&'a mut self, k: &Q) -> Option<&'a mut V>
+    where
+        K: Borrow<Q>,
+    {
+        self.0.get_mut_cow(k)
+    }
+
     /// return a new map with the mapping under k removed. If
     /// the binding existed in the old map return it. Runs in
     /// log(N) time and log(N) space, where N is the size of

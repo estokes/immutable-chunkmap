@@ -290,8 +290,7 @@ where
     }
 }
 
-impl<'a, R, Q, K, V, const SIZE: usize> DoubleEndedIterator
-    for Iter<'a, R, Q, K, V, SIZE>
+impl<'a, R, Q, K, V, const SIZE: usize> DoubleEndedIterator for Iter<'a, R, Q, K, V, SIZE>
 where
     Q: Ord + ?Sized,
     R: RangeBounds<Q> + 'a,
@@ -1171,6 +1170,27 @@ where
         K: Borrow<Q>,
     {
         self.get_gen(k, |e, i| e.kv(i))
+    }
+
+    pub(crate) fn get_mut_cow<'a, Q>(&'a mut self, k: &Q) -> Option<&'a mut V>
+    where
+        Q: ?Sized + Ord,
+        K: Borrow<Q>,
+    {
+        match self {
+            Tree::Empty => None,
+            Tree::Node(tn) => {
+                let tn = Arc::make_mut(tn);
+                match (k.cmp(tn.min_key.borrow()), k.cmp(tn.max_key.borrow())) {
+                    (Ordering::Less, _) => tn.left.get_mut_cow(k),
+                    (_, Ordering::Greater) => tn.right.get_mut_cow(k),
+                    (_, _) => match tn.elts.get_local(k) {
+                        Some(i) => Some(tn.elts.val_mut(i)),
+                        None => None,
+                    },
+                }
+            }
+        }
     }
 }
 

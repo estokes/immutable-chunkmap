@@ -148,20 +148,6 @@ where
         }
     }
 
-    /* sadly this isn't faster
-    pub(crate) fn get_local<Q: ?Sized + Ord>(&self, k: &Q) -> Option<usize>
-    where
-        K: Borrow<Q>,
-    {
-        for (i, key) in self.keys.iter().enumerate() {
-            if key.borrow() == k {
-                return Some(i)
-            }
-        }
-        None
-    }
-     */
-    
     pub(crate) fn get<Q: ?Sized + Ord>(&self, k: &Q) -> Loc
     where
         K: Borrow<Q>,
@@ -686,6 +672,10 @@ where
 
     pub(crate) fn val(&self, i: usize) -> &V {
         &self.vals[i]
+    }
+
+    pub(crate) fn val_mut(&mut self, i: usize) -> &mut V {
+        &mut Arc::make_mut(&mut self.0).vals[i]
     }
 
     pub(crate) fn kv(&self, i: usize) -> (&K, &V) {
