@@ -647,19 +647,20 @@ where
     /// 
     /// # Example
     /// ```
+    /// use std::iter::FromIterator;
     /// use self::immutable_chunkmap::map::MapM as Map;
     ///  
-    /// let mut m = Map::from_iter((0..100).map(|k| (k, Map::from_iter(0..100).map(|k| (k, 1)))));
+    /// let mut m = Map::from_iter((0..100).map(|k| (k, Map::from_iter((0..100).map(|k| (k, 1))))));
     /// let orig = m.clone();
     /// 
-    /// if let Some(inner) = m.get_mut_cow(0) {
-    ///     if let Some(v) = inner.get_mut_cow(0) {
+    /// if let Some(inner) = m.get_mut_cow(&0) {
+    ///     if let Some(v) = inner.get_mut_cow(&0) {
     ///         *v += 1
     ///     }
     /// }
     /// 
-    /// assert_eq!(m.get(0).and_then(|m| m.get(0)), Some(2));
-    /// assert_eq!(orig.get(0).and_then(|m| m.get(0)), Some(1));
+    /// assert_eq!(m.get(&0).and_then(|m| m.get(&0)), Some(&2));
+    /// assert_eq!(orig.get(&0).and_then(|m| m.get(&0)), Some(&1));
     /// ```
     pub fn get_mut_cow<'a, Q: ?Sized + Ord>(&'a mut self, k: &Q) -> Option<&'a mut V>
     where
