@@ -7,7 +7,7 @@ use std::{
     fmt::{self, Debug, Formatter},
     hash::{Hash, Hasher},
     iter::FromIterator,
-    ops::{Index, RangeBounds, RangeFull, IndexMut},
+    ops::{Index, IndexMut, RangeBounds, RangeFull},
 };
 
 #[cfg(feature = "serde")]
@@ -637,14 +637,14 @@ where
         self.0.get_full(k)
     }
 
-    /// Get a mutable reference to the value mapped to `k` using copy on write semantics. 
+    /// Get a mutable reference to the value mapped to `k` using copy on write semantics.
     /// This works as `Arc::make_mut`, it will only clone the parts of the tree that are,
     /// - required to reach `k`
     /// - have a strong count > 1
     ///
-    /// This operation is also triggered by mut indexing on the map, e.g. `&mut m[k]` 
+    /// This operation is also triggered by mut indexing on the map, e.g. `&mut m[k]`
     /// calls `get_mut_cow` on `m`
-    /// 
+    ///
     /// # Example
     /// ```
     /// use std::iter::FromIterator;
@@ -652,13 +652,13 @@ where
     ///  
     /// let mut m = Map::from_iter((0..100).map(|k| (k, Map::from_iter((0..100).map(|k| (k, 1))))));
     /// let orig = m.clone();
-    /// 
+    ///
     /// if let Some(inner) = m.get_mut_cow(&0) {
     ///     if let Some(v) = inner.get_mut_cow(&0) {
     ///         *v += 1
     ///     }
     /// }
-    /// 
+    ///
     /// assert_eq!(m.get(&0).and_then(|m| m.get(&0)), Some(&2));
     /// assert_eq!(orig.get(&0).and_then(|m| m.get(&0)), Some(&1));
     /// ```
@@ -667,6 +667,15 @@ where
         K: Borrow<Q>,
     {
         self.0.get_mut_cow(k)
+    }
+
+    /// Same as `get_mut_cow` except if the value is not in the map it will
+    /// first be inserted by calling `f`
+    pub fn get_or_insert_cow<'a, F>(&'a mut self, k: K, f: F) -> &'a mut V
+    where
+        F: FnOnce() -> V,
+    {
+        self.0.get_or_insert_cow(k, f)
     }
 
     /// return a new map with the mapping under k removed. If
@@ -710,6 +719,18 @@ where
         R: RangeBounds<Q> + 'a,
     {
         self.0.range(r)
+    }
+}
+
+impl<K, V, const SIZE: usize> Map<K, V, SIZE>
+where
+    K: Ord + Clone,
+    V: Clone + Default,
+{
+    /// Same as `get_mut_cow` except if the value isn't in the map it will
+    /// be added by calling `V::default`
+    pub fn get_or_default_cow<'a>(&'a mut self, k: K) -> &'a mut V {
+        self.0.get_or_default_cow(k)
     }
 }
 
