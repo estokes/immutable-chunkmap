@@ -748,7 +748,7 @@ where
     /// The returned iterator runs in O(log(N) + M) time, and
     /// constant space. N is the number of elements in the
     /// tree, and M is the number of elements you examine.
-    pub fn iter_mut_cow<'a, Q, R>(&'a mut self) -> IterMut<'a, RangeFull, Q, K, V, SIZE>
+    pub fn iter_mut_cow<'a, Q>(&'a mut self) -> IterMut<'a, RangeFull, Q, K, V, SIZE>
     where
         Q: Ord + ?Sized + 'a,
         K: Borrow<Q>,

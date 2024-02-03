@@ -3,7 +3,7 @@ use rand::Rng;
 use std::{
     borrow::Borrow,
     cmp::Ordering,
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     fmt::Debug,
     hash::Hash,
     i32,
@@ -243,10 +243,15 @@ where
             let j = rand::thread_rng().gen_range(0..i);
             let k = &o[j].0;
             let v: V = random();
-            cow.get_mut_cow(k).iter_mut().for_each(|val| **val = v.clone());
-            model.get_mut(k).iter_mut().for_each(|val| **val = v.clone());
+            cow.get_mut_cow(k)
+                .iter_mut()
+                .for_each(|val| **val = v.clone());
+            model
+                .get_mut(k)
+                .iter_mut()
+                .for_each(|val| **val = v.clone());
             assert_eq!(cow.get(k), model.get(k))
-        } 
+        }
     }
     cow.invariant();
     t.invariant();
@@ -432,6 +437,52 @@ where
 }
 
 make_tests!(test_map_iter_gen);
+
+fn test_map_iter_mut_gen<K, V>()
+where
+    K: Ord + Clone + Debug + Rand + Hash,
+    V: Ord + Clone + Debug + Rand + Hash,
+{
+    let mut vals = randvec::<(K, V)>(SIZE);
+    dedup_with(&mut vals, |(ref k, _)| k);
+    let mut model: BTreeMap<K, V> = BTreeMap::from_iter(vals.iter().cloned());
+    let model_u: BTreeMap<K, V> = BTreeMap::from_iter(vals.iter().cloned());
+    let mut t = MapM::new().insert_many(vals.iter().cloned());
+    let u = t.clone();
+    t.invariant();
+    u.invariant();
+    // t and model are equal
+    assert_eq!(model.len(), t.len());
+    for ((k, v), (k_, v_)) in t.into_iter().zip(model.iter()) {
+        assert_eq!(k, k_);
+        assert_eq!(v, v_);
+    }
+    // mutate t and model
+    assert_eq!(model.len(), t.len());
+    for ((k, v), (k_, v_)) in t.iter_mut_cow().zip(model.iter_mut()) {
+        assert_eq!(k, k_);
+        assert_eq!(v, v_);
+        let n: V = random();
+        *v = n.clone();
+        *v_ = n;
+    }
+    t.invariant();
+    // t and model are equal after mutation
+    assert_eq!(model.len(), t.len());
+    for ((k, v), (k_, v_)) in t.into_iter().zip(model.iter()) {
+        assert_eq!(k, k_);
+        assert_eq!(v, v_);
+    }
+    // u is unchanged after t's mutation because COW
+    u.invariant();
+    assert_eq!(model_u.len(), u.len());
+    for ((k, v), (k_, v_)) in u.into_iter().zip(model_u.iter()) {
+        assert_eq!(k, k_);
+        assert_eq!(v, v_);
+    }
+}
+
+make_tests!(test_map_iter_mut_gen);
 
 #[test]
 fn test_map_range_small() {
