@@ -1,3 +1,7 @@
+2.0.3
+
+* implement iter_mut_cow, range_mut_cow, for copy on write iterators
+
 2.0.2
 
 * implement get_or_insert_cow and get_or_default_cow
