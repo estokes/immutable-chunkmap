@@ -1,4 +1,4 @@
-use crate::avl::{Iter, Tree, WeakTree};
+use crate::avl::{Iter, IterMut, Tree, WeakTree};
 pub use crate::chunk::DEFAULT_SIZE;
 use std::{
     borrow::Borrow,
@@ -719,6 +719,41 @@ where
         R: RangeBounds<Q> + 'a,
     {
         self.0.range(r)
+    }
+
+    /// return a mutable iterator over the subset of elements in the
+    /// map that are within the specified range. The iterator will
+    /// copy on write the part of the tree that it visits,
+    /// specifically it will be as if you ran get_mut_cow on every
+    /// element you visit.
+    ///
+    /// The returned iterator runs in O(log(N) + M) time, and
+    /// constant space. N is the number of elements in the
+    /// tree, and M is the number of elements you examine.
+    ///
+    /// if lbound >= ubound the returned iterator will be empty
+    pub fn range_mut_cow<'a, Q, R>(&'a mut self, r: R) -> IterMut<'a, R, Q, K, V, SIZE>
+    where
+        Q: Ord + ?Sized + 'a,
+        K: Borrow<Q>,
+        R: RangeBounds<Q> + 'a,
+    {
+        self.0.range_mut_cow(r)
+    }
+
+    /// return a mutable iterator over the entire map. The iterator
+    /// will copy on write every element in the tree, specifically it
+    /// will be as if you ran get_mut_cow on every element.
+    ///
+    /// The returned iterator runs in O(log(N) + M) time, and
+    /// constant space. N is the number of elements in the
+    /// tree, and M is the number of elements you examine.
+    pub fn iter_mut_cow<'a, Q, R>(&'a mut self) -> IterMut<'a, RangeFull, Q, K, V, SIZE>
+    where
+        Q: Ord + ?Sized + 'a,
+        K: Borrow<Q>,
+    {
+        self.0.iter_mut_cow()
     }
 }
 

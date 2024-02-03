@@ -239,8 +239,8 @@ where
                 let (k, v) = match &mut self.elts {
                     &mut None => break,
                     &mut Some(ref mut s) => match s.next() {
-                        None => break,
                         Some((k, v)) => (k, v),
+                        None => break,
                     },
                 };
                 if let Some(back) = self.current_rev {
@@ -354,6 +354,204 @@ where
     }
 }
 
+pub struct IterMut<'a, R, Q, K, V, const SIZE: usize>
+where
+    Q: Ord + ?Sized,
+    R: RangeBounds<Q> + 'a,
+    K: 'a + Borrow<Q> + Ord + Clone,
+    V: 'a + Clone,
+{
+    q: PhantomData<Q>,
+    stack: ArrayVec<(bool, *mut Arc<Node<K, V, SIZE>>), MAX_DEPTH>,
+    elts: Option<iter::Zip<slice::Iter<'a, K>, slice::IterMut<'a, V>>>,
+    current: Option<&'a K>,
+    stack_rev: ArrayVec<(bool, *mut Arc<Node<K, V, SIZE>>), MAX_DEPTH>,
+    elts_rev: Option<iter::Zip<slice::Iter<'a, K>, slice::IterMut<'a, V>>>,
+    current_rev: Option<&'a K>,
+    bounds: R,
+}
+
+impl<'a, R, Q, K, V, const SIZE: usize> IterMut<'a, R, Q, K, V, SIZE>
+where
+    Q: Ord + ?Sized,
+    R: RangeBounds<Q> + 'a,
+    K: 'a + Borrow<Q> + Ord + Clone,
+    V: 'a + Clone,
+{
+    // is at least one element of the chunk in bounds
+    fn any_elts_above_lbound(&self, n: &'a Node<K, V, SIZE>) -> bool {
+        let l = n.elts.len();
+        match self.bounds.start_bound() {
+            Bound::Unbounded => true,
+            Bound::Included(bound) => l == 0 || n.elts.key(l - 1).borrow() >= bound,
+            Bound::Excluded(bound) => l == 0 || n.elts.key(l - 1).borrow() > bound,
+        }
+    }
+
+    fn any_elts_below_ubound(&self, n: &'a Node<K, V, SIZE>) -> bool {
+        let l = n.elts.len();
+        match self.bounds.end_bound() {
+            Bound::Unbounded => true,
+            Bound::Included(bound) => l == 0 || n.elts.key(0).borrow() <= bound,
+            Bound::Excluded(bound) => l == 0 || n.elts.key(0).borrow() < bound,
+        }
+    }
+
+    fn any_elts_in_bounds(&self, n: &'a Node<K, V, SIZE>) -> bool {
+        self.any_elts_above_lbound(n) && self.any_elts_below_ubound(n)
+    }
+
+    fn above_lbound(&self, k: &'a K) -> bool {
+        match self.bounds.start_bound() {
+            Bound::Unbounded => true,
+            Bound::Included(bound) => k.borrow() >= bound,
+            Bound::Excluded(bound) => k.borrow() > bound,
+        }
+    }
+
+    fn below_ubound(&self, k: &'a K) -> bool {
+        match self.bounds.end_bound() {
+            Bound::Unbounded => true,
+            Bound::Included(bound) => k.borrow() <= bound,
+            Bound::Excluded(bound) => k.borrow() < bound,
+        }
+    }
+}
+
+impl<'a, R, Q, K, V, const SIZE: usize> Iterator for IterMut<'a, R, Q, K, V, SIZE>
+where
+    Q: Ord + ?Sized,
+    R: RangeBounds<Q> + 'a,
+    K: 'a + Borrow<Q> + Ord + Clone,
+    V: 'a + Clone,
+{
+    type Item = (&'a K, &'a mut V);
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            loop {
+                let (k, v) = match &mut self.elts {
+                    &mut None => break,
+                    &mut Some(ref mut s) => match s.next() {
+                        Some((k, v)) => (k, v),
+                        None => break,
+                    },
+                };
+                if let Some(back) = self.current_rev {
+                    if k >= back {
+                        return None;
+                    }
+                }
+                if !self.below_ubound(k) {
+                    return None;
+                }
+                self.current = Some(k);
+                if self.above_lbound(k) {
+                    return Some((k, v));
+                }
+            }
+            if self.stack.is_empty() {
+                return None;
+            }
+            self.elts = None;
+            let top = self.stack.len() - 1;
+            let (visited, current) = self.stack[top];
+            if visited {
+                if self.any_elts_in_bounds(unsafe { &*current }) {
+                    self.elts = Some(
+                        (unsafe { &mut (Arc::make_mut(&mut *current)).elts }).into_iter(),
+                    );
+                }
+                self.stack.pop();
+                match unsafe { &mut (Arc::make_mut(&mut *current)).right } {
+                    Tree::Empty => (),
+                    Tree::Node(ref mut n) => {
+                        if self.any_elts_below_ubound(n) || !n.left.is_empty() {
+                            self.stack.push((false, n))
+                        }
+                    }
+                };
+            } else {
+                self.stack[top].0 = true;
+                match unsafe { &mut (Arc::make_mut(&mut *current)).left } {
+                    Tree::Empty => (),
+                    Tree::Node(n) => {
+                        if self.any_elts_above_lbound(n) || !n.right.is_empty() {
+                            self.stack.push((false, n))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl<'a, R, Q, K, V, const SIZE: usize> DoubleEndedIterator
+    for IterMut<'a, R, Q, K, V, SIZE>
+where
+    Q: Ord + ?Sized,
+    R: RangeBounds<Q> + 'a,
+    K: 'a + Borrow<Q> + Ord + Clone,
+    V: 'a + Clone,
+{
+    fn next_back(&mut self) -> Option<Self::Item> {
+        loop {
+            loop {
+                let (k, v) = match &mut self.elts_rev {
+                    &mut None => break,
+                    &mut Some(ref mut s) => match s.next_back() {
+                        None => break,
+                        Some((k, v)) => (k, v),
+                    },
+                };
+                if let Some(front) = self.current {
+                    if k <= front {
+                        return None;
+                    }
+                }
+                if !self.above_lbound(k) {
+                    return None;
+                }
+                self.current_rev = Some(k);
+                if self.below_ubound(k) {
+                    return Some((k, v));
+                }
+            }
+            if self.stack_rev.is_empty() {
+                return None;
+            }
+            self.elts_rev = None;
+            let top = self.stack_rev.len() - 1;
+            let (visited, current) = self.stack_rev[top];
+            if visited {
+                if self.any_elts_in_bounds(unsafe { &*current }) {
+                    self.elts_rev = Some(
+                        (unsafe { &mut (Arc::make_mut(&mut *current)).elts }).into_iter(),
+                    );
+                }
+                self.stack_rev.pop();
+                match unsafe { &mut (Arc::make_mut(&mut *current)).left } {
+                    Tree::Empty => (),
+                    Tree::Node(ref mut n) => {
+                        if self.any_elts_above_lbound(n) || !n.right.is_empty() {
+                            self.stack_rev.push((false, n))
+                        }
+                    }
+                };
+            } else {
+                self.stack_rev[top].0 = true;
+                match unsafe { &mut (Arc::make_mut(&mut *current)).right } {
+                    Tree::Empty => (),
+                    Tree::Node(ref mut n) => {
+                        if self.any_elts_below_ubound(n) || !n.left.is_empty() {
+                            self.stack_rev.push((false, n))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 impl<'a, K, V, const SIZE: usize> IntoIterator for &'a Tree<K, V, SIZE>
 where
     K: 'a + Ord + Clone,
@@ -432,6 +630,55 @@ where
                 }
             }
         }
+    }
+
+    pub(crate) fn range_mut_cow<'a, Q, R>(
+        &'a mut self,
+        r: R,
+    ) -> IterMut<'a, R, Q, K, V, SIZE>
+    where
+        Q: Ord + ?Sized + 'a,
+        K: Borrow<Q>,
+        R: RangeBounds<Q> + 'a,
+    {
+        match self {
+            Tree::Empty => IterMut {
+                q: PhantomData,
+                bounds: r,
+                stack: ArrayVec::<_, MAX_DEPTH>::new(),
+                elts: None,
+                current: None,
+                stack_rev: ArrayVec::<_, MAX_DEPTH>::new(),
+                elts_rev: None,
+                current_rev: None,
+            },
+            Tree::Node(ref mut n) => {
+                let mut stack =
+                    ArrayVec::<(bool, *mut Arc<Node<K, V, SIZE>>), MAX_DEPTH>::new();
+                let mut stack_rev =
+                    ArrayVec::<(bool, *mut Arc<Node<K, V, SIZE>>), MAX_DEPTH>::new();
+                stack.push((false, n));
+                stack_rev.push((false, n));
+                IterMut {
+                    q: PhantomData,
+                    bounds: r,
+                    stack,
+                    elts: None,
+                    current: None,
+                    stack_rev,
+                    elts_rev: None,
+                    current_rev: None,
+                }
+            }
+        }
+    }
+
+    pub(crate) fn iter_mut_cow<'a, Q>(&'a mut self) -> IterMut<'a, RangeFull, Q, K, V, SIZE>
+    where
+        Q: Ord + ?Sized + 'a,
+        K: Borrow<Q>,
+    {
+        self.range_mut_cow(..)
     }
 
     fn add_min_elts(&self, elts: &Chunk<K, V, SIZE>) -> Self {

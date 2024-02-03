@@ -711,3 +711,12 @@ impl<'a, K, V, const SIZE: usize> IntoIterator for &'a Chunk<K, V, SIZE> {
         (&self.keys).into_iter().zip(&self.vals)
     }
 }
+
+impl<'a, K: Clone, V: Clone, const SIZE: usize> IntoIterator for &'a mut Chunk<K, V, SIZE> {
+    type Item = (&'a K, &'a mut V);
+    type IntoIter = iter::Zip<slice::Iter<'a, K>, slice::IterMut<'a, V>>;
+    fn into_iter(self) -> Self::IntoIter {
+        let inner = Arc::make_mut(&mut self.0);
+        (&inner.keys).into_iter().zip(&mut inner.vals)
+    }
+}
