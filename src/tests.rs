@@ -459,13 +459,28 @@ where
     }
     // mutate t and model
     assert_eq!(model.len(), t.len());
-    for ((k, v), (k_, v_)) in t.iter_mut_cow().zip(model.iter_mut()) {
+    let mut iter = t.iter_mut_cow();
+    let mut miter = model.iter_mut();
+    let mut i = 0;
+    while i < vals.len() {
+        let ((k, v), (k_, v_)) = if rand::thread_rng().gen_bool(0.8) {
+            let p = iter.next().unwrap();
+            let p_ = miter.next().unwrap();
+            (p, p_)
+        } else {
+            let p = iter.next_back().unwrap();
+            let p_ = miter.next_back().unwrap();
+            (p, p_)
+        };
         assert_eq!(k, k_);
         assert_eq!(v, v_);
         let n: V = random();
         *v = n.clone();
         *v_ = n;
+        i += 1;
     }
+    assert_eq!(iter.next(), None);
+    assert_eq!(iter.next_back(), None);
     t.invariant();
     // t and model are equal after mutation
     assert_eq!(model.len(), t.len());
