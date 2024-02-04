@@ -1,3 +1,7 @@
+2.0.4
+
+* remove redundant type parameter from iter_mut_cow
+
 2.0.3
 
 * implement iter_mut_cow, range_mut_cow, for copy on write iterators
