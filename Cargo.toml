@@ -13,13 +13,11 @@ edition = "2018"
 
 [features]
 default = []
-serde = ["dep:serde", "packed_struct/use_serde"]
+serde = ["dep:serde"]
 rayon = ["dep:rayon"]
 
 [dependencies]
 arrayvec = "0.7"
-packed_struct = { version = "0.10", default-features = false }
-packed_struct_codegen = "0.10"
 serde = { version = "1", optional = true }
 rayon = { version = "1", optional = true }
 
