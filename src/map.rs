@@ -761,7 +761,7 @@ where
     /// Same as `get_mut_cow` except if the value isn't in the map it will
     /// be added by calling `V::default`
     pub fn get_or_default_cow<'a>(&'a mut self, k: K) -> &'a mut V {
-        self.0.get_or_default_cow(k)
+        self.get_or_insert_cow(k, V::default)
     }
 }
 
