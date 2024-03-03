@@ -1456,22 +1456,6 @@ where
 
 impl<K, V, const SIZE: usize> Tree<K, V, SIZE>
 where
-    K: Ord + Clone,
-    V: Clone + Default,
-{
-    pub(crate) fn get_or_default_cow<'a>(&'a mut self, k: K) -> &'a mut V {
-        match self.get_mut_cow(&k).map(|v| v as *mut V) {
-            Some(v) => unsafe { &mut *v },
-            None => {
-                self.insert_cow(k.clone(), V::default());
-                self.get_mut_cow(&k).unwrap()
-            }
-        }
-    }
-}
-
-impl<K, V, const SIZE: usize> Tree<K, V, SIZE>
-where
     K: Ord + Clone + Debug,
     V: Clone + Debug,
 {
