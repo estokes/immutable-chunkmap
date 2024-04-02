@@ -1,11 +1,10 @@
 # immutable chunk map
 
-A cache efficient immutable map, written using only safe rust, with
-lookup performance close to BTreeMap and reasonably good insertion
-performance. Optional copy on write mutable operations bring
-modification performance within 2x of BTreeMap in the best case while
-still offering snapshotting, and big O efficient set operations of a
-persistant data structure.
+A cache efficient immutable map with lookup performance close to
+BTreeMap and reasonably good insertion performance. Optional copy on
+write mutable operations bring modification performance within 2x of
+BTreeMap in the best case while still offering snapshotting, and big O
+efficient set operations of a persistant data structure.
 
 A graph of lookup performance of various data structures using usize
 keys. Full test data in the bench/charts directory. Tests performed on
