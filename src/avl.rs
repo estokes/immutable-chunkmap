@@ -1,6 +1,5 @@
 use crate::chunk::{Chunk, Loc, MutUpdate, Update, UpdateChunk};
 use arrayvec::ArrayVec;
-use packed_struct::prelude::*;
 use std::{
     borrow::Borrow,
     cmp::{max, min, Eq, Ord, Ordering, PartialEq, PartialOrd},
@@ -17,13 +16,9 @@ use std::{
 // until we get 128 bit machines with exabytes of memory
 const MAX_DEPTH: usize = 64;
 
-#[derive(PackedStruct, Clone, Debug)]
-#[packed_struct(bit_numbering = "msb0", endian = "lsb")]
-pub struct HeightAndSize {
-    #[packed_field(bits = "0:7")]
-    height: Integer<u8, packed_bits::Bits<6>>,
-    #[packed_field(bits = "8:63")]
-    size_of_children: Integer<u64, packed_bits::Bits<56>>,
+fn pack_height_and_size(height: u8, size: usize) -> u64 {
+  assert!((size & 0x00ffffff_ffffffff) == size);
+  ((height as u64) << 56) | (size as u64)
 }
 
 #[derive(Clone, Debug)]
@@ -33,7 +28,7 @@ pub(crate) struct Node<K: Ord + Clone, V: Clone, const SIZE: usize> {
     max_key: K,
     left: Tree<K, V, SIZE>,
     right: Tree<K, V, SIZE>,
-    height_and_size: [u8; 8],
+    height_and_size: u64,
 }
 
 impl<K, V, const SIZE: usize> Node<K, V, SIZE>
@@ -42,8 +37,7 @@ where
     V: Clone,
 {
     fn height(&self) -> u8 {
-        let has = HeightAndSize::unpack(&self.height_and_size).unwrap();
-        *has.height
+        ((self.height_and_size >> 56) & 0xff) as u8
     }
 
     fn mutated(&mut self) {
@@ -51,11 +45,10 @@ where
             self.min_key = min;
             self.max_key = max;
         }
-        let has = HeightAndSize {
-            height: (1 + max(self.left.height(), self.right.height())).into(),
-            size_of_children: ((self.left.len() + self.right.len()) as u64).into(),
-        };
-        self.height_and_size = has.pack().unwrap();
+        self.height_and_size = pack_height_and_size(
+            1 + max(self.left.height(), self.right.height()),
+            self.left.len() + self.right.len(),
+        );
     }
 }
 
@@ -897,11 +890,11 @@ where
         match self {
             Tree::Empty => 0,
             Tree::Node(n) => {
-                let has = HeightAndSize::unpack(&n.height_and_size).unwrap();
                 // on a 64 bit platform usize == u64, and on a 32 bit
                 // platform there can't be enough elements to overflow
                 // a u32
-                n.elts.len() + (*has.size_of_children as usize)
+                let size_of_children = (n.height_and_size & 0x00ffffff_ffffffff) as usize;
+                n.elts.len() + size_of_children
             }
         }
     }
@@ -919,17 +912,17 @@ where
         r: &Tree<K, V, SIZE>,
     ) -> Self {
         let (min_key, max_key) = elts.min_max_key().unwrap();
-        let has = HeightAndSize {
-            height: (1 + max(l.height(), r.height())).into(),
-            size_of_children: ((l.len() + r.len()) as u64).into(),
-        };
+        let height_and_size = pack_height_and_size(
+            1 + max(l.height(), r.height()),
+            l.len() + r.len(),
+        );
         let n = Node {
             elts,
             min_key,
             max_key,
             left: l.clone(),
             right: r.clone(),
-            height_and_size: has.pack().unwrap(),
+            height_and_size,
         };
         Tree::Node(Arc::new(n))
     }
