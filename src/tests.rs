@@ -15,7 +15,7 @@ use std::{
 
 const STRSIZE: usize = 10;
 const SIZE: usize = 500000;
-const CHECK: usize = 50000;
+const CHECK: usize = 500;
 
 macro_rules! make_tests {
     ($name:ident) => {
@@ -232,25 +232,29 @@ where
         model.insert(k.clone(), v.clone());
         assert_eq!(cow.get(k), Some(v));
         if i > 0 && i % CHECK == 0 {
-            let j = rand::thread_rng().gen_range(0..i);
-            let (k, v) = (&o[j].0, &o[j].1);
-            let p = cow.remove_cow(k);
-            model.remove(k);
-            assert_eq!(p.as_ref(), Some(v));
-            assert_eq!(cow.get(k), Option::None);
+            loop {
+                let j = rand::thread_rng().gen_range(0..i);
+                let k = &o[j].0;
+                if let Some(v) = model.remove(k) {
+                    let p = cow.remove_cow(k);
+                    assert_eq!(p.as_ref(), Some(&v));
+                    assert_eq!(cow.get(k), Option::None);
+                    break;
+                }
+            }
         }
         if i > 0 && i % CHECK == 1 {
             let j = rand::thread_rng().gen_range(0..i);
             let k = &o[j].0;
-            let v: V = random();
-            cow.get_mut_cow(k)
-                .iter_mut()
-                .for_each(|val| **val = v.clone());
-            model
-                .get_mut(k)
-                .iter_mut()
-                .for_each(|val| **val = v.clone());
-            assert_eq!(cow.get(k), model.get(k))
+            loop {
+                if let Some(mv) = model.get_mut(k) {
+                    let v: V = random();
+                    *cow.get_mut_cow(k).unwrap() = v.clone();
+                    *mv = v.clone();
+                    assert_eq!(cow.get(k), model.get(k));
+                    break;
+                }
+            }
         }
     }
     cow.invariant();
