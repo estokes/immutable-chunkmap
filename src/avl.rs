@@ -17,8 +17,8 @@ use std::{
 const MAX_DEPTH: usize = 64;
 
 fn pack_height_and_size(height: u8, size: usize) -> u64 {
-  assert!((size & 0x00ffffff_ffffffff) == size);
-  ((height as u64) << 56) | (size as u64)
+    assert!((size & 0x00ffffff_ffffffff) == size);
+    ((height as u64) << 56) | (size as u64)
 }
 
 #[derive(Clone, Debug)]
@@ -666,7 +666,9 @@ where
         }
     }
 
-    pub(crate) fn iter_mut_cow<'a, Q>(&'a mut self) -> IterMut<'a, RangeFull, Q, K, V, SIZE>
+    pub(crate) fn iter_mut_cow<'a, Q>(
+        &'a mut self,
+    ) -> IterMut<'a, RangeFull, Q, K, V, SIZE>
     where
         Q: Ord + ?Sized + 'a,
         K: Borrow<Q>,
@@ -912,10 +914,8 @@ where
         r: &Tree<K, V, SIZE>,
     ) -> Self {
         let (min_key, max_key) = elts.min_max_key().unwrap();
-        let height_and_size = pack_height_and_size(
-            1 + max(l.height(), r.height()),
-            l.len() + r.len(),
-        );
+        let height_and_size =
+            pack_height_and_size(1 + max(l.height(), r.height()), l.len() + r.len());
         let n = Node {
             elts,
             min_key,
