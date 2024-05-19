@@ -1,3 +1,8 @@
+2.0.5
+
+* merge #8 hand coded packing of height/size to remove the dependency
+  on packed struct
+
 2.0.4
 
 * remove redundant type parameter from iter_mut_cow
