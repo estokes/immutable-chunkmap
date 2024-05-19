@@ -244,9 +244,9 @@ where
             }
         }
         if i > 0 && i % CHECK == 1 {
-            let j = rand::thread_rng().gen_range(0..i);
-            let k = &o[j].0;
             loop {
+                let j = rand::thread_rng().gen_range(0..i);
+                let k = &o[j].0;
                 if let Some(mv) = model.get_mut(k) {
                     let v: V = random();
                     *cow.get_mut_cow(k).unwrap() = v.clone();
@@ -268,6 +268,9 @@ where
     assert_eq!(model.len(), cow.len());
     for (k, v) in &model {
         assert_eq!(cow.get(k), Some(v))
+    }
+    for (k, v) in &cow {
+        assert_eq!(model.get(k), Some(v))
     }
 }
 
