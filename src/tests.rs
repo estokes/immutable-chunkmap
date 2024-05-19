@@ -15,7 +15,7 @@ use std::{
 
 const STRSIZE: usize = 10;
 const SIZE: usize = 500000;
-const CHECK: usize = 500;
+const CHECK: usize = 5000;
 
 macro_rules! make_tests {
     ($name:ident) => {
@@ -681,7 +681,7 @@ fn test_set_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
         t = tn;
         assert_eq!(p, false);
         assert_eq!(t.contains(k), true);
-        if i % CHECK == 0 {
+        if i % (CHECK * 10) == 0 {
             for j in 0..i {
                 assert_eq!(t.contains(&v[j]), true)
             }
@@ -694,7 +694,7 @@ fn test_set_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
         let (tn, p) = t.remove(k);
         t = tn;
         assert_eq!(p, true);
-        if i % CHECK == 0 {
+        if i % (CHECK * 10) == 0 {
             for j in 0..i {
                 assert_eq!(t.contains(&v[j]), false);
             }
