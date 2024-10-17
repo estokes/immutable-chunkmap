@@ -1,17 +1,16 @@
 use crate::{avl, chunk::DEFAULT_SIZE, map::MapM, set::SetM};
-use rand::Rng;
-use std::{
+use alloc::{collections::BTreeMap, string::String, sync::Arc, vec::Vec, vec};
+use core::{
     borrow::Borrow,
     cmp::Ordering,
-    collections::{BTreeMap, HashMap, HashSet},
     fmt::Debug,
     hash::Hash,
     i32,
     iter::{FromIterator, IntoIterator},
     ops::Bound::{Excluded, Included},
-    sync::Arc,
-    vec::Vec,
 };
+use hashbrown::{HashMap, HashSet};
+use rand::Rng;
 
 const STRSIZE: usize = 10;
 const SIZE: usize = 500000;
@@ -612,14 +611,6 @@ where
             break (j, i);
         }
     };
-    println!(
-        "start: {:?}:{:?} end {:?}:{:?} len {:?}",
-        start,
-        vals[start],
-        end,
-        vals[end],
-        vals.len()
-    );
     {
         let mut i = start;
         for (k, v) in t.range(&vals[i].0..&vals[end].0) {

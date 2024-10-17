@@ -17,8 +17,8 @@ serde = ["dep:serde"]
 rayon = ["dep:rayon"]
 
 [dependencies]
-arrayvec = "0.7"
-serde = { version = "1", optional = true }
+arrayvec = { version = "0.7", default-features = false }
+serde = { version = "1", default-features = false, features = ["alloc"], optional = true }
 rayon = { version = "1", optional = true }
 
 [dev-dependencies]
@@ -27,3 +27,4 @@ serde = "1"
 serde_json = "1"
 paste = "1"
 rand = "0.8"
+hashbrown = "0.15"

@@ -1,6 +1,6 @@
 use crate::avl::{Iter, Tree, WeakTree};
 pub use crate::chunk::DEFAULT_SIZE;
-use std::{
+use core::{
     borrow::Borrow,
     cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd},
     default::Default,
@@ -18,7 +18,7 @@ use serde::{
 };
 
 #[cfg(feature = "serde")]
-use std::marker::PhantomData;
+use core::marker::PhantomData;
 
 #[cfg(feature = "rayon")]
 use rayon::{
@@ -31,7 +31,8 @@ use rayon::{
 /// log(N) get, insert, and remove operations.
 /// # Examples
 /// ```
-/// use std::string::String;
+/// # extern crate alloc;
+/// use alloc::string::String;
 /// use self::immutable_chunkmap::set::SetM;
 ///
 /// let m =
@@ -423,7 +424,7 @@ where
     ///
     /// # Examples
     /// ```
-    /// use std::iter::FromIterator;
+    /// use core::iter::FromIterator;
     /// use self::immutable_chunkmap::set::SetM;
     ///
     /// let s0 = SetM::from_iter(0..10);
@@ -442,7 +443,7 @@ where
     /// the number of intersecting chunks.
     ///
     /// # Examples
-    /// use std::iter::FromIterator;
+    /// use core::iter::FromIterator;
     /// use self::immutable_chunkmap::set::SetM;
     ///
     /// let s0 = SetM::from_iter(0..100);
@@ -471,7 +472,7 @@ where
     ///
     /// # Examples
     /// ```
-    /// use std::iter::FromIterator;
+    /// use core::iter::FromIterator;
     /// use self::immutable_chunkmap::set::SetM;
     ///
     /// let s0 = SetM::from_iter(0..100);

@@ -1,6 +1,6 @@
 use crate::avl::{Iter, IterMut, Tree, WeakTree};
 pub use crate::chunk::DEFAULT_SIZE;
-use std::{
+use core::{
     borrow::Borrow,
     cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd},
     default::Default,
@@ -18,7 +18,7 @@ use serde::{
 };
 
 #[cfg(feature = "serde")]
-use std::marker::PhantomData;
+use core::marker::PhantomData;
 
 #[cfg(feature = "rayon")]
 use rayon::{
@@ -45,7 +45,8 @@ use rayon::{
 ///
 /// # Examples
 /// ```
-/// use std::string::String;
+/// # extern crate alloc;
+/// use alloc::string::String;
 /// use self::immutable_chunkmap::map::MapM;
 ///
 /// let m =
@@ -377,7 +378,7 @@ where
     ///
     /// #Examples
     /// ```
-    /// use std::iter::FromIterator;
+    /// use core::iter::FromIterator;
     /// use self::immutable_chunkmap::map::MapM;
     ///
     /// let m = MapM::from_iter((0..4).map(|k| (k, k)));
@@ -512,7 +513,7 @@ where
     ///
     /// # Examples
     /// ```
-    /// use std::iter::FromIterator;
+    /// use core::iter::FromIterator;
     /// use self::immutable_chunkmap::map::MapM;
     ///
     /// let m0 = MapM::from_iter((0..10).map(|k| (k, 1)));
@@ -550,7 +551,7 @@ where
     ///
     /// # Examples
     ///```
-    /// use std::iter::FromIterator;
+    /// use core::iter::FromIterator;
     /// use self::immutable_chunkmap::map::MapM;
     ///
     /// let m0 = MapM::from_iter((0..100000).map(|k| (k, 1)));
@@ -580,7 +581,7 @@ where
     ///
     /// # Examples
     ///```
-    /// use std::iter::FromIterator;
+    /// use core::iter::FromIterator;
     /// use self::immutable_chunkmap::map::MapM;
     ///
     /// let m0 = MapM::from_iter((0..10000).map(|k| (k, 1)));
@@ -647,7 +648,7 @@ where
     ///
     /// # Example
     /// ```
-    /// use std::iter::FromIterator;
+    /// use core::iter::FromIterator;
     /// use self::immutable_chunkmap::map::MapM as Map;
     ///  
     /// let mut m = Map::from_iter((0..100).map(|k| (k, Map::from_iter((0..100).map(|k| (k, 1))))));
