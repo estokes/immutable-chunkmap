@@ -1,3 +1,7 @@
+2.0.6
+
+* merge #10, no_std support (alloc required)
+
 2.0.5
 
 * merge #8 hand coded packing of height/size to remove the dependency
