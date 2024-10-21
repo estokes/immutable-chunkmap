@@ -1,6 +1,7 @@
 use crate::chunk::{Chunk, Loc, MutUpdate, Update, UpdateChunk};
 use arrayvec::ArrayVec;
-use std::{
+use alloc::{sync::{Arc, Weak}, vec::Vec};
+use core::{
     borrow::Borrow,
     cmp::{max, min, Eq, Ord, Ordering, PartialEq, PartialOrd},
     default::Default,
@@ -10,7 +11,6 @@ use std::{
     marker::PhantomData,
     ops::{Bound, Index, RangeBounds, RangeFull},
     slice,
-    sync::{Arc, Weak},
 };
 
 // until we get 128 bit machines with exabytes of memory

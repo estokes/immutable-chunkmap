@@ -1,12 +1,12 @@
 use arrayvec::ArrayVec;
-use std::{
+use alloc::{sync::Arc, vec::Vec};
+use core::{
     borrow::Borrow,
     cmp::{min, Ord, Ordering},
     fmt::{self, Debug, Formatter},
     iter, mem,
     ops::Deref,
     slice,
-    sync::Arc,
 };
 
 #[derive(PartialEq)]
