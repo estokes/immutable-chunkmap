@@ -390,7 +390,7 @@ where
 
     /// return a reference to the item in the set that is equal to the
     /// given value, or None if no such value exists.
-    pub fn get<'a, Q>(&'a self, k: &Q) -> Option<&K>
+    pub fn get<'a, Q>(&'a self, k: &Q) -> Option<&'a K>
     where
         Q: ?Sized + Ord,
         K: Borrow<Q>,
