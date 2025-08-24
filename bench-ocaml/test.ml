@@ -12,7 +12,7 @@ let random_string () =
   Bytes.to_string s
 
 let random_array size mk k =
-  let s = Hash_set.create ~size k () in
+  let s = Hash_set.create ~size k in
   while Hash_set.length s < size do
     Hash_set.add s (mk ())
   done;
@@ -20,16 +20,16 @@ let random_array size mk k =
 
 let bench_add cmp k v =
   let kv = Option.value_exn (Array.zip k v) in
-  let st = Time.now () in
+  let st = Time_float.now () in
   let m =
     Array.fold kv ~init:(Map.empty cmp)
       ~f:(fun m (k, v) -> Map.set m ~key:k ~data:v)
   in
-  let en = Time.now () in
-  (m, Time.diff en st)
+  let en = Time_float.now () in
+  (m, Time_float.diff en st)
 
 let bench_find m k =
-  let st = Time.now () in
+  let st = Time_float.now () in
   let i = ref 0 in
   let len = Array.length k in
   let iter = Int.max len min_iter in
@@ -37,26 +37,27 @@ let bench_find m k =
     assert (Option.is_some (Map.find m (Array.unsafe_get k (!i mod len))));
     incr i
   done;
-  let en = Time.now () in
-  Time.diff en st
+  let en = Time_float.now () in
+  Time_float.diff en st
 
 let bench_remove m k =
-  let st = Time.now () in
+  let st = Time_float.now () in
   let m = Array.fold k ~init:m ~f:(fun m k -> Map.remove m k) in
   if Map.length m <> 0 then failwith "remove is broken";
-  let en = Time.now () in
-  Time.diff en st
+  let en = Time_float.now () in
+  Time_float.diff en st
 
 let () =
+  let args = Sys.get_argv () in
   let size =
-    if Array.length Sys.argv = 4 then Int.of_string Sys.argv.(3)
+    if Array.length args = 4 then Int.of_string args.(3)
     else begin
       printf "usage: test <unused> <kind> <size>\n%!";
       exit 0
     end
   in
-  let str t sz = sprintf "%g" (Time.Span.to_ns t /. float sz) in
-  match Sys.argv.(2) with
+  let str t sz = sprintf "%g" (Time_float.Span.to_ns t /. float sz) in
+  match args.(2) with
     "ptr" -> begin
       let mk () = Random.int Int.max_value in
       let k = random_array size mk (module Int) in

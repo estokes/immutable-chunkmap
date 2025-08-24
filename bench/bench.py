@@ -44,7 +44,7 @@ def run(exe, bench, kind):
         avg3(result['get_parallel'])
         avg3(result['remove'])
     return result
-            
+
 def plot(fname, title, xlbl, ylbl, cm, cow, hm, btm, oc):
     fig, ax = plt.subplots()
     labels = ['1k', '10k', '100k', '1m', '10m']
