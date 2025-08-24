@@ -136,7 +136,7 @@ where
     }
 
     pub(crate) fn empty(pool: &ChunkPool<K, V, SIZE>) -> Self {
-        Chunk(pool.take())
+        Chunk(pool.take_chunk())
     }
 
     pub(crate) fn create_with<Q, D, F>(

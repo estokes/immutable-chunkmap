@@ -1,6 +1,6 @@
 [package]
 name = "immutable-chunkmap"
-version = "2.0.6"
+version = "2.0.7"
 authors = ["Eric Stokes <letaris@gmail.com>"]
 publish = true
 description = "A fast immutable map and set with batch insert and update methods, COW operations, and big O efficient implementations of set and merge operations"
@@ -23,7 +23,7 @@ serde = { version = "1", default-features = false, features = [
     "alloc",
 ], optional = true }
 rayon = { version = "1", optional = true }
-poolshark = { version = "0.1.5", default-features = false, optional = true }
+poolshark = { version = "0.1.5", default-features = false, optional = true, path = "../poolshark" }
 fxhash = { version = "0.2", optional = true }
 
 [dev-dependencies]

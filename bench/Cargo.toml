@@ -11,7 +11,7 @@ lto = true
 
 [dependencies]
 smallvec = "1.0"
-immutable-chunkmap = {path = "../"}
+immutable-chunkmap = {path = "../", features = ["pool"]}
 rand = ">= 0.3"
 num_cpus = ">= 1.0"
 arcstr = "1"
