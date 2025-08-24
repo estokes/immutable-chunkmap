@@ -7,8 +7,15 @@ extern crate alloc;
 pub(crate) mod avl;
 pub(crate) mod chunk;
 pub mod map;
-pub mod pool;
 pub mod set;
+
+#[cfg(not(feature = "pool"))]
+pub mod no_pool;
+#[cfg(not(feature = "pool"))]
+pub use no_pool as pool;
+
+#[cfg(feature = "pool")]
+pub mod pool;
 
 #[cfg(test)]
 mod tests;

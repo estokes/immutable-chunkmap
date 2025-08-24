@@ -1,3 +1,4 @@
+use crate::pool::{Arc, ChunkPool, Poolable};
 use alloc::vec::Vec;
 use arrayvec::ArrayVec;
 use core::{
@@ -8,9 +9,6 @@ use core::{
     ops::Deref,
     slice,
 };
-use poolshark::{arc::Arc, Poolable};
-
-use crate::pool::ChunkPool;
 
 #[derive(PartialEq)]
 pub(crate) enum Loc {

@@ -1,7 +1,8 @@
 use crate::chunk::ChunkInner;
 use core::mem;
 use fxhash::FxHashMap;
-use poolshark::{arc::Arc, RawPool};
+use poolshark::RawPool;
+pub use poolshark::{arc::Arc, Poolable};
 use std::{cell::RefCell, collections::HashMap};
 
 /// a chunk pool holds unused chunks in a thread safe queue so they can be
