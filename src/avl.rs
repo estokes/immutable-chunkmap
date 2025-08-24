@@ -1,6 +1,12 @@
-use crate::chunk::{Chunk, Loc, MutUpdate, Update, UpdateChunk};
+use crate::{
+    chunk::{Chunk, Loc, MutUpdate, Update, UpdateChunk},
+    pool::ChunkPool,
+};
+use alloc::{
+    sync::{Arc, Weak},
+    vec::Vec,
+};
 use arrayvec::ArrayVec;
-use alloc::{sync::{Arc, Weak}, vec::Vec};
 use core::{
     borrow::Borrow,
     cmp::{max, min, Eq, Ord, Ordering, PartialEq, PartialOrd},
@@ -676,17 +682,29 @@ where
         self.range_mut_cow(..)
     }
 
-    fn add_min_elts(&self, elts: &Chunk<K, V, SIZE>) -> Self {
+    fn add_min_elts(
+        &self,
+        pool: &ChunkPool<K, V, SIZE>,
+        elts: &Chunk<K, V, SIZE>,
+    ) -> Self {
         match self {
             Tree::Empty => Tree::create(&Tree::Empty, elts.clone(), &Tree::Empty),
-            Tree::Node(ref n) => Tree::bal(&n.left.add_min_elts(elts), &n.elts, &n.right),
+            Tree::Node(ref n) => {
+                Tree::bal(pool, &n.left.add_min_elts(pool, elts), &n.elts, &n.right)
+            }
         }
     }
 
-    fn add_max_elts(&self, elts: &Chunk<K, V, SIZE>) -> Self {
+    fn add_max_elts(
+        &self,
+        pool: &ChunkPool<K, V, SIZE>,
+        elts: &Chunk<K, V, SIZE>,
+    ) -> Self {
         match self {
             Tree::Empty => Tree::create(&Tree::Empty, elts.clone(), &Tree::Empty),
-            Tree::Node(ref n) => Tree::bal(&n.left, &n.elts, &n.right.add_max_elts(elts)),
+            Tree::Node(ref n) => {
+                Tree::bal(pool, &n.left, &n.elts, &n.right.add_max_elts(pool, elts))
+            }
         }
     }
 
@@ -694,19 +712,30 @@ where
     // heights or tree balance, so you can pass it anything, and it will return
     // a balanced tree.
     fn join(
+        pool: &ChunkPool<K, V, SIZE>,
         l: &Tree<K, V, SIZE>,
         elts: &Chunk<K, V, SIZE>,
         r: &Tree<K, V, SIZE>,
     ) -> Self {
         match (l, r) {
-            (Tree::Empty, _) => r.add_min_elts(elts),
-            (_, Tree::Empty) => l.add_max_elts(elts),
+            (Tree::Empty, _) => r.add_min_elts(pool, elts),
+            (_, Tree::Empty) => l.add_max_elts(pool, elts),
             (Tree::Node(ref ln), Tree::Node(ref rn)) => {
                 let (ln_height, rn_height) = (ln.height(), rn.height());
                 if ln_height > rn_height + 1 {
-                    Tree::bal(&ln.left, &ln.elts, &Tree::join(&ln.right, elts, r))
+                    Tree::bal(
+                        pool,
+                        &ln.left,
+                        &ln.elts,
+                        &Tree::join(pool, &ln.right, elts, r),
+                    )
                 } else if rn_height > ln_height + 1 {
-                    Tree::bal(&Tree::join(l, elts, &rn.left), &rn.elts, &rn.right)
+                    Tree::bal(
+                        pool,
+                        &Tree::join(pool, l, elts, &rn.left),
+                        &rn.elts,
+                        &rn.right,
+                    )
                 } else {
                     Tree::create(l, elts.clone(), r)
                 }
@@ -719,16 +748,21 @@ where
     /// if there is a possible intersection return the intersecting
     /// chunk. In the case of an intersection there may also be an
     /// intersection at the left and/or right nodes.
-    fn split(&self, vmin: &K, vmax: &K) -> (Self, Option<Chunk<K, V, SIZE>>, Self) {
+    fn split(
+        &self,
+        pool: &ChunkPool<K, V, SIZE>,
+        vmin: &K,
+        vmax: &K,
+    ) -> (Self, Option<Chunk<K, V, SIZE>>, Self) {
         match self {
             Tree::Empty => (Tree::Empty, None, Tree::Empty),
             Tree::Node(ref n) => {
                 if *vmax < n.min_key {
-                    let (ll, inter, rl) = n.left.split(vmin, vmax);
-                    (ll, inter, Tree::join(&rl, &n.elts, &n.right))
+                    let (ll, inter, rl) = n.left.split(pool, vmin, vmax);
+                    (ll, inter, Tree::join(pool, &rl, &n.elts, &n.right))
                 } else if *vmin > n.max_key {
-                    let (lr, inter, rr) = n.right.split(vmin, vmax);
-                    (Tree::join(&n.left, &n.elts, &lr), inter, rr)
+                    let (lr, inter, rr) = n.right.split(pool, vmin, vmax);
+                    (Tree::join(pool, &n.left, &n.elts, &lr), inter, rr)
                 } else {
                     (n.left.clone(), Some(n.elts.clone()), n.right.clone())
                 }
@@ -740,6 +774,7 @@ where
     /// return from with it's current root remove, and to with the
     /// elements merged.
     fn merge_root_to<F>(
+        pool: &ChunkPool<K, V, SIZE>,
         from: &Tree<K, V, SIZE>,
         to: &Tree<K, V, SIZE>,
         f: &mut F,
@@ -750,10 +785,15 @@ where
         match (from, to) {
             (Tree::Empty, to) => (Tree::Empty, to.clone()),
             (Tree::Node(ref n), to) => {
-                let to = to.update_chunk(n.elts.to_vec(), &mut |k0, v0, cur| match cur {
-                    None => Some((k0, v0)),
-                    Some((_, v1)) => f(&k0, &v0, v1).map(|v| (k0, v)),
-                });
+                let to =
+                    to.update_chunk(
+                        pool,
+                        n.elts.to_vec(),
+                        &mut |k0, v0, cur| match cur {
+                            None => Some((k0, v0)),
+                            Some((_, v1)) => f(&k0, &v0, v1).map(|v| (k0, v)),
+                        },
+                    );
                 if n.height() == 1 {
                     (Tree::Empty, to)
                 } else {
@@ -761,8 +801,8 @@ where
                         Tree::Empty => (n.left.clone(), to),
                         Tree::Node(_) => {
                             let elts = n.right.min_elts().unwrap();
-                            let right = n.right.remove_min_elts();
-                            (Tree::join(&n.left, elts, &right), to)
+                            let right = n.right.remove_min_elts(pool);
+                            (Tree::join(pool, &n.left, elts, &right), to)
                         }
                     }
                 }
@@ -774,6 +814,7 @@ where
     /// + m) where n is the size of the largest tree, and m is the number of
     /// intersecting chunks.
     pub(crate) fn union<F>(
+        pool: &ChunkPool<K, V, SIZE>,
         t0: &Tree<K, V, SIZE>,
         t1: &Tree<K, V, SIZE>,
         f: &mut F,
@@ -787,27 +828,29 @@ where
             (t0, Tree::Empty) => t0.clone(),
             (Tree::Node(ref n0), Tree::Node(ref n1)) => {
                 if n0.height() > n1.height() {
-                    match t1.split(&n0.min_key, &n0.max_key) {
+                    match t1.split(pool, &n0.min_key, &n0.max_key) {
                         (_, Some(_), _) => {
-                            let (t0, t1) = Tree::merge_root_to(&t0, &t1, f);
-                            Tree::union(&t0, &t1, f)
+                            let (t0, t1) = Tree::merge_root_to(pool, &t0, &t1, f);
+                            Tree::union(pool, &t0, &t1, f)
                         }
                         (l1, None, r1) => Tree::join(
-                            &Tree::union(&n0.left, &l1, f),
+                            pool,
+                            &Tree::union(pool, &n0.left, &l1, f),
                             &n0.elts,
-                            &Tree::union(&n0.right, &r1, f),
+                            &Tree::union(pool, &n0.right, &r1, f),
                         ),
                     }
                 } else {
-                    match t0.split(&n1.min_key, &n1.max_key) {
+                    match t0.split(pool, &n1.min_key, &n1.max_key) {
                         (_, Some(_), _) => {
-                            let (t1, t0) = Tree::merge_root_to(&t1, &t0, f);
-                            Tree::union(&t0, &t1, f)
+                            let (t1, t0) = Tree::merge_root_to(pool, &t1, &t0, f);
+                            Tree::union(pool, &t0, &t1, f)
                         }
                         (l0, None, r0) => Tree::join(
-                            &Tree::union(&l0, &n1.left, f),
+                            pool,
+                            &Tree::union(pool, &l0, &n1.left, f),
                             &n1.elts,
-                            &Tree::union(&r0, &n1.right, f),
+                            &Tree::union(pool, &r0, &n1.right, f),
                         ),
                     }
                 }
@@ -816,6 +859,7 @@ where
     }
 
     fn intersect_int<F>(
+        pool: &ChunkPool<K, V, SIZE>,
         t0: &Tree<K, V, SIZE>,
         t1: &Tree<K, V, SIZE>,
         r: &mut Vec<(K, V)>,
@@ -826,30 +870,30 @@ where
         match (t0, t1) {
             (Tree::Empty, _) => (),
             (_, Tree::Empty) => (),
-            (Tree::Node(ref n0), t1) => match t1.split(&n0.min_key, &n0.max_key) {
+            (Tree::Node(ref n0), t1) => match t1.split(pool, &n0.min_key, &n0.max_key) {
                 (l1, None, r1) => {
-                    Tree::intersect_int(&n0.left, &l1, r, f);
-                    Tree::intersect_int(&n0.right, &r1, r, f);
+                    Tree::intersect_int(pool, &n0.left, &l1, r, f);
+                    Tree::intersect_int(pool, &n0.right, &r1, r, f);
                 }
                 (l1, Some(elts), r1) => {
                     let (min_k, max_k) = elts.min_max_key().unwrap();
                     Chunk::intersect(&n0.elts, &elts, r, f);
                     if n0.min_key < min_k && n0.max_key > max_k {
-                        Tree::intersect_int(t0, &Tree::concat(&l1, &r1), r, f)
+                        Tree::intersect_int(pool, t0, &Tree::concat(pool, &l1, &r1), r, f)
                     } else if n0.min_key >= min_k && n0.max_key <= max_k {
-                        let t0 = Tree::concat(&n0.left, &n0.right);
-                        let t1 = Tree::join(&l1, &elts, &r1);
-                        Tree::intersect_int(&t0, &t1, r, f);
+                        let t0 = Tree::concat(pool, &n0.left, &n0.right);
+                        let t1 = Tree::join(pool, &l1, &elts, &r1);
+                        Tree::intersect_int(pool, &t0, &t1, r, f);
                     } else if n0.min_key < min_k {
-                        let tl = Tree::join(&n0.left, &n0.elts, &Tree::Empty);
-                        Tree::intersect_int(&tl, &l1, r, f);
-                        let tr = Tree::join(&Tree::Empty, &elts, &r1);
-                        Tree::intersect_int(&n0.right, &tr, r, f);
+                        let tl = Tree::join(pool, &n0.left, &n0.elts, &Tree::Empty);
+                        Tree::intersect_int(pool, &tl, &l1, r, f);
+                        let tr = Tree::join(pool, &Tree::Empty, &elts, &r1);
+                        Tree::intersect_int(pool, &n0.right, &tr, r, f);
                     } else {
-                        let tl = Tree::join(&l1, &elts, &Tree::Empty);
-                        Tree::intersect_int(&tl, &n0.left, r, f);
-                        let tr = Tree::join(&Tree::Empty, &n0.elts, &n0.right);
-                        Tree::intersect_int(&r1, &tr, r, f);
+                        let tl = Tree::join(pool, &l1, &elts, &Tree::Empty);
+                        Tree::intersect_int(pool, &tl, &n0.left, r, f);
+                        let tr = Tree::join(pool, &Tree::Empty, &n0.elts, &n0.right);
+                        Tree::intersect_int(pool, &r1, &tr, r, f);
                     }
                 }
             },
@@ -857,6 +901,7 @@ where
     }
 
     pub(crate) fn intersect<F>(
+        pool: &ChunkPool<K, V, SIZE>,
         t0: &Tree<K, V, SIZE>,
         t1: &Tree<K, V, SIZE>,
         f: &mut F,
@@ -865,20 +910,25 @@ where
         F: FnMut(&K, &V, &V) -> Option<V>,
     {
         let mut r = Vec::new();
-        Tree::intersect_int(t0, t1, &mut r, f);
-        Tree::Empty.insert_many(r.into_iter())
+        Tree::intersect_int(pool, t0, t1, &mut r, f);
+        Tree::Empty.insert_many(pool, r.into_iter())
     }
 
-    pub(crate) fn diff<F>(t0: &Tree<K, V, SIZE>, t1: &Tree<K, V, SIZE>, f: &mut F) -> Self
+    pub(crate) fn diff<F>(
+        pool: &ChunkPool<K, V, SIZE>,
+        t0: &Tree<K, V, SIZE>,
+        t1: &Tree<K, V, SIZE>,
+        f: &mut F,
+    ) -> Self
     where
         F: FnMut(&K, &V, &V) -> Option<V>,
     {
         let mut actions = Vec::new();
-        Tree::intersect_int(t0, t1, &mut Vec::new(), &mut |k, v0, v1| {
+        Tree::intersect_int(pool, t0, t1, &mut Vec::new(), &mut |k, v0, v1| {
             actions.push((k.clone(), f(k, v0, v1)));
             None
         });
-        t0.update_many(actions, &mut |k, v, _| v.map(|v| (k, v)))
+        t0.update_many(pool, actions, &mut |k, v, _| v.map(|v| (k, v)))
     }
 
     fn is_empty(&self) -> bool {
@@ -932,7 +982,7 @@ where
         (hl <= hr + 1) && (hr <= hl + 1)
     }
 
-    fn compact(self) -> Self {
+    fn compact(self, pool: &ChunkPool<K, V, SIZE>) -> Self {
         match self {
             Tree::Empty => self,
             Tree::Node(ref tn) => {
@@ -951,12 +1001,16 @@ where
                                 .skip(n)
                                 .map(|(k, v)| (k.clone(), v.clone()));
                             let elts = tn.elts.append(to_add);
-                            let t =
-                                Tree::bal(&tn.left, &elts, &tn.right.remove_min_elts());
+                            let t = Tree::bal(
+                                pool,
+                                &tn.left,
+                                &elts,
+                                &tn.right.remove_min_elts(pool),
+                            );
                             if n >= chunk.len() {
                                 t
                             } else {
-                                t.insert_many(overflow)
+                                t.insert_many(pool, overflow)
                             }
                         }
                     }
@@ -965,7 +1019,12 @@ where
         }
     }
 
-    fn bal(l: &Tree<K, V, SIZE>, elts: &Chunk<K, V, SIZE>, r: &Tree<K, V, SIZE>) -> Self {
+    fn bal(
+        pool: &ChunkPool<K, V, SIZE>,
+        l: &Tree<K, V, SIZE>,
+        elts: &Chunk<K, V, SIZE>,
+        r: &Tree<K, V, SIZE>,
+    ) -> Self {
         let (hl, hr) = (l.height(), r.height());
         if hl > hr + 1 {
             match *l {
@@ -977,7 +1036,7 @@ where
                             ln.elts.clone(),
                             &Tree::create(&ln.right, elts.clone(), r),
                         )
-                        .compact()
+                        .compact(pool)
                     } else {
                         match ln.right {
                             Tree::Empty => panic!("tree heights wrong"),
@@ -986,7 +1045,7 @@ where
                                 lrn.elts.clone(),
                                 &Tree::create(&lrn.right, elts.clone(), r),
                             )
-                            .compact(),
+                            .compact(pool),
                         }
                     }
                 }
@@ -1001,7 +1060,7 @@ where
                             rn.elts.clone(),
                             &rn.right,
                         )
-                        .compact()
+                        .compact(pool)
                     } else {
                         match rn.left {
                             Tree::Empty => panic!("tree heights are wrong"),
@@ -1010,17 +1069,22 @@ where
                                 rln.elts.clone(),
                                 &Tree::create(&rln.right, rn.elts.clone(), &rn.right),
                             )
-                            .compact(),
+                            .compact(pool),
                         }
                     }
                 }
             }
         } else {
-            Tree::create(l, elts.clone(), r).compact()
+            Tree::create(l, elts.clone(), r).compact(pool)
         }
     }
 
-    fn update_chunk<Q, D, F>(&self, chunk: Vec<(Q, D)>, f: &mut F) -> Self
+    fn update_chunk<Q, D, F>(
+        &self,
+        pool: &ChunkPool<K, V, SIZE>,
+        chunk: Vec<(Q, D)>,
+        f: &mut F,
+    ) -> Self
     where
         Q: Ord,
         K: Borrow<Q>,
@@ -1031,7 +1095,7 @@ where
         }
         match self {
             &Tree::Empty => {
-                let chunk = Chunk::create_with(chunk, f);
+                let chunk = Chunk::create_with(pool, chunk, f);
                 if chunk.len() == 0 {
                     Tree::Empty
                 } else {
@@ -1043,46 +1107,51 @@ where
                     (&Tree::Empty, &Tree::Empty) => true,
                     (_, _) => false,
                 };
-                match tn.elts.update_chunk(chunk, leaf, f) {
+                match tn.elts.update_chunk(pool, chunk, leaf, f) {
                     UpdateChunk::Updated {
                         elts,
                         update_left,
                         update_right,
                         overflow_right,
                     } => {
-                        let l = tn.left.update_chunk(update_left, f);
-                        let r = tn.right.insert_chunk(overflow_right);
-                        let r = r.update_chunk(update_right, f);
-                        Tree::bal(&l, &Arc::new(elts), &r)
+                        let l = tn.left.update_chunk(pool, update_left, f);
+                        let r = tn.right.insert_chunk(pool, overflow_right);
+                        let r = r.update_chunk(pool, update_right, f);
+                        Tree::bal(pool, &l, &Arc::new(elts), &r)
                     }
                     UpdateChunk::Removed {
                         not_done,
                         update_left,
                         update_right,
                     } => {
-                        let l = tn.left.update_chunk(update_left, f);
-                        let r = tn.right.update_chunk(update_right, f);
-                        let t = Tree::concat(&l, &r);
-                        t.update_chunk(not_done, f)
+                        let l = tn.left.update_chunk(pool, update_left, f);
+                        let r = tn.right.update_chunk(pool, update_right, f);
+                        let t = Tree::concat(pool, &l, &r);
+                        t.update_chunk(pool, not_done, f)
                     }
                     UpdateChunk::UpdateLeft(chunk) => {
-                        let l = tn.left.update_chunk(chunk, f);
-                        Tree::bal(&l, &tn.elts, &tn.right)
+                        let l = tn.left.update_chunk(pool, chunk, f);
+                        Tree::bal(pool, &l, &tn.elts, &tn.right)
                     }
                     UpdateChunk::UpdateRight(chunk) => {
-                        let r = tn.right.update_chunk(chunk, f);
-                        Tree::bal(&tn.left, &tn.elts, &r)
+                        let r = tn.right.update_chunk(pool, chunk, f);
+                        Tree::bal(pool, &tn.left, &tn.elts, &r)
                     }
                 }
             }
         }
     }
 
-    fn insert_chunk(&self, chunk: Vec<(K, V)>) -> Self {
-        self.update_chunk(chunk, &mut |k, v, _| Some((k, v)))
+    fn insert_chunk(&self, pool: &ChunkPool<K, V, SIZE>, chunk: Vec<(K, V)>) -> Self {
+        self.update_chunk(pool, chunk, &mut |k, v, _| Some((k, v)))
     }
 
-    pub(crate) fn update_many<Q, D, E, F>(&self, elts: E, f: &mut F) -> Self
+    pub(crate) fn update_many<Q, D, E, F>(
+        &self,
+        pool: &ChunkPool<K, V, SIZE>,
+        elts: E,
+        f: &mut F,
+    ) -> Self
     where
         E: IntoIterator<Item = (Q, D)>,
         Q: Ord,
@@ -1105,16 +1174,26 @@ where
         let mut t = self.clone();
         while elts.len() > 0 {
             let chunk = elts.drain(0..min(SIZE, elts.len())).collect::<Vec<_>>();
-            t = t.update_chunk(chunk, f)
+            t = t.update_chunk(pool, chunk, f)
         }
         t
     }
 
-    pub(crate) fn insert_many<E: IntoIterator<Item = (K, V)>>(&self, elts: E) -> Self {
-        self.update_many(elts, &mut |k, v, _| Some((k, v)))
+    pub(crate) fn insert_many<E: IntoIterator<Item = (K, V)>>(
+        &self,
+        pool: &ChunkPool<K, V, SIZE>,
+        elts: E,
+    ) -> Self {
+        self.update_many(pool, elts, &mut |k, v, _| Some((k, v)))
     }
 
-    pub(crate) fn update_cow<Q, D, F>(&mut self, q: Q, d: D, f: &mut F) -> Option<V>
+    pub(crate) fn update_cow<Q, D, F>(
+        &mut self,
+        pool: &ChunkPool<K, V, SIZE>,
+        q: Q,
+        d: D,
+        f: &mut F,
+    ) -> Option<V>
     where
         Q: Ord,
         K: Borrow<Q>,
@@ -1124,8 +1203,11 @@ where
             Tree::Empty => match f(q, d, None) {
                 None => None,
                 Some((k, v)) => {
-                    *self =
-                        Tree::create(&Tree::Empty, Chunk::singleton(k, v), &Tree::Empty);
+                    *self = Tree::create(
+                        &Tree::Empty,
+                        Chunk::singleton(pool, k, v),
+                        &Tree::Empty,
+                    );
                     None
                 }
             },
@@ -1137,18 +1219,18 @@ where
                 };
                 match tn.elts.update_mut(q, d, leaf, f) {
                     MutUpdate::UpdateLeft(k, d) => {
-                        let prev = tn.left.update_cow(k, d, f);
+                        let prev = tn.left.update_cow(pool, k, d, f);
                         if !Tree::in_bal(&tn.left, &tn.right) {
-                            *self = Tree::bal(&tn.left, &tn.elts, &tn.right)
+                            *self = Tree::bal(pool, &tn.left, &tn.elts, &tn.right)
                         } else {
                             tn.mutated();
                         }
                         prev
                     }
                     MutUpdate::UpdateRight(k, d) => {
-                        let prev = tn.right.update_cow(k, d, f);
+                        let prev = tn.right.update_cow(pool, k, d, f);
                         if !Tree::in_bal(&tn.left, &tn.right) {
-                            *self = Tree::bal(&tn.left, &tn.elts, &tn.right)
+                            *self = Tree::bal(pool, &tn.left, &tn.elts, &tn.right)
                         } else {
                             tn.mutated();
                         }
@@ -1160,15 +1242,16 @@ where
                                 tn.mutated();
                                 previous
                             } else {
-                                *self = Tree::concat(&tn.left, &tn.right);
+                                *self = Tree::concat(pool, &tn.left, &tn.right);
                                 previous
                             }
                         }
                         Some((ovk, ovv)) => {
-                            let _ = tn.right.insert_cow(ovk, ovv);
+                            let _ = tn.right.insert_cow(pool, ovk, ovv);
                             if tn.elts.len() > 0 {
                                 if !Tree::in_bal(&tn.left, &tn.right) {
-                                    *self = Tree::bal(&tn.left, &tn.elts, &tn.right);
+                                    *self =
+                                        Tree::bal(pool, &tn.left, &tn.elts, &tn.right);
                                     previous
                                 } else {
                                     tn.mutated();
@@ -1176,7 +1259,7 @@ where
                                 }
                             } else {
                                 // this should be impossible
-                                *self = Tree::concat(&tn.left, &tn.right);
+                                *self = Tree::concat(pool, &tn.left, &tn.right);
                                 previous
                             }
                         }
@@ -1186,7 +1269,13 @@ where
         }
     }
 
-    pub(crate) fn update<Q, D, F>(&self, q: Q, d: D, f: &mut F) -> (Self, Option<V>)
+    pub(crate) fn update<Q, D, F>(
+        &self,
+        pool: &ChunkPool<K, V, SIZE>,
+        q: Q,
+        d: D,
+        f: &mut F,
+    ) -> (Self, Option<V>)
     where
         Q: Ord,
         K: Borrow<Q>,
@@ -1196,7 +1285,11 @@ where
             Tree::Empty => match f(q, d, None) {
                 None => (self.clone(), None),
                 Some((k, v)) => (
-                    Tree::create(&Tree::Empty, Chunk::singleton(k, v), &Tree::Empty),
+                    Tree::create(
+                        &Tree::Empty,
+                        Chunk::singleton(pool, k, v),
+                        &Tree::Empty,
+                    ),
                     None,
                 ),
             },
@@ -1205,14 +1298,14 @@ where
                     (&Tree::Empty, &Tree::Empty) => true,
                     (_, _) => false,
                 };
-                match tn.elts.update(q, d, leaf, f) {
+                match tn.elts.update(pool, q, d, leaf, f) {
                     Update::UpdateLeft(k, d) => {
-                        let (l, prev) = tn.left.update(k, d, f);
-                        (Tree::bal(&l, &tn.elts, &tn.right), prev)
+                        let (l, prev) = tn.left.update(pool, k, d, f);
+                        (Tree::bal(pool, &l, &tn.elts, &tn.right), prev)
                     }
                     Update::UpdateRight(k, d) => {
-                        let (r, prev) = tn.right.update(k, d, f);
-                        (Tree::bal(&tn.left, &tn.elts, &r), prev)
+                        let (r, prev) = tn.right.update(pool, k, d, f);
+                        (Tree::bal(pool, &tn.left, &tn.elts, &r), prev)
                     }
                     Update::Updated {
                         elts,
@@ -1221,17 +1314,17 @@ where
                     } => match overflow {
                         None => {
                             if elts.len() == 0 {
-                                (Tree::concat(&tn.left, &tn.right), previous)
+                                (Tree::concat(pool, &tn.left, &tn.right), previous)
                             } else {
                                 (Tree::create(&tn.left, elts, &tn.right), previous)
                             }
                         }
                         Some((ovk, ovv)) => {
-                            let (r, _) = tn.right.insert(ovk, ovv);
+                            let (r, _) = tn.right.insert(pool, ovk, ovv);
                             if elts.len() == 0 {
-                                (Tree::concat(&tn.left, &r), previous)
+                                (Tree::concat(pool, &tn.left, &r), previous)
                             } else {
-                                (Tree::bal(&tn.left, &Arc::new(elts), &r), previous)
+                                (Tree::bal(pool, &tn.left, &Arc::new(elts), &r), previous)
                             }
                         }
                     },
@@ -1240,12 +1333,22 @@ where
         }
     }
 
-    pub(crate) fn insert(&self, k: K, v: V) -> (Self, Option<V>) {
-        self.update(k, v, &mut |k, v, _| Some((k, v)))
+    pub(crate) fn insert(
+        &self,
+        pool: &ChunkPool<K, V, SIZE>,
+        k: K,
+        v: V,
+    ) -> (Self, Option<V>) {
+        self.update(pool, k, v, &mut |k, v, _| Some((k, v)))
     }
 
-    pub(crate) fn insert_cow(&mut self, k: K, v: V) -> Option<V> {
-        self.update_cow(k, v, &mut |k, v, _| Some((k, v)))
+    pub(crate) fn insert_cow(
+        &mut self,
+        pool: &ChunkPool<K, V, SIZE>,
+        k: K,
+        v: V,
+    ) -> Option<V> {
+        self.update_cow(pool, k, v, &mut |k, v, _| Some((k, v)))
     }
 
     fn min_elts<'a>(&'a self) -> Option<&'a Chunk<K, V, SIZE>> {
@@ -1258,30 +1361,38 @@ where
         }
     }
 
-    fn remove_min_elts(&self) -> Self {
+    fn remove_min_elts(&self, pool: &ChunkPool<K, V, SIZE>) -> Self {
         match self {
             Tree::Empty => panic!("remove min elt"),
             Tree::Node(ref tn) => match tn.left {
                 Tree::Empty => tn.right.clone(),
                 Tree::Node(_) => {
-                    Tree::bal(&tn.left.remove_min_elts(), &tn.elts, &tn.right)
+                    Tree::bal(pool, &tn.left.remove_min_elts(pool), &tn.elts, &tn.right)
                 }
             },
         }
     }
 
-    fn concat(l: &Tree<K, V, SIZE>, r: &Tree<K, V, SIZE>) -> Tree<K, V, SIZE> {
+    fn concat(
+        pool: &ChunkPool<K, V, SIZE>,
+        l: &Tree<K, V, SIZE>,
+        r: &Tree<K, V, SIZE>,
+    ) -> Tree<K, V, SIZE> {
         match (l, r) {
             (Tree::Empty, _) => r.clone(),
             (_, Tree::Empty) => l.clone(),
             (_, _) => {
                 let elts = r.min_elts().unwrap();
-                Tree::bal(l, elts, &r.remove_min_elts())
+                Tree::bal(pool, l, elts, &r.remove_min_elts(pool))
             }
         }
     }
 
-    pub(crate) fn remove<Q: ?Sized + Ord>(&self, k: &Q) -> (Self, Option<V>)
+    pub(crate) fn remove<Q: ?Sized + Ord>(
+        &self,
+        pool: &ChunkPool<K, V, SIZE>,
+        k: &Q,
+    ) -> (Self, Option<V>)
     where
         K: Borrow<Q>,
     {
@@ -1291,26 +1402,30 @@ where
                 Loc::NotPresent(_) => (self.clone(), None),
                 Loc::Here(i) => {
                     let p = tn.elts.val(i).clone();
-                    let elts = tn.elts.remove_elt_at(i);
+                    let elts = tn.elts.remove_elt_at(pool, i);
                     if elts.len() == 0 {
-                        (Tree::concat(&tn.left, &tn.right), Some(p))
+                        (Tree::concat(pool, &tn.left, &tn.right), Some(p))
                     } else {
                         (Tree::create(&tn.left, elts, &tn.right), Some(p))
                     }
                 }
                 Loc::InLeft => {
-                    let (l, p) = tn.left.remove(k);
-                    (Tree::bal(&l, &tn.elts, &tn.right), p)
+                    let (l, p) = tn.left.remove(pool, k);
+                    (Tree::bal(pool, &l, &tn.elts, &tn.right), p)
                 }
                 Loc::InRight => {
-                    let (r, p) = tn.right.remove(k);
-                    (Tree::bal(&tn.left, &tn.elts, &r), p)
+                    let (r, p) = tn.right.remove(pool, k);
+                    (Tree::bal(pool, &tn.left, &tn.elts, &r), p)
                 }
             },
         }
     }
 
-    pub(crate) fn remove_cow<Q: ?Sized + Ord>(&mut self, k: &Q) -> Option<V>
+    pub(crate) fn remove_cow<Q: ?Sized + Ord>(
+        &mut self,
+        pool: &ChunkPool<K, V, SIZE>,
+        k: &Q,
+    ) -> Option<V>
     where
         K: Borrow<Q>,
     {
@@ -1323,7 +1438,7 @@ where
                     Loc::Here(i) => {
                         let (_, p) = tn.elts.remove_elt_at_mut(i);
                         if tn.elts.len() == 0 {
-                            *self = Tree::concat(&tn.left, &tn.right);
+                            *self = Tree::concat(pool, &tn.left, &tn.right);
                             Some(p)
                         } else {
                             tn.mutated();
@@ -1331,18 +1446,18 @@ where
                         }
                     }
                     Loc::InLeft => {
-                        let p = tn.left.remove_cow(k);
+                        let p = tn.left.remove_cow(pool, k);
                         if !Tree::in_bal(&tn.left, &tn.right) {
-                            *self = Tree::bal(&tn.left, &tn.elts, &tn.right);
+                            *self = Tree::bal(pool, &tn.left, &tn.elts, &tn.right);
                         } else {
                             tn.mutated()
                         }
                         p
                     }
                     Loc::InRight => {
-                        let p = tn.right.remove_cow(k);
+                        let p = tn.right.remove_cow(pool, k);
                         if !Tree::in_bal(&tn.left, &tn.right) {
-                            *self = Tree::bal(&tn.left, &tn.elts, &tn.right);
+                            *self = Tree::bal(pool, &tn.left, &tn.elts, &tn.right);
                         } else {
                             tn.mutated()
                         }
@@ -1433,14 +1548,19 @@ where
         }
     }
 
-    pub(crate) fn get_or_insert_cow<'a, F>(&'a mut self, k: K, f: F) -> &'a mut V
+    pub(crate) fn get_or_insert_cow<'a, F>(
+        &'a mut self,
+        pool: &ChunkPool<K, V, SIZE>,
+        k: K,
+        f: F,
+    ) -> &'a mut V
     where
         F: FnOnce() -> V,
     {
         match self.get_mut_cow(&k).map(|v| v as *mut V) {
             Some(v) => unsafe { &mut *v },
             None => {
-                self.insert_cow(k.clone(), f());
+                self.insert_cow(pool, k.clone(), f());
                 self.get_mut_cow(&k).unwrap()
             }
         }

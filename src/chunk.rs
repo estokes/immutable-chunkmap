@@ -1,5 +1,5 @@
+use alloc::vec::Vec;
 use arrayvec::ArrayVec;
-use alloc::{sync::Arc, vec::Vec};
 use core::{
     borrow::Borrow,
     cmp::{min, Ord, Ordering},
@@ -8,6 +8,9 @@ use core::{
     ops::Deref,
     slice,
 };
+use poolshark::{arc::Arc, Poolable};
+
+use crate::pool::ChunkPool;
 
 #[derive(PartialEq)]
 pub(crate) enum Loc {
@@ -82,6 +85,24 @@ pub(crate) struct ChunkInner<K, V, const SIZE: usize> {
     vals: ArrayVec<V, SIZE>,
 }
 
+impl<K, V, const SIZE: usize> Poolable for ChunkInner<K, V, SIZE> {
+    fn empty() -> Self {
+        ChunkInner {
+            keys: ArrayVec::new(),
+            vals: ArrayVec::new(),
+        }
+    }
+
+    fn capacity(&self) -> usize {
+        1
+    }
+
+    fn reset(&mut self) {
+        self.keys.clear();
+        self.vals.clear();
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct Chunk<K, V, const SIZE: usize>(Arc<ChunkInner<K, V, SIZE>>);
 
@@ -108,28 +129,29 @@ where
     K: Ord + Clone,
     V: Clone,
 {
-    pub(crate) fn singleton(k: K, v: V) -> Self {
-        let mut t = Chunk::empty();
+    pub(crate) fn singleton(pool: &ChunkPool<K, V, SIZE>, k: K, v: V) -> Self {
+        let mut t = Chunk::empty(pool);
         let inner = Arc::make_mut(&mut t.0);
         inner.keys.push(k);
         inner.vals.push(v);
         t
     }
 
-    pub(crate) fn empty() -> Self {
-        Chunk(Arc::new(ChunkInner {
-            keys: ArrayVec::new(),
-            vals: ArrayVec::new(),
-        }))
+    pub(crate) fn empty(pool: &ChunkPool<K, V, SIZE>) -> Self {
+        Chunk(pool.take())
     }
 
-    pub(crate) fn create_with<Q, D, F>(chunk: Vec<(Q, D)>, f: &mut F) -> Self
+    pub(crate) fn create_with<Q, D, F>(
+        pool: &ChunkPool<K, V, SIZE>,
+        chunk: Vec<(Q, D)>,
+        f: &mut F,
+    ) -> Self
     where
         Q: Ord,
         K: Borrow<Q>,
         F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
     {
-        let mut t = Chunk::empty();
+        let mut t = Chunk::empty(pool);
         let inner = Arc::make_mut(&mut t.0);
         for (k, v) in chunk.into_iter().filter_map(|(q, d)| f(q, d, None)) {
             inner.keys.push(k);
@@ -176,6 +198,7 @@ where
     // invariant: chunk is sorted and deduped
     pub(crate) fn update_chunk<Q, D, F>(
         &self,
+        pool: &ChunkPool<K, V, SIZE>,
         chunk: Vec<(Q, D)>,
         leaf: bool,
         f: &mut F,
@@ -196,7 +219,7 @@ where
         } else if leaf && (in_left || in_right) {
             let iter = chunk.into_iter().filter_map(|(q, d)| f(q, d, None));
             let mut overflow_right = Vec::new();
-            let mut elts = Chunk::empty();
+            let mut elts = Chunk::empty(pool);
             let inner = Arc::make_mut(&mut elts.0);
             if in_right {
                 inner.clone_from(self);
@@ -266,7 +289,7 @@ where
             let mut update_right = Vec::new();
             let mut overflow_right = Vec::new();
             let mut m = 0;
-            let mut elts = Chunk::empty();
+            let mut elts = Chunk::empty(pool);
             let inner = Arc::make_mut(&mut elts.0);
             let mut chunk = chunk.into_iter();
             loop {
@@ -362,6 +385,7 @@ where
 
     pub(crate) fn update<Q, D, F>(
         &self,
+        pool: &ChunkPool<K, V, SIZE>,
         q: Q,
         d: D,
         leaf: bool,
@@ -374,7 +398,7 @@ where
     {
         match self.get(&q) {
             Loc::Here(i) => {
-                let mut elts = Chunk::empty();
+                let mut elts = Chunk::empty(pool);
                 let inner = Arc::make_mut(&mut elts.0);
                 inner.keys.extend(self.keys[0..i].iter().cloned());
                 inner.vals.extend(self.vals[0..i].iter().cloned());
@@ -397,7 +421,7 @@ where
                 }
             }
             Loc::NotPresent(i) => {
-                let mut elts = Chunk::empty();
+                let mut elts = Chunk::empty(pool);
                 let inner = Arc::make_mut(&mut elts.0);
                 inner.keys.extend(self.keys[0..i].iter().cloned());
                 inner.vals.extend(self.vals[0..i].iter().cloned());
@@ -447,7 +471,7 @@ where
                         Loc::Here(..) | Loc::NotPresent(..) => unreachable!(),
                     }
                 } else {
-                    let mut elts = Chunk::empty();
+                    let mut elts = Chunk::empty(pool);
                     let inner = Arc::make_mut(&mut elts.0);
                     match loc {
                         Loc::InLeft => {
@@ -589,8 +613,8 @@ where
         }
     }
 
-    pub(crate) fn remove_elt_at(&self, i: usize) -> Self {
-        let mut elts = Chunk::empty();
+    pub(crate) fn remove_elt_at(&self, pool: &ChunkPool<K, V, SIZE>, i: usize) -> Self {
+        let mut elts = Chunk::empty(pool);
         let t = Arc::make_mut(&mut elts.0);
         if self.keys.len() == 0 {
             panic!("can't remove from an empty chunk")
@@ -636,7 +660,7 @@ where
         }
         elts
     }
-    
+
     pub(crate) fn min_max_key(&self) -> Option<(K, K)> {
         if self.len() == 0 {
             None
@@ -712,7 +736,9 @@ impl<'a, K, V, const SIZE: usize> IntoIterator for &'a Chunk<K, V, SIZE> {
     }
 }
 
-impl<'a, K: Clone, V: Clone, const SIZE: usize> IntoIterator for &'a mut Chunk<K, V, SIZE> {
+impl<'a, K: Clone, V: Clone, const SIZE: usize> IntoIterator
+    for &'a mut Chunk<K, V, SIZE>
+{
     type Item = (&'a K, &'a mut V);
     type IntoIter = iter::Zip<slice::Iter<'a, K>, slice::IterMut<'a, V>>;
     fn into_iter(self) -> Self::IntoIter {
