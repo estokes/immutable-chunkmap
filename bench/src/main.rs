@@ -70,7 +70,7 @@ where
         let chunks = chunk(keys, vals, 100);
         let begin = Instant::now();
         for chunk in chunks {
-            black_box(m.insert_many(chunk));
+            black_box(&mut m).insert_many(black_box(chunk));
         }
         (
             Bench(Arc::new(RwLock::new(m)), PhantomData, PhantomData),
@@ -88,16 +88,16 @@ where
             let tx = tx.clone();
             thread::spawn(move || {
                 let mut t = C::new();
-                black_box(t.insert_many(chunk));
+                black_box(&mut t).insert_many(black_box(chunk));
                 tx.send(t).unwrap();
             });
         }
         mem::drop(tx);
         let mut t = C::new();
         let mut i = 0;
-        black_box(t.insert_many(mine));
+        black_box(&mut t).insert_many(black_box(mine));
         while let Ok(part) = rx.recv() {
-            black_box(t.merge_into(part));
+            black_box(&mut t).merge_into(black_box(part));
             i += 1;
         }
         assert_eq!(i, len - 1);
@@ -112,7 +112,7 @@ where
         let begin = Instant::now();
         let mut m = self.0.write().unwrap();
         for i in 0..(min(keys.len() / 10, MAX_ADD)) {
-            black_box(m.remove(&keys[i]).unwrap());
+            black_box(&mut m).remove(black_box(&keys[i])).unwrap();
         }
         begin.elapsed()
     }
@@ -127,7 +127,7 @@ where
         let mut m = self.0.write().unwrap();
         let begin = Instant::now();
         for (k, v) in chunk {
-            black_box(m.insert(k, v));
+            black_box(&mut m).insert(black_box(k), black_box(v));
         }
         begin.elapsed()
     }
@@ -144,7 +144,7 @@ where
                 while r < iter {
                     let mut j = n;
                     while j < keys.len() && r < iter {
-                        black_box(m.get(&keys[j]).unwrap());
+                        black_box(&m).get(black_box(&keys[j])).unwrap();
                         j += n;
                         r += 1;
                     }
@@ -164,7 +164,7 @@ where
         while i < MIN_ITER {
             for k in keys.iter() {
                 i += 1;
-                black_box(m.get(k).unwrap());
+                black_box(&m).get(black_box(k)).unwrap();
             }
         }
         begin.elapsed()
