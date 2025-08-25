@@ -1,5 +1,5 @@
 use crate::{avl::Node, chunk::ChunkInner};
-use core::mem;
+use core::alloc::Layout;
 use fxhash::FxHashMap;
 use poolshark::RawPool;
 pub use poolshark::{
@@ -43,35 +43,45 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> ChunkPool<K, V, SIZE> {
     }
 }
 
-thread_local! {
-    static POOLS: RefCell<FxHashMap<Discriminant, *const ()>> =
-        RefCell::new(HashMap::default());
-}
-
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 struct Discriminant {
-    k_size: usize,
-    k_align: usize,
-    v_size: usize,
-    v_align: usize,
+    k: Layout,
+    v: Layout,
     size: usize,
 }
 
 impl Discriminant {
     fn new<K: Ord + Clone, V: Clone, const SIZE: usize>() -> Self {
         Self {
-            k_size: mem::size_of::<K>(),
-            k_align: mem::align_of::<K>(),
-            v_size: mem::size_of::<V>(),
-            v_align: mem::align_of::<V>(),
+            k: Layout::new::<K>(),
+            v: Layout::new::<V>(),
             size: SIZE,
         }
     }
 }
 
-// this is safe because chunks are reset before they are inserted into pools, so
-// it is not possible for a chunk to have a K or a V (which might have a
-// lifetime).
+struct Opaque {
+    t: *mut (),
+    drop: Option<Box<dyn FnOnce(*mut ())>>,
+}
+
+impl Drop for Opaque {
+    fn drop(&mut self) {
+        if let Some(f) = self.drop.take() {
+            f(self.t)
+        }
+    }
+}
+
+thread_local! {
+    static POOLS: RefCell<FxHashMap<Discriminant, Opaque>> =
+        RefCell::new(HashMap::default());
+}
+
+// This is safe because:
+// 1. Chunks are reset before being returned to pools, so they contain no active K or V values
+// 2. We only reuse pools for types with identical memory layouts (same size/alignment via Discriminant)
+// 3. The Opaque wrapper ensures proper cleanup when the thread local is destroyed
 pub(crate) fn pool<K: Ord + Clone, V: Clone, const SIZE: usize>(
     size: usize,
 ) -> ChunkPool<K, V, SIZE> {
@@ -79,10 +89,13 @@ pub(crate) fn pool<K: Ord + Clone, V: Clone, const SIZE: usize>(
         let pool = pools
             .entry(Discriminant::new::<K, V, SIZE>())
             .or_insert_with(|| {
-                // CR claude for estokes: Memory leak - Box::into_raw transfers ownership but there's no
-                // corresponding Box::from_raw to properly deallocate. The pools HashMap will leak all pools.
-                Box::into_raw(Box::new(ChunkPool::<K, V, SIZE>::new(size))) as *const ()
+                let b = Box::new(ChunkPool::<K, V, SIZE>::new(size));
+                let t = Box::into_raw(b) as *mut ();
+                let drop = Some(Box::new(|t: *mut ()| unsafe {
+                    drop(Box::from_raw(t as *mut ChunkPool<K, V, SIZE>))
+                }) as Box<dyn FnOnce(*mut ())>);
+                Opaque { t, drop }
             });
-        unsafe { &*(*pool as *const ChunkPool<K, V, SIZE>) }.clone()
+        unsafe { &*(pool.t as *const ChunkPool<K, V, SIZE>) }.clone()
     })
 }
