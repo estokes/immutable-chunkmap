@@ -1,16 +1,19 @@
+#[cfg(feature = "pool")]
+use crate::pool::Poolable;
 use crate::{
     chunk::{Chunk, Loc, MutUpdate, Update, UpdateChunk},
-    pool::{Arc, ChunkPool, Poolable, Weak},
+    pool::{Arc, ChunkPool, Weak},
 };
 use alloc::vec::Vec;
 use arrayvec::ArrayVec;
+#[cfg(feature = "pool")]
+use core::hint::unreachable_unchecked;
 use core::{
     borrow::Borrow,
     cmp::{max, min, Eq, Ord, Ordering, PartialEq, PartialOrd},
     default::Default,
     fmt::{self, Debug, Formatter},
     hash::{Hash, Hasher},
-    hint::unreachable_unchecked,
     iter,
     marker::PhantomData,
     ops::{Bound, Index, RangeBounds, RangeFull},
@@ -25,6 +28,7 @@ fn pack_height_and_size(height: u8, size: usize) -> u64 {
     ((height as u64) << 56) | (size as u64)
 }
 
+#[cfg(feature = "pool")]
 #[derive(Clone, Debug)]
 pub(crate) struct Node<K: Ord + Clone, V: Clone, const SIZE: usize> {
     elts: Option<Chunk<K, V, SIZE>>, // only none in pool
@@ -35,6 +39,18 @@ pub(crate) struct Node<K: Ord + Clone, V: Clone, const SIZE: usize> {
     height_and_size: u64,
 }
 
+#[cfg(not(feature = "pool"))]
+#[derive(Clone, Debug)]
+pub(crate) struct Node<K: Ord + Clone, V: Clone, const SIZE: usize> {
+    elts: Chunk<K, V, SIZE>,
+    min_key: K,
+    max_key: K,
+    left: Tree<K, V, SIZE>,
+    right: Tree<K, V, SIZE>,
+    height_and_size: u64,
+}
+
+#[cfg(feature = "pool")]
 impl<K: Ord + Clone, V: Clone, const SIZE: usize> Poolable for Node<K, V, SIZE> {
     fn empty() -> Self {
         Self {
@@ -67,6 +83,7 @@ where
     V: Clone,
 {
     // a node that is not in the pool will never have elts set to None
+    #[cfg(feature = "pool")]
     fn elts(&self) -> &Chunk<K, V, SIZE> {
         match &self.elts {
             Some(e) => e,
@@ -74,6 +91,12 @@ where
         }
     }
 
+    #[cfg(not(feature = "pool"))]
+    fn elts(&self) -> &Chunk<K, V, SIZE> {
+        &self.elts
+    }
+
+    #[cfg(feature = "pool")]
     fn elts_mut(&mut self) -> &mut Chunk<K, V, SIZE> {
         match &mut self.elts {
             Some(e) => e,
@@ -81,7 +104,12 @@ where
         }
     }
 
-    // a node that is not in the pool will never have min_key set to None
+    #[cfg(not(feature = "pool"))]
+    fn elts_mut(&mut self) -> &mut Chunk<K, V, SIZE> {
+        &mut self.elts
+    }
+
+    #[cfg(feature = "pool")]
     fn min_key(&self) -> &K {
         match &self.min_key {
             Some(k) => k,
@@ -89,7 +117,12 @@ where
         }
     }
 
-    // a node that is not in the pool will never have max_key set to None
+    #[cfg(not(feature = "pool"))]
+    fn min_key(&self) -> &K {
+        &self.min_key
+    }
+
+    #[cfg(feature = "pool")]
     fn max_key(&self) -> &K {
         match &self.max_key {
             Some(k) => k,
@@ -97,14 +130,32 @@ where
         }
     }
 
+    #[cfg(not(feature = "pool"))]
+    fn max_key(&self) -> &K {
+        &self.max_key
+    }
+
     fn height(&self) -> u8 {
         ((self.height_and_size >> 56) & 0xff) as u8
     }
 
+    #[cfg(feature = "pool")]
     fn mutated(&mut self) {
         if let Some((min, max)) = self.elts().min_max_key() {
             self.min_key = Some(min);
             self.max_key = Some(max);
+        }
+        self.height_and_size = pack_height_and_size(
+            1 + max(self.left.height(), self.right.height()),
+            self.left.len() + self.right.len(),
+        );
+    }
+
+    #[cfg(not(feature = "pool"))]
+    fn mutated(&mut self) {
+        if let Some((min, max)) = self.elts().min_max_key() {
+            self.min_key = min;
+            self.max_key = max;
         }
         self.height_and_size = pack_height_and_size(
             1 + max(self.left.height(), self.right.height()),
@@ -1032,15 +1083,25 @@ where
         let (min_key, max_key) = elts.min_max_key().unwrap();
         let height_and_size =
             pack_height_and_size(1 + max(l.height(), r.height()), l.len() + r.len());
-        let n = pool.new_node(Node {
+        #[cfg(feature = "pool")]
+        let n = Node {
             elts: Some(elts),
             min_key: Some(min_key),
             max_key: Some(max_key),
             left: l.clone(),
             right: r.clone(),
             height_and_size,
-        });
-        Tree::Node(n)
+        };
+        #[cfg(not(feature = "pool"))]
+        let n = Node {
+            elts,
+            min_key,
+            max_key,
+            left: l.clone(),
+            right: r.clone(),
+            height_and_size,
+        };
+        Tree::Node(pool.new_node(n))
     }
 
     fn in_bal(l: &Tree<K, V, SIZE>, r: &Tree<K, V, SIZE>) -> bool {
@@ -1298,7 +1359,7 @@ where
                     (&Tree::Empty, &Tree::Empty) => true,
                     (_, _) => false,
                 };
-                match tn.elts.as_mut().unwrap().update_mut(q, d, leaf, f) {
+                match tn.elts_mut().update_mut(q, d, leaf, f) {
                     MutUpdate::UpdateLeft(k, d) => {
                         let prev = tn.left.update_cow(pool, k, d, f);
                         if !Tree::in_bal(&tn.left, &tn.right) {
