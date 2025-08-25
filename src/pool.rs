@@ -79,11 +79,10 @@ pub(crate) fn pool<K: Ord + Clone, V: Clone, const SIZE: usize>(
         let pool = pools
             .entry(Discriminant::new::<K, V, SIZE>())
             .or_insert_with(|| {
+                // CR claude for estokes: Memory leak - Box::into_raw transfers ownership but there's no
+                // corresponding Box::from_raw to properly deallocate. The pools HashMap will leak all pools.
                 Box::into_raw(Box::new(ChunkPool::<K, V, SIZE>::new(size))) as *const ()
             });
-        let pool = unsafe {
-            mem::transmute::<&mut *const (), &mut Box<ChunkPool<K, V, SIZE>>>(pool)
-        };
-        (**pool).clone()
+        unsafe { &*(*pool as *const ChunkPool<K, V, SIZE>) }.clone()
     })
 }

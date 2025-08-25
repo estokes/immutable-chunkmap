@@ -114,6 +114,8 @@ fn random<T: Rand>() -> T {
 }
 
 fn randvec<T: Rand>(len: usize) -> Vec<T> {
+    // CR claude for estokes: Consider using Vec::with_capacity(len) for better performance
+    // and (0..len).map(|_| random()).collect() for more idiomatic code
     let mut v: Vec<T> = Vec::new();
     for _ in 0..len {
         v.push(random())
@@ -122,6 +124,8 @@ fn randvec<T: Rand>(len: usize) -> Vec<T> {
 }
 
 fn permutation<T: Clone>(v: &Vec<T>) -> Vec<T> {
+    // CR claude for estokes: This doesn't create a uniform random permutation - sorting by random keys
+    // works but Fisher-Yates shuffle would be more efficient and clearer in intent
     let p = randvec::<usize>(v.len());
     let mut p = p.iter().zip(v).collect::<Vec<_>>();
     p.sort_by(|(k0, _), (k1, _)| k0.cmp(k1));

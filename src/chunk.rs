@@ -178,6 +178,8 @@ where
         } else {
             let first = k.cmp(&self.keys[0].borrow());
             let last = k.cmp(&self.keys[len - 1].borrow());
+            // CR claude for estokes: Performance - the equality checks for first and last elements are redundant
+            // since binary_search would handle these cases. Consider removing these special cases.
             match (first, last) {
                 (Ordering::Equal, _) => Loc::Here(0),
                 (_, Ordering::Equal) => Loc::Here(len - 1),
@@ -206,6 +208,8 @@ where
         K: Borrow<Q>,
         F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
     {
+        // CR claude for estokes: Consider using debug_assert! instead of assert! for better release performance,
+        // or provide a more descriptive panic message explaining the constraints
         assert!(chunk.len() <= SIZE && chunk.len() > 0 && self.len() > 0);
         let full = !leaf || self.len() >= SIZE;
         let in_left = self.get(&chunk[chunk.len() - 1].0) == Loc::InLeft;
@@ -265,6 +269,9 @@ where
                 K: Ord + Clone,
                 V: Clone,
             {
+                // CR claude for estokes: Potential arithmetic underflow - if *m > i, then i - *m will panic.
+                // Also SIZE - elts.keys.len() could underflow if elts.keys.len() > SIZE (though this should
+                // be prevented by invariants). Consider using saturating_sub or adding explicit checks.
                 let n = min(i - *m, SIZE - elts.keys.len());
                 if n > 0 {
                     elts.keys.extend(t.keys[*m..*m + n].iter().cloned());
@@ -512,6 +519,8 @@ where
         K: Borrow<Q>,
         F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
     {
+        // CR grok for estokes: This function is very similar to `update` but with mutable references.
+        // Consider refactoring to reduce code duplication if possible.
         match self.get(&q) {
             Loc::Here(i) => match f(q, d, Some((&self.keys[i], &self.vals[i]))) {
                 Some((k, v)) => {
@@ -614,6 +623,8 @@ where
     pub(crate) fn remove_elt_at(&self, pool: &ChunkPool<K, V, SIZE>, i: usize) -> Self {
         let mut elts = Chunk::empty(pool);
         let t = Arc::make_mut(&mut elts.0);
+        // CR claude for estokes: Missing bounds check - should verify i < self.len() before proceeding.
+        // The function will panic on array access if i >= self.len() but not at a clear assertion point.
         if self.keys.len() == 0 {
             panic!("can't remove from an empty chunk")
         } else if self.len() == 1 {
@@ -637,6 +648,7 @@ where
     }
 
     pub(crate) fn remove_elt_at_mut(&mut self, i: usize) -> (K, V) {
+        // CR claude for estokes: Same issue as remove_elt_at - missing bounds check for i < self.len()
         if self.len() == 0 {
             panic!("can't remove from an empty chunk")
         } else {
