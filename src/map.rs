@@ -332,6 +332,7 @@ where
         }
     }
 
+    #[cfg(feature = "pool")]
     pub fn new_with_pool(pool: ChunkPool<K, V, SIZE>) -> Self {
         Map {
             pool,

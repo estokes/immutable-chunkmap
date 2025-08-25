@@ -300,6 +300,7 @@ where
     }
 
     /// Create a new empty set using the specified pool for allocation
+    #[cfg(feature = "pool")]
     pub fn new_with_pool(pool: ChunkPool<K, (), SIZE>) -> Self {
         Set {
             pool,

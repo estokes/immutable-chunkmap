@@ -99,3 +99,20 @@ pub(crate) fn pool<K: Ord + Clone, V: Clone, const SIZE: usize>(
         unsafe { &*(pool.t as *const ChunkPool<K, V, SIZE>) }.clone()
     })
 }
+
+/// Clear all thread local pools on this thread. Note this will happen
+/// automatically when the thread dies. If there are maps using these pools they
+/// will not be freed until those maps are freed.
+pub fn clear() {
+    POOLS.with_borrow_mut(|pools| pools.clear())
+}
+
+/// Clear the thread local pool for the specified K, V and SIZE. This will
+/// happen automatically when the current thread dies. If there are maps using
+/// the pool associated with the specified type then it will not be freed until
+/// they are freed.
+pub fn clear_type<K: Ord + Clone, V: Clone, const SIZE: usize>() {
+    POOLS.with_borrow_mut(|pools| {
+        pools.remove(&Discriminant::new::<K, V, SIZE>());
+    })
+}
