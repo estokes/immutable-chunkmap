@@ -601,14 +601,15 @@ where
 {
     let mut vals = randvec::<(K, V)>(SIZE);
     dedup_with(&mut vals, |(ref k, _)| k);
+    let dd_len = vals.len();
     let mut t: MapM<K, V> = MapM::new();
     t = t.insert_many(vals.iter().map(|(k, v)| (k.clone(), v.clone())));
     t.invariant();
     vals.sort_unstable_by(|t0, t1| t0.0.cmp(&t1.0));
     let (start, end) = loop {
         let mut r = rand::thread_rng();
-        let i = r.gen_range(0..SIZE);
-        let j = r.gen_range(0..SIZE);
+        let i = r.gen_range(0..dd_len);
+        let j = r.gen_range(0..dd_len);
         if i == j {
             continue;
         } else if i < j {
