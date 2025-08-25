@@ -1162,9 +1162,6 @@ where
         elts: Chunk<K, V, SIZE>,
         r: &Tree<K, V, SIZE>,
     ) -> Self {
-        // CR claude for estokes: Performance issue - elts is passed by value but cloned multiple times
-        // throughout this function. Consider taking &Chunk and cloning only when needed for the final tree,
-        // or restructuring to avoid unnecessary clones.
         let (hl, hr) = (l.height(), r.height());
         if hl > hr.saturating_add(2) {
             match *l {
