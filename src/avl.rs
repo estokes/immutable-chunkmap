@@ -293,9 +293,6 @@ where
     // is at least one element of the chunk in bounds
     fn any_elts_above_lbound(&self, n: &'a Node<K, V, SIZE>) -> bool {
         let l = n.elts().len();
-        // CR claude for estokes: Bug - returning true for empty chunks (l == 0) is incorrect.
-        // Empty chunks have no elements, so they can't have elements above any bound.
-        // This could cause the iterator to traverse unnecessary empty nodes.
         match self.bounds.start_bound() {
             Bound::Unbounded => true,
             Bound::Included(bound) => l == 0 || n.elts().key(l - 1).borrow() >= bound,
@@ -305,7 +302,6 @@ where
 
     fn any_elts_below_ubound(&self, n: &'a Node<K, V, SIZE>) -> bool {
         let l = n.elts().len();
-        // CR claude for estokes: Same issue - empty chunks shouldn't return true
         match self.bounds.end_bound() {
             Bound::Unbounded => true,
             Bound::Included(bound) => l == 0 || n.elts().key(0).borrow() <= bound,
@@ -346,8 +342,8 @@ where
         loop {
             loop {
                 let (k, v) = match &mut self.elts {
-                    &mut None => break,
-                    &mut Some(ref mut s) => match s.next() {
+                    None => break,
+                    Some(s) => match s.next() {
                         Some((k, v)) => (k, v),
                         None => break,
                     },
@@ -370,8 +366,6 @@ where
             }
             self.elts = None;
             let top = self.stack.len() - 1;
-            // CR claude for estokes: Complex control flow with stack manipulation could be error-prone.
-            // Consider adding debug assertions to verify stack invariants or refactoring to a simpler state machine.
             let (visited, current) = self.stack[top];
             if visited {
                 if self.any_elts_in_bounds(current) {
@@ -803,9 +797,12 @@ where
     ) -> Self {
         match self {
             Tree::Empty => Tree::create(pool, &Tree::Empty, elts.clone(), &Tree::Empty),
-            Tree::Node(ref n) => {
-                Tree::bal(pool, &n.left.add_min_elts(pool, elts), n.elts(), &n.right)
-            }
+            Tree::Node(ref n) => Tree::bal(
+                pool,
+                &n.left.add_min_elts(pool, elts),
+                n.elts().clone(),
+                &n.right,
+            ),
         }
     }
 
@@ -816,9 +813,12 @@ where
     ) -> Self {
         match self {
             Tree::Empty => Tree::create(pool, &Tree::Empty, elts.clone(), &Tree::Empty),
-            Tree::Node(ref n) => {
-                Tree::bal(pool, &n.left, n.elts(), &n.right.add_max_elts(pool, elts))
-            }
+            Tree::Node(ref n) => Tree::bal(
+                pool,
+                &n.left,
+                n.elts().clone(),
+                &n.right.add_max_elts(pool, elts),
+            ),
         }
     }
 
@@ -836,20 +836,18 @@ where
             (_, Tree::Empty) => l.add_max_elts(pool, elts),
             (Tree::Node(ref ln), Tree::Node(ref rn)) => {
                 let (ln_height, rn_height) = (ln.height(), rn.height());
-                // CR claude for estokes: Typical AVL trees use height difference of 2 for rebalancing threshold, not 1.
-                // Verify this is intentional as it may cause excessive rebalancing operations.
-                if ln_height > rn_height + 1 {
+                if ln_height > rn_height + 2 {
                     Tree::bal(
                         pool,
                         &ln.left,
-                        ln.elts(),
+                        ln.elts().clone(),
                         &Tree::join(pool, &ln.right, elts, r),
                     )
-                } else if rn_height > ln_height + 1 {
+                } else if rn_height > ln_height + 2 {
                     Tree::bal(
                         pool,
                         &Tree::join(pool, l, elts, &rn.left),
-                        rn.elts(),
+                        rn.elts().clone(),
                         &rn.right,
                     )
                 } else {
@@ -992,9 +990,11 @@ where
                         Tree::intersect_int(pool, &n0.left, &l1, r, f);
                         Tree::intersect_int(pool, &n0.right, &r1, r, f);
                     }
+                    (l1, Some(elts), r1) if elts.len() == 0 => {
+                        Tree::intersect_int(pool, &n0.left, &l1, r, f);
+                        Tree::intersect_int(pool, &n0.right, &r1, r, f);
+                    }
                     (l1, Some(elts), r1) => {
-                        // CR claude for estokes: Potential panic - min_max_key().unwrap() will panic if elts is empty.
-                        // The split function might return an empty chunk in Some(_). Consider handling the None case.
                         let (min_k, max_k) = elts.min_max_key().unwrap();
                         Chunk::intersect(n0.elts(), &elts, r, f);
                         if n0.min_key() < &min_k && n0.max_key() > &max_k {
@@ -1116,9 +1116,7 @@ where
 
     fn in_bal(l: &Tree<K, V, SIZE>, r: &Tree<K, V, SIZE>) -> bool {
         let (hl, hr) = (l.height(), r.height());
-        // CR claude for estokes: Potential overflow issue when hr or hl is at max u8 value (255).
-        // Adding 1 to 255 would overflow. Consider using saturating_add or checked arithmetic.
-        (hl <= hr + 1) && (hr <= hl + 1)
+        (hl <= hr.saturating_add(2)) && (hr <= hl.saturating_add(2))
     }
 
     fn compact(self, pool: &ChunkPool<K, V, SIZE>) -> Self {
@@ -1143,7 +1141,7 @@ where
                             let t = Tree::bal(
                                 pool,
                                 &tn.left,
-                                &elts,
+                                elts,
                                 &tn.right.remove_min_elts(pool),
                             );
                             if n >= chunk.len() {
@@ -1161,16 +1159,14 @@ where
     fn bal(
         pool: &ChunkPool<K, V, SIZE>,
         l: &Tree<K, V, SIZE>,
-        elts: &Chunk<K, V, SIZE>,
+        elts: Chunk<K, V, SIZE>,
         r: &Tree<K, V, SIZE>,
     ) -> Self {
         // CR claude for estokes: Performance issue - elts is passed by value but cloned multiple times
         // throughout this function. Consider taking &Chunk and cloning only when needed for the final tree,
         // or restructuring to avoid unnecessary clones.
         let (hl, hr) = (l.height(), r.height());
-        // CR claude for estokes: Same potential overflow issue with hr + 1. Also, using height difference > 1
-        // for rebalancing is standard AVL behavior, but verify this matches your intended invariants.
-        if hl > hr + 1 {
+        if hl > hr.saturating_add(2) {
             match *l {
                 Tree::Empty => panic!("tree heights wrong"),
                 Tree::Node(ref ln) => {
@@ -1179,7 +1175,7 @@ where
                             pool,
                             &ln.left,
                             ln.elts().clone(),
-                            &Tree::create(pool, &ln.right, elts.clone(), r),
+                            &Tree::create(pool, &ln.right, elts, r),
                         )
                         .compact(pool)
                     } else {
@@ -1194,21 +1190,21 @@ where
                                     &lrn.left,
                                 ),
                                 lrn.elts().clone(),
-                                &Tree::create(pool, &lrn.right, elts.clone(), r),
+                                &Tree::create(pool, &lrn.right, elts, r),
                             )
                             .compact(pool),
                         }
                     }
                 }
             }
-        } else if hr > hl + 1 {
+        } else if hr > hl.saturating_add(2) {
             match *r {
                 Tree::Empty => panic!("tree heights are wrong"),
                 Tree::Node(ref rn) => {
                     if rn.right.height() >= rn.left.height() {
                         Tree::create(
                             pool,
-                            &Tree::create(pool, l, elts.clone(), &rn.left),
+                            &Tree::create(pool, l, elts, &rn.left),
                             rn.elts().clone(),
                             &rn.right,
                         )
@@ -1218,7 +1214,7 @@ where
                             Tree::Empty => panic!("tree heights are wrong"),
                             Tree::Node(ref rln) => Tree::create(
                                 pool,
-                                &Tree::create(pool, l, elts.clone(), &rln.left),
+                                &Tree::create(pool, l, elts, &rln.left),
                                 rln.elts().clone(),
                                 &Tree::create(
                                     pool,
@@ -1233,7 +1229,7 @@ where
                 }
             }
         } else {
-            Tree::create(pool, l, elts.clone(), r).compact(pool)
+            Tree::create(pool, l, elts, r).compact(pool)
         }
     }
 
@@ -1275,7 +1271,7 @@ where
                         let l = tn.left.update_chunk(pool, update_left, f);
                         let r = tn.right.insert_chunk(pool, overflow_right);
                         let r = r.update_chunk(pool, update_right, f);
-                        Tree::bal(pool, &l, &elts, &r)
+                        Tree::bal(pool, &l, elts, &r)
                     }
                     UpdateChunk::Removed {
                         not_done,
@@ -1289,11 +1285,11 @@ where
                     }
                     UpdateChunk::UpdateLeft(chunk) => {
                         let l = tn.left.update_chunk(pool, chunk, f);
-                        Tree::bal(pool, &l, tn.elts(), &tn.right)
+                        Tree::bal(pool, &l, tn.elts().clone(), &tn.right)
                     }
                     UpdateChunk::UpdateRight(chunk) => {
                         let r = tn.right.update_chunk(pool, chunk, f);
-                        Tree::bal(pool, &tn.left, tn.elts(), &r)
+                        Tree::bal(pool, &tn.left, tn.elts().clone(), &r)
                     }
                 }
             }
@@ -1382,7 +1378,8 @@ where
                     MutUpdate::UpdateLeft(k, d) => {
                         let prev = tn.left.update_cow(pool, k, d, f);
                         if !Tree::in_bal(&tn.left, &tn.right) {
-                            *self = Tree::bal(pool, &tn.left, tn.elts(), &tn.right)
+                            *self =
+                                Tree::bal(pool, &tn.left, tn.elts().clone(), &tn.right)
                         } else {
                             tn.mutated();
                         }
@@ -1391,7 +1388,8 @@ where
                     MutUpdate::UpdateRight(k, d) => {
                         let prev = tn.right.update_cow(pool, k, d, f);
                         if !Tree::in_bal(&tn.left, &tn.right) {
-                            *self = Tree::bal(pool, &tn.left, tn.elts(), &tn.right)
+                            *self =
+                                Tree::bal(pool, &tn.left, tn.elts().clone(), &tn.right)
                         } else {
                             tn.mutated();
                         }
@@ -1411,8 +1409,12 @@ where
                             let _ = tn.right.insert_cow(pool, ovk, ovv);
                             if tn.elts().len() > 0 {
                                 if !Tree::in_bal(&tn.left, &tn.right) {
-                                    *self =
-                                        Tree::bal(pool, &tn.left, tn.elts(), &tn.right);
+                                    *self = Tree::bal(
+                                        pool,
+                                        &tn.left,
+                                        tn.elts().clone(),
+                                        &tn.right,
+                                    );
                                     previous
                                 } else {
                                     tn.mutated();
@@ -1463,11 +1465,11 @@ where
                 match tn.elts().update(pool, q, d, leaf, f) {
                     Update::UpdateLeft(k, d) => {
                         let (l, prev) = tn.left.update(pool, k, d, f);
-                        (Tree::bal(pool, &l, tn.elts(), &tn.right), prev)
+                        (Tree::bal(pool, &l, tn.elts().clone(), &tn.right), prev)
                     }
                     Update::UpdateRight(k, d) => {
                         let (r, prev) = tn.right.update(pool, k, d, f);
-                        (Tree::bal(pool, &tn.left, tn.elts(), &r), prev)
+                        (Tree::bal(pool, &tn.left, tn.elts().clone(), &r), prev)
                     }
                     Update::Updated {
                         elts,
@@ -1486,7 +1488,7 @@ where
                             if elts.len() == 0 {
                                 (Tree::concat(pool, &tn.left, &r), previous)
                             } else {
-                                (Tree::bal(pool, &tn.left, &elts, &r), previous)
+                                (Tree::bal(pool, &tn.left, elts, &r), previous)
                             }
                         }
                     },
@@ -1528,9 +1530,12 @@ where
             Tree::Empty => panic!("remove min elt"),
             Tree::Node(ref tn) => match tn.left {
                 Tree::Empty => tn.right.clone(),
-                Tree::Node(_) => {
-                    Tree::bal(pool, &tn.left.remove_min_elts(pool), tn.elts(), &tn.right)
-                }
+                Tree::Node(_) => Tree::bal(
+                    pool,
+                    &tn.left.remove_min_elts(pool),
+                    tn.elts().clone(),
+                    &tn.right,
+                ),
             },
         }
     }
@@ -1548,7 +1553,7 @@ where
                 // The match arms above handle Tree::Empty cases, but this doesn't guarantee r has elements
                 // (e.g., if r is a Node with empty chunks). Consider handling the None case explicitly.
                 let elts = r.min_elts().unwrap();
-                Tree::bal(pool, l, elts, &r.remove_min_elts(pool))
+                Tree::bal(pool, l, elts.clone(), &r.remove_min_elts(pool))
             }
         }
     }
@@ -1576,11 +1581,11 @@ where
                 }
                 Loc::InLeft => {
                     let (l, p) = tn.left.remove(pool, k);
-                    (Tree::bal(pool, &l, tn.elts(), &tn.right), p)
+                    (Tree::bal(pool, &l, tn.elts().clone(), &tn.right), p)
                 }
                 Loc::InRight => {
                     let (r, p) = tn.right.remove(pool, k);
-                    (Tree::bal(pool, &tn.left, tn.elts(), &r), p)
+                    (Tree::bal(pool, &tn.left, tn.elts().clone(), &r), p)
                 }
             },
         }
@@ -1613,7 +1618,8 @@ where
                     Loc::InLeft => {
                         let p = tn.left.remove_cow(pool, k);
                         if !Tree::in_bal(&tn.left, &tn.right) {
-                            *self = Tree::bal(pool, &tn.left, tn.elts(), &tn.right);
+                            *self =
+                                Tree::bal(pool, &tn.left, tn.elts().clone(), &tn.right);
                         } else {
                             tn.mutated()
                         }
@@ -1622,7 +1628,8 @@ where
                     Loc::InRight => {
                         let p = tn.right.remove_cow(pool, k);
                         if !Tree::in_bal(&tn.left, &tn.right) {
-                            *self = Tree::bal(pool, &tn.left, tn.elts(), &tn.right);
+                            *self =
+                                Tree::bal(pool, &tn.left, tn.elts().clone(), &tn.right);
                         } else {
                             tn.mutated()
                         }
@@ -1808,7 +1815,7 @@ where
                         check(&tn.left, lower, tn.elts().min_elt().map(|(k, _)| k), len);
                     let (thr, len) =
                         check(&tn.right, tn.elts().max_elt().map(|(k, _)| k), upper, len);
-                    let th = 1 + max(thl, thr);
+                    let th = max(thl, thr).saturating_add(1);
                     let (hl, hr) = (tn.left.height(), tn.right.height());
                     let ub = max(hl, hr) - min(hl, hr);
                     if thl != hl {
