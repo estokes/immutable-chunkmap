@@ -172,10 +172,12 @@ where
 
     pub(crate) fn run(size: usize) {
         let n = num_cpus::get();
-        // warmup
-        m.bench_insert(&*keys, &*vals);
         let keys = Arc::new(utils::randvec::<K>(n, size));
         let vals = Arc::new(utils::randvec::<V>(n, size));
+        // warmup
+        let (m, _) = Self::bench_insert_many_par(&*keys, &*vals, n);
+        m.bench_insert(&*keys, &*vals);
+        // benchmark
         let (m, insertmp) = Self::bench_insert_many_par(&*keys, &*vals, n);
         let rm = m.bench_remove(&keys);
         let insert = m.bench_insert(&*keys, &*vals);
