@@ -96,6 +96,7 @@ where
         &self.elts
     }
 
+    // a node that is not in the pool will never have elts set to None
     #[cfg(feature = "pool")]
     fn elts_mut(&mut self) -> &mut Chunk<K, V, SIZE> {
         match &mut self.elts {
@@ -109,6 +110,7 @@ where
         &mut self.elts
     }
 
+    // a node that is not in the pool will never have min_key set to None
     #[cfg(feature = "pool")]
     fn min_key(&self) -> &K {
         match &self.min_key {
@@ -122,6 +124,7 @@ where
         &self.min_key
     }
 
+    // a node that is not in the pool will never have max_key set to None
     #[cfg(feature = "pool")]
     fn max_key(&self) -> &K {
         match &self.max_key {
@@ -139,23 +142,16 @@ where
         (self.height_and_size >> 56) as u8
     }
 
-    #[cfg(feature = "pool")]
     fn mutated(&mut self) {
-        if let Some((min, max)) = self.elts().min_max_key() {
-            self.min_key = Some(min);
-            self.max_key = Some(max);
-        }
-        self.height_and_size = pack_height_and_size(
-            1 + max(self.left.height(), self.right.height()),
-            self.left.len() + self.right.len(),
-        );
-    }
-
-    #[cfg(not(feature = "pool"))]
-    fn mutated(&mut self) {
+        #[cfg(not(feature = "pool"))]
         if let Some((min, max)) = self.elts().min_max_key() {
             self.min_key = min;
             self.max_key = max;
+        }
+        #[cfg(feature = "pool")]
+        if let Some((min, max)) = self.elts().min_max_key() {
+            self.min_key = Some(min);
+            self.max_key = Some(max);
         }
         self.height_and_size = pack_height_and_size(
             1 + max(self.left.height(), self.right.height()),
