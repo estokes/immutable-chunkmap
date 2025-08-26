@@ -1,5 +1,5 @@
 #[cfg(feature = "pool")]
-use crate::pool::{Arc, ChunkPool, Poolable};
+use crate::pool::{self, Arc, Poolable};
 #[cfg(not(feature = "pool"))]
 use alloc::sync::Arc;
 use alloc::vec::Vec;
@@ -141,7 +141,7 @@ where
 
     #[cfg(feature = "pool")]
     pub(crate) fn empty() -> Self {
-        Chunk(pool::take_chunk())
+        Chunk(pool::take_chunk(1024))
     }
 
     #[cfg(not(feature = "pool"))]

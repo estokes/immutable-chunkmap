@@ -10,7 +10,7 @@ use std::{cell::RefCell, collections::HashMap, sync::Arc as SArc};
 
 struct ChunkPoolInner<K: Ord + Clone, V: Clone, const SIZE: usize> {
     chunk: RawPool<Arc<ChunkInner<K, V, SIZE>>>,
-    node: RawPool<Arc<Node<K, V, SIZE>>>,
+    //node: RawPool<Arc<Node<K, V, SIZE>>>,
 }
 
 /// a chunk pool holds unused chunks in a thread safe queue so they can be
@@ -30,7 +30,7 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> ChunkPool<K, V, SIZE> {
     fn new(max_elts: usize) -> Self {
         ChunkPool(SArc::new(ChunkPoolInner {
             chunk: RawPool::new(max_elts, 1),
-            node: RawPool::new(max_elts, 1),
+            //node: RawPool::new(max_elts, 1),
         }))
     }
 
@@ -38,9 +38,9 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> ChunkPool<K, V, SIZE> {
         self.0.chunk.take()
     }
 
-    fn new_node(&self, n: Node<K, V, SIZE>) -> Arc<Node<K, V, SIZE>> {
+    /*fn new_node(&self, n: Node<K, V, SIZE>) -> Arc<Node<K, V, SIZE>> {
         Arc::new(&self.0.node, n)
-    }
+    }*/
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -90,7 +90,8 @@ fn with_pool<
     F: FnOnce(&ChunkPool<K, V, SIZE>) -> R,
 >(
     size: usize,
-) -> &ChunkPool<K, V, SIZE> {
+    f: F,
+) -> R {
     POOLS.with_borrow_mut(|pools| {
         let pool = pools
             .entry(Discriminant::new::<K, V, SIZE>())
@@ -112,12 +113,14 @@ pub(crate) fn take_chunk<K: Ord + Clone, V: Clone, const SIZE: usize>(
     with_pool(size, |cp| cp.take_chunk())
 }
 
+/*
 pub(crate) fn new_node<K: Ord + Clone, V: Clone, const SIZE: usize>(
     size: usize,
     n: Node<K, V, N>,
 ) -> Arc<Node<K, V, SIZE>> {
     with_pool(size, |cp| cp.new_node(n))
 }
+*/
 
 /// Clear all thread local pools on this thread. Note this will happen
 /// automatically when the thread dies. If there are maps using these pools they
