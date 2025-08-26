@@ -14,7 +14,7 @@ use core::{
     default::Default,
     fmt::{self, Debug, Formatter},
     hash::{Hash, Hasher},
-    iter,
+    hint, iter,
     marker::PhantomData,
     ops::{Bound, Index, RangeBounds, RangeFull},
     slice,
@@ -1311,17 +1311,8 @@ where
     {
         let mut elts = {
             let mut v = elts.into_iter().collect::<Vec<(Q, D)>>();
-            let mut i = 0;
             v.sort_by(|(ref k0, _), (ref k1, _)| k0.cmp(k1));
-            // CR claude for estokes: Performance issue - v.remove(i) is O(n) making deduplication O(n²).
-            // Consider using v.dedup_by() or building a new Vec without duplicates in O(n) time.
-            while v.len() > 1 && i < v.len() - 1 {
-                if v[i].0 == v[i + 1].0 {
-                    v.remove(i);
-                } else {
-                    i += 1;
-                }
-            }
+            v.dedup_by(|t0, t1| t0.0 == t1.0);
             v
         };
         let mut t = self.clone();
@@ -1546,10 +1537,10 @@ where
             (Tree::Empty, _) => r.clone(),
             (_, Tree::Empty) => l.clone(),
             (_, _) => {
-                // CR claude for estokes: Potential panic - min_elts().unwrap() will panic if r is empty.
-                // The match arms above handle Tree::Empty cases, but this doesn't guarantee r has elements
-                // (e.g., if r is a Node with empty chunks). Consider handling the None case explicitly.
-                let elts = r.min_elts().unwrap();
+                let elts = match r.min_elts() {
+                    Some(e) => e,
+                    None => &Chunk::empty(pool), // this shouldn't happen
+                };
                 Tree::bal(pool, l, elts.clone(), &r.remove_min_elts(pool))
             }
         }
@@ -1653,6 +1644,9 @@ where
             Tree::Node(n) => {
                 let mut tn = n;
                 loop {
+                    //let in_left = hint::select_unpredictable(k.cmp(tn.min_key().borrow()) == Ordering::Less, true, false);
+                    //let in_right = hint::select_unpredictable(k.cmp(tn.max_key().borrow()), true, false);
+                    // CR estokes: use select_unpredictable here
                     match (k.cmp(tn.min_key().borrow()), k.cmp(tn.max_key().borrow())) {
                         (Ordering::Less, _) => match tn.left {
                             Tree::Empty => break None,
@@ -1726,10 +1720,6 @@ where
     where
         F: FnOnce() -> V,
     {
-        // CR claude for estokes: Unsafe pointer manipulation to work around borrow checker. This converts
-        // a mutable reference to a raw pointer then dereferences it. While likely safe since the tree
-        // structure doesn't change between operations, consider restructuring to avoid unsafe code.
-        // Also, the unwrap() in the None branch could panic if insert_cow fails to insert.
         match self.get_mut_cow(&k).map(|v| v as *mut V) {
             Some(v) => unsafe { &mut *v },
             None => {

@@ -192,10 +192,6 @@ where
     V: Clone,
 {
     fn index_mut(&mut self, k: &'a Q) -> &mut Self::Output {
-        // CR claude for estokes: Design issue - IndexMut on a COW data structure triggers a copy
-        // even for read-like patterns (e.g., map[&key].method()). This is surprising behavior that
-        // could cause unexpected performance degradation. Consider not implementing IndexMut or
-        // clearly documenting this performance characteristic.
         self.get_mut_cow(k).expect("element not found for key")
     }
 }
