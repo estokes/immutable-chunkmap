@@ -16,7 +16,7 @@ struct ChunkPoolInner<K: Ord + Clone, V: Clone, const SIZE: usize> {
 /// a chunk pool holds unused chunks in a thread safe queue so they can be
 /// recycled. This reduces memory fragmentation, and allocation.
 #[repr(transparent)]
-pub struct ChunkPool<K: Ord + Clone, V: Clone, const SIZE: usize>(
+struct ChunkPool<K: Ord + Clone, V: Clone, const SIZE: usize>(
     SArc<ChunkPoolInner<K, V, SIZE>>,
 );
 
@@ -27,18 +27,18 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> Clone for ChunkPool<K, V, SIZE
 }
 
 impl<K: Ord + Clone, V: Clone, const SIZE: usize> ChunkPool<K, V, SIZE> {
-    pub fn new(max_elts: usize) -> Self {
+    fn new(max_elts: usize) -> Self {
         ChunkPool(SArc::new(ChunkPoolInner {
             chunk: RawPool::new(max_elts, 1),
             node: RawPool::new(max_elts, 1),
         }))
     }
 
-    pub(crate) fn take_chunk(&self) -> Arc<ChunkInner<K, V, SIZE>> {
+    fn take_chunk(&self) -> Arc<ChunkInner<K, V, SIZE>> {
         self.0.chunk.take()
     }
 
-    pub(crate) fn new_node(&self, n: Node<K, V, SIZE>) -> Arc<Node<K, V, SIZE>> {
+    fn new_node(&self, n: Node<K, V, SIZE>) -> Arc<Node<K, V, SIZE>> {
         Arc::new(&self.0.node, n)
     }
 }
@@ -82,9 +82,15 @@ thread_local! {
 // 1. Chunks are reset before being returned to pools, so they contain no active K or V values
 // 2. We only reuse pools for types with identical memory layouts (same size/alignment via Discriminant)
 // 3. The Opaque wrapper ensures proper cleanup when the thread local is destroyed
-pub(crate) fn pool<K: Ord + Clone, V: Clone, const SIZE: usize>(
+fn with_pool<
+    K: Ord + Clone,
+    V: Clone,
+    const SIZE: usize,
+    R,
+    F: FnOnce(&ChunkPool<K, V, SIZE>) -> R,
+>(
     size: usize,
-) -> ChunkPool<K, V, SIZE> {
+) -> &ChunkPool<K, V, SIZE> {
     POOLS.with_borrow_mut(|pools| {
         let pool = pools
             .entry(Discriminant::new::<K, V, SIZE>())
@@ -96,8 +102,21 @@ pub(crate) fn pool<K: Ord + Clone, V: Clone, const SIZE: usize>(
                 }) as Box<dyn FnOnce(*mut ())>);
                 Opaque { t, drop }
             });
-        unsafe { &*(pool.t as *const ChunkPool<K, V, SIZE>) }.clone()
+        f(unsafe { &*(pool.t as *const ChunkPool<K, V, SIZE>) })
     })
+}
+
+pub(crate) fn take_chunk<K: Ord + Clone, V: Clone, const SIZE: usize>(
+    size: usize,
+) -> Arc<ChunkInner<K, V, SIZE>> {
+    with_pool(size, |cp| cp.take_chunk())
+}
+
+pub(crate) fn new_node<K: Ord + Clone, V: Clone, const SIZE: usize>(
+    size: usize,
+    n: Node<K, V, N>,
+) -> Arc<Node<K, V, SIZE>> {
+    with_pool(size, |cp| cp.new_node(n))
 }
 
 /// Clear all thread local pools on this thread. Note this will happen

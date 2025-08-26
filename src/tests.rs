@@ -1,4 +1,4 @@
-use crate::{avl, chunk::DEFAULT_SIZE, map::MapM, pool::ChunkPool, set::SetM};
+use crate::{avl, chunk::DEFAULT_SIZE, map::MapM, set::SetM};
 use alloc::{collections::BTreeMap, string::String, sync::Arc, vec, vec::Vec};
 use core::{
     borrow::Borrow,
@@ -130,10 +130,9 @@ where
     K: Ord + Clone + Debug,
     V: Clone + Debug,
 {
-    let pool = ChunkPool::new(64);
     let mut t = avl::Tree::new();
     for (k, v) in r {
-        t = t.insert(&pool, k.clone(), v.clone()).0;
+        t = t.insert(k.clone(), v.clone()).0;
         if t.len() % CHECK == 0 {
             t.invariant();
         }
@@ -186,17 +185,16 @@ where
     K: Ord + Clone + Debug + Rand + Hash,
     V: Ord + Clone + Debug + Rand + Hash,
 {
-    let pool = ChunkPool::new(64);
     let mut v = randvec::<(K, V)>(SIZE);
     dedup_with(&mut v, |(ref k, _)| k);
     let mut t = avl::Tree::<_, _, DEFAULT_SIZE>::new();
     for (k, v) in &v {
-        let (tn, p) = t.insert(&pool, k.clone(), v.clone());
+        let (tn, p) = t.insert(k.clone(), v.clone());
         assert_eq!(p, None);
         t = tn;
         assert_eq!(t.get(k).unwrap(), v);
         if t.len() % CHECK == 0 {
-            let (tn, p) = t.remove(&pool, k);
+            let (tn, p) = t.remove(k);
             assert_eq!(p.as_ref(), Some(v));
             t = tn;
             assert_eq!(t.get(k), Option::None);
@@ -212,7 +210,6 @@ where
     K: Ord + Clone + Debug + Rand + Hash,
     V: Ord + Clone + Debug + Rand + Hash,
 {
-    let pool = ChunkPool::new(64);
     let mut model: HashMap<K, V> = HashMap::new();
     let mut v = randvec::<(K, V)>(SIZE);
     let mut o = randvec::<(K, V)>(SIZE);
@@ -226,7 +223,7 @@ where
     }
     let mut cow = t.clone();
     for (i, (k, v)) in o.iter().enumerate() {
-        *cow.get_or_insert_cow(&pool, k.clone(), || v.clone()) = v.clone();
+        *cow.get_or_insert_cow(k.clone(), || v.clone()) = v.clone();
         model.insert(k.clone(), v.clone());
         assert_eq!(cow.get(k), Some(v));
         if i > 0 && i % CHECK == 0 {
@@ -234,7 +231,7 @@ where
                 let j = rand::thread_rng().gen_range(0..i);
                 let k = &o[j].0;
                 if let Some(v) = model.remove(k) {
-                    let p = cow.remove_cow(&pool, k);
+                    let p = cow.remove_cow(k);
                     assert_eq!(p.as_ref(), Some(&v));
                     assert_eq!(cow.get(k), Option::None);
                     break;
@@ -279,15 +276,14 @@ fn test_insert_many_small() {
     let v: Vec<i32> = vec![
         1, 9, 16, 11, 7, 12, 8, 12, 12, 11, 9, 12, 9, 7, 16, 9, 1, 9, 1, 1, 22, 112,
     ];
-    let pool = ChunkPool::new(64);
-    let mut t = avl::Tree::<_, _, DEFAULT_SIZE>::new()
-        .insert_many(&pool, v.iter().map(|k| (*k, *k)));
+    let mut t =
+        avl::Tree::<_, _, DEFAULT_SIZE>::new().insert_many(v.iter().map(|k| (*k, *k)));
     t.invariant();
     for k in &v {
         assert_eq!(t.get(k).unwrap(), k)
     }
-    t = t.remove(&pool, &22i32).0;
-    t = t.remove(&pool, &112i32).0;
+    t = t.remove(&22i32).0;
+    t = t.remove(&112i32).0;
     t.invariant();
     for k in &v {
         if *k == 22i32 || *k == 112i32 {
@@ -297,7 +293,7 @@ fn test_insert_many_small() {
         }
     }
     let v2: Vec<i32> = vec![12i32, 987i32, 19i32, 98i32];
-    t = t.insert_many(&pool, v2.iter().map(|k| (k.clone(), k.clone())));
+    t = t.insert_many(v2.iter().map(|k| (k.clone(), k.clone())));
     for k in &v2 {
         assert_eq!(t.get(k).unwrap(), k);
     }
@@ -325,11 +321,10 @@ where
     K: Ord + Clone + Debug + Rand + Hash,
     V: Ord + Clone + Debug + Rand + Hash,
 {
-    let pool = ChunkPool::new(64);
     let mut v = randvec::<(K, V)>(SIZE);
     dedup_with(&mut v, |(ref k, _)| k);
     let mut t = avl::Tree::<_, _, DEFAULT_SIZE>::new()
-        .insert_many(&pool, v.iter().map(|(k, v)| (k.clone(), v.clone())));
+        .insert_many(v.iter().map(|(k, v)| (k.clone(), v.clone())));
     t.invariant();
     for (k, v) in &v {
         assert_eq!(t.get(k).unwrap(), v)
@@ -338,7 +333,7 @@ where
         let mut i = 0;
         for (k, _) in &v {
             if i % CHECK == 0 {
-                t = t.remove(&pool, k).0;
+                t = t.remove(k).0;
                 t.invariant();
             }
             i = i + 1;
@@ -359,7 +354,7 @@ where
         dedup_with(&mut v, |(ref k, _)| k);
         v.split_off(len)
     };
-    t = t.insert_many(&pool, v2.iter().map(|(k, v)| (k.clone(), v.clone())));
+    t = t.insert_many(v2.iter().map(|(k, v)| (k.clone(), v.clone())));
     t.invariant();
     {
         let mut i = 0;
@@ -375,7 +370,6 @@ where
     }
     let mut i = 0;
     t = t.update_many(
-        &pool,
         v2.iter().map(|(k, v)| (k.clone(), v.clone())),
         &mut |k, v, cur| {
             i += 1;

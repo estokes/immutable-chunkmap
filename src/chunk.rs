@@ -1,9 +1,12 @@
+#[cfg(feature = "pool")]
 use crate::pool::{Arc, ChunkPool, Poolable};
+#[cfg(not(feature = "pool"))]
+use alloc::sync::Arc;
 use alloc::vec::Vec;
 use arrayvec::ArrayVec;
 use core::{
     borrow::Borrow,
-    cmp::{min, Ord},
+    cmp::{min, Ord, Ordering},
     fmt::{self, Debug, Formatter},
     iter, mem,
     ops::Deref,
@@ -83,6 +86,7 @@ pub(crate) struct ChunkInner<K, V, const SIZE: usize> {
     vals: ArrayVec<V, SIZE>,
 }
 
+#[cfg(feature = "pool")]
 impl<K, V, const SIZE: usize> Poolable for ChunkInner<K, V, SIZE> {
     fn empty() -> Self {
         ChunkInner {
@@ -127,29 +131,34 @@ where
     K: Ord + Clone,
     V: Clone,
 {
-    pub(crate) fn singleton(pool: &ChunkPool<K, V, SIZE>, k: K, v: V) -> Self {
-        let mut t = Chunk::empty(pool);
+    pub(crate) fn singleton(k: K, v: V) -> Self {
+        let mut t = Chunk::empty();
         let inner = Arc::make_mut(&mut t.0);
         inner.keys.push(k);
         inner.vals.push(v);
         t
     }
 
-    pub(crate) fn empty(pool: &ChunkPool<K, V, SIZE>) -> Self {
-        Chunk(pool.take_chunk())
+    #[cfg(feature = "pool")]
+    pub(crate) fn empty() -> Self {
+        Chunk(pool::take_chunk())
     }
 
-    pub(crate) fn create_with<Q, D, F>(
-        pool: &ChunkPool<K, V, SIZE>,
-        chunk: Vec<(Q, D)>,
-        f: &mut F,
-    ) -> Self
+    #[cfg(not(feature = "pool"))]
+    pub(crate) fn empty() -> Self {
+        Chunk(Arc::new(ChunkInner {
+            keys: ArrayVec::new(),
+            vals: ArrayVec::new(),
+        }))
+    }
+
+    pub(crate) fn create_with<Q, D, F>(chunk: Vec<(Q, D)>, f: &mut F) -> Self
     where
         Q: Ord,
         K: Borrow<Q>,
         F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
     {
-        let mut t = Chunk::empty(pool);
+        let mut t = Chunk::empty();
         let inner = Arc::make_mut(&mut t.0);
         for (k, v) in chunk.into_iter().filter_map(|(q, d)| f(q, d, None)) {
             inner.keys.push(k);
@@ -176,11 +185,19 @@ where
         if len == 0 {
             Loc::NotPresent(0)
         } else {
-            match self.keys.binary_search_by_key(&k, |k| k.borrow()) {
-                Result::Ok(i) => Loc::Here(i),
-                Result::Err(i) if i == 0 => Loc::InLeft,
-                Result::Err(i) if i >= len => Loc::InRight,
-                Result::Err(i) => Loc::NotPresent(i),
+            let first = k.cmp(&self.keys[0].borrow());
+            let last = k.cmp(&self.keys[len - 1].borrow());
+            match (first, last) {
+                (Ordering::Equal, _) => Loc::Here(0),
+                (_, Ordering::Equal) => Loc::Here(len - 1),
+                (Ordering::Less, _) => Loc::InLeft,
+                (_, Ordering::Greater) => Loc::InRight,
+                (Ordering::Greater, Ordering::Less) => {
+                    match self.keys.binary_search_by_key(&k, |k| k.borrow()) {
+                        Result::Ok(i) => Loc::Here(i),
+                        Result::Err(i) => Loc::NotPresent(i),
+                    }
+                }
             }
         }
     }
@@ -188,7 +205,6 @@ where
     // invariant: chunk is sorted and deduped
     pub(crate) fn update_chunk<Q, D, F>(
         &self,
-        pool: &ChunkPool<K, V, SIZE>,
         chunk: Vec<(Q, D)>,
         leaf: bool,
         f: &mut F,
@@ -198,7 +214,7 @@ where
         K: Borrow<Q>,
         F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
     {
-        debug_assert!(chunk.len() <= SIZE && chunk.len() > 0 && self.len() > 0);
+        assert!(chunk.len() <= SIZE && chunk.len() > 0 && self.len() > 0);
         let full = !leaf || self.len() >= SIZE;
         let in_left = self.get(&chunk[chunk.len() - 1].0) == Loc::InLeft;
         let in_right = self.get(&chunk[0].0) == Loc::InRight;
@@ -209,7 +225,7 @@ where
         } else if leaf && (in_left || in_right) {
             let iter = chunk.into_iter().filter_map(|(q, d)| f(q, d, None));
             let mut overflow_right = Vec::new();
-            let mut elts = Chunk::empty(pool);
+            let mut elts = Chunk::empty();
             let inner = Arc::make_mut(&mut elts.0);
             if in_right {
                 inner.clone_from(self);
@@ -257,7 +273,7 @@ where
                 K: Ord + Clone,
                 V: Clone,
             {
-                let n = min(i.saturating_sub(*m), SIZE.saturating_sub(elts.keys.len()));
+                let n = min(i - *m, SIZE - elts.keys.len());
                 if n > 0 {
                     elts.keys.extend(t.keys[*m..*m + n].iter().cloned());
                     elts.vals.extend(t.vals[*m..*m + n].iter().cloned());
@@ -279,7 +295,7 @@ where
             let mut update_right = Vec::new();
             let mut overflow_right = Vec::new();
             let mut m = 0;
-            let mut elts = Chunk::empty(pool);
+            let mut elts = Chunk::empty();
             let inner = Arc::make_mut(&mut elts.0);
             let mut chunk = chunk.into_iter();
             loop {
@@ -375,7 +391,6 @@ where
 
     pub(crate) fn update<Q, D, F>(
         &self,
-        pool: &ChunkPool<K, V, SIZE>,
         q: Q,
         d: D,
         leaf: bool,
@@ -388,7 +403,7 @@ where
     {
         match self.get(&q) {
             Loc::Here(i) => {
-                let mut elts = Chunk::empty(pool);
+                let mut elts = Chunk::empty();
                 let inner = Arc::make_mut(&mut elts.0);
                 inner.keys.extend(self.keys[0..i].iter().cloned());
                 inner.vals.extend(self.vals[0..i].iter().cloned());
@@ -411,7 +426,7 @@ where
                 }
             }
             Loc::NotPresent(i) => {
-                let mut elts = Chunk::empty(pool);
+                let mut elts = Chunk::empty();
                 let inner = Arc::make_mut(&mut elts.0);
                 inner.keys.extend(self.keys[0..i].iter().cloned());
                 inner.vals.extend(self.vals[0..i].iter().cloned());
@@ -461,7 +476,7 @@ where
                         Loc::Here(..) | Loc::NotPresent(..) => unreachable!(),
                     }
                 } else {
-                    let mut elts = Chunk::empty(pool);
+                    let mut elts = Chunk::empty();
                     let inner = Arc::make_mut(&mut elts.0);
                     match loc {
                         Loc::InLeft => {
@@ -603,11 +618,11 @@ where
         }
     }
 
-    pub(crate) fn remove_elt_at(&self, pool: &ChunkPool<K, V, SIZE>, i: usize) -> Self {
-        let mut elts = Chunk::empty(pool);
+    pub(crate) fn remove_elt_at(&self, i: usize) -> Self {
+        let mut elts = Chunk::empty();
         let t = Arc::make_mut(&mut elts.0);
-        if i >= self.keys.len() {
-            panic!("remove_elt_at: out of bounds")
+        if self.keys.len() == 0 {
+            panic!("can't remove from an empty chunk")
         } else if self.len() == 1 {
             elts
         } else if i == 0 {
@@ -628,8 +643,8 @@ where
     }
 
     pub(crate) fn remove_elt_at_mut(&mut self, i: usize) -> (K, V) {
-        if i >= self.len() {
-            panic!("remove_elt_at_mut: out of bounds")
+        if self.len() == 0 {
+            panic!("can't remove from an empty chunk")
         } else {
             let inner = Arc::make_mut(&mut self.0);
             let k = inner.keys.remove(i);

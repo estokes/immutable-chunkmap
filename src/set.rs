@@ -1,8 +1,5 @@
+use crate::avl::{Iter, Tree, WeakTree};
 pub use crate::chunk::DEFAULT_SIZE;
-use crate::{
-    avl::{Iter, Tree, WeakTree},
-    pool::{pool, ChunkPool},
-};
 use core::{
     borrow::Borrow,
     cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd},
@@ -52,10 +49,7 @@ use rayon::{
 /// for k in &m { println!("{}", k) }
 /// ```
 #[derive(Clone)]
-pub struct Set<K: Ord + Clone, const SIZE: usize> {
-    pool: ChunkPool<K, (), SIZE>,
-    t: Tree<K, (), SIZE>,
-}
+pub struct Set<K: Ord + Clone, const SIZE: usize>(Tree<K, (), SIZE>);
 
 /// set with a smaller chunk size, faster to update, slower to search
 pub type SetS<K> = Set<K, { DEFAULT_SIZE / 2 }>;
@@ -67,10 +61,7 @@ pub type SetM<K> = Set<K, DEFAULT_SIZE>;
 pub type SetL<K> = Set<K, { DEFAULT_SIZE * 2 }>;
 
 #[derive(Clone)]
-pub struct WeakSetRef<K: Ord + Clone, const SIZE: usize> {
-    pool: ChunkPool<K, (), SIZE>,
-    t: WeakTree<K, (), SIZE>,
-}
+pub struct WeakSetRef<K: Ord + Clone, const SIZE: usize>(WeakTree<K, (), SIZE>);
 
 pub type WeakSetRefS<K> = WeakSetRef<K, 32>;
 pub type WeakSetRefM<K> = WeakSetRef<K, 128>;
@@ -81,10 +72,7 @@ where
     K: Ord + Clone,
 {
     pub fn upgrade(&self) -> Option<Set<K, SIZE>> {
-        self.t.upgrade().map(|t| Set {
-            pool: self.pool.clone(),
-            t,
-        })
+        self.0.upgrade().map(Set)
     }
 }
 
@@ -93,7 +81,7 @@ where
     K: Hash + Ord + Clone,
 {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.t.hash(state)
+        self.0.hash(state)
     }
 }
 
@@ -111,7 +99,7 @@ where
     K: Ord + Clone,
 {
     fn eq(&self, other: &Set<K, SIZE>) -> bool {
-        self.t == other.t
+        self.0 == other.0
     }
 }
 
@@ -122,7 +110,7 @@ where
     K: Ord + Clone,
 {
     fn partial_cmp(&self, other: &Set<K, SIZE>) -> Option<Ordering> {
-        self.t.partial_cmp(&other.t)
+        self.0.partial_cmp(&other.0)
     }
 }
 
@@ -131,7 +119,7 @@ where
     K: Ord + Clone,
 {
     fn cmp(&self, other: &Set<K, SIZE>) -> Ordering {
-        self.t.cmp(&other.t)
+        self.0.cmp(&other.0)
     }
 }
 
@@ -191,7 +179,7 @@ where
     type Item = &'a K;
     type IntoIter = SetIter<'a, RangeFull, K, K, SIZE>;
     fn into_iter(self) -> Self::IntoIter {
-        SetIter(self.t.into_iter())
+        SetIter(self.0.into_iter())
     }
 }
 
@@ -293,37 +281,22 @@ where
 {
     /// Create a new empty set
     pub fn new() -> Self {
-        Set {
-            pool: pool(1024),
-            t: Tree::new(),
-        }
-    }
-
-    /// Create a new empty set using the specified pool for allocation
-    #[cfg(feature = "pool")]
-    pub fn new_with_pool(pool: ChunkPool<K, (), SIZE>) -> Self {
-        Set {
-            pool,
-            t: Tree::new(),
-        }
+        Set(Tree::new())
     }
 
     /// Create a weak reference to this set
     pub fn downgrade(&self) -> WeakSetRef<K, SIZE> {
-        WeakSetRef {
-            pool: self.pool.clone(),
-            t: self.t.downgrade(),
-        }
+        WeakSetRef(self.0.downgrade())
     }
 
     /// Return the number of strong references to this set (see Arc)
     pub fn strong_count(&self) -> usize {
-        self.t.strong_count()
+        self.0.strong_count()
     }
 
     /// Return the number of weak references to this set (see Arc)
     pub fn weak_count(&self) -> usize {
-        self.t.weak_count()
+        self.0.weak_count()
     }
 
     /// This will insert many elements at once, and is
@@ -344,13 +317,8 @@ where
     /// }
     /// ```
     pub fn insert_many<E: IntoIterator<Item = K>>(&self, elts: E) -> Self {
-        let t = self
-            .t
-            .insert_many(&self.pool, elts.into_iter().map(|k| (k, ())));
-        Set {
-            pool: self.pool.clone(),
-            t,
-        }
+        let root = self.0.insert_many(elts.into_iter().map(|k| (k, ())));
+        Set(root)
     }
 
     /// Remove multiple elements in a single pass. Similar performance
@@ -361,15 +329,10 @@ where
         K: Borrow<Q>,
         E: IntoIterator<Item = Q>,
     {
-        let t = self.t.update_many(
-            &self.pool,
-            elts.into_iter().map(|k| (k, ())),
-            &mut |_, _, _| None,
-        );
-        Set {
-            pool: self.pool.clone(),
-            t,
-        }
+        let root = self
+            .0
+            .update_many(elts.into_iter().map(|k| (k, ())), &mut |_, _, _| None);
+        Set(root)
     }
 
     /// This is just slightly wierd, however if you have a bunch of
@@ -383,18 +346,13 @@ where
         E: IntoIterator<Item = Q>,
         F: FnMut(Q, Option<&K>) -> Option<K>,
     {
-        let t = self.t.update_many(
-            &self.pool,
-            elts.into_iter().map(|k| (k, ())),
-            &mut |q, (), cur| {
-                let cur = cur.map(|(k, ())| k);
-                f(q, cur).map(|k| (k, ()))
-            },
-        );
-        Set {
-            pool: self.pool.clone(),
-            t,
-        }
+        let root =
+            self.0
+                .update_many(elts.into_iter().map(|k| (k, ())), &mut |q, (), cur| {
+                    let cur = cur.map(|(k, ())| k);
+                    f(q, cur).map(|k| (k, ()))
+                });
+        Set(root)
     }
 
     /// return a new set with k inserted into it. If k already
@@ -405,12 +363,7 @@ where
         if self.contains(&k) {
             (self.clone(), true)
         } else {
-            let t = self.t.insert(&self.pool, k, ()).0;
-            let s = Set {
-                pool: self.pool.clone(),
-                t,
-            };
-            (s, false)
+            (Set(self.0.insert(k, ()).0), false)
         }
     }
 
@@ -421,7 +374,7 @@ where
     /// mutated. self will share all the parts that weren't modfied
     /// with any previous clones.
     pub fn insert_cow(&mut self, k: K) -> bool {
-        self.t.insert_cow(&self.pool.clone(), k, ()).is_some()
+        self.0.insert_cow(k, ()).is_some()
     }
 
     /// return true if the set contains k, else false. Runs in
@@ -432,7 +385,7 @@ where
         Q: ?Sized + Ord,
         K: Borrow<Q>,
     {
-        self.t.get(k).is_some()
+        self.0.get(k).is_some()
     }
 
     /// return a reference to the item in the set that is equal to the
@@ -442,7 +395,7 @@ where
         Q: ?Sized + Ord,
         K: Borrow<Q>,
     {
-        self.t.get_key(k)
+        self.0.get_key(k)
     }
 
     /// return a new set with k removed. Runs in log(N) time
@@ -451,12 +404,8 @@ where
     where
         K: Borrow<Q>,
     {
-        let (t, prev) = self.t.remove(&self.pool, k);
-        let s = Set {
-            pool: self.pool.clone(),
-            t,
-        };
-        (s, prev.is_some())
+        let (t, prev) = self.0.remove(k);
+        (Set(t), prev.is_some())
     }
 
     /// remove `k` from the set in place with copy on write semantics
@@ -465,7 +414,7 @@ where
     where
         K: Borrow<Q>,
     {
-        self.t.remove_cow(&self.pool, k).is_some()
+        self.0.remove_cow(k).is_some()
     }
 
     /// return the union of 2 sets. Runs in O(log(N) + M) time and
@@ -486,11 +435,7 @@ where
     /// }
     /// ```
     pub fn union(&self, other: &Set<K, SIZE>) -> Self {
-        let t = Tree::union(&self.pool, &self.t, &other.t, &mut |_, (), ()| Some(()));
-        Set {
-            pool: self.pool.clone(),
-            t,
-        }
+        Set(Tree::union(&self.0, &other.0, &mut |_, (), ()| Some(())))
     }
 
     /// return the intersection of 2 sets. Runs in O(log(N) + M) time
@@ -514,11 +459,11 @@ where
     ///     }
     /// }
     pub fn intersect(&self, other: &Set<K, SIZE>) -> Self {
-        let t = Tree::intersect(&self.pool, &self.t, &other.t, &mut |_, (), ()| Some(()));
-        Set {
-            pool: self.pool.clone(),
-            t,
-        }
+        Set(Tree::intersect(
+            &self.0,
+            &other.0,
+            &mut |_, (), ()| Some(()),
+        ))
     }
 
     /// Return the difference of two sets. Runs in O(log(N) + M) time
@@ -546,16 +491,12 @@ where
     where
         K: Debug,
     {
-        let t = Tree::diff(&self.pool, &self.t, &other.t, &mut |_, (), ()| None);
-        Set {
-            pool: self.pool.clone(),
-            t,
-        }
+        Set(Tree::diff(&self.0, &other.0, &mut |_, (), ()| None))
     }
 
     /// get the number of elements in the map O(1) time and space
     pub fn len(&self) -> usize {
-        self.t.len()
+        self.0.len()
     }
 
     /// return an iterator over the subset of elements in the
@@ -572,7 +513,7 @@ where
         K: 'a + Clone + Ord + Borrow<Q>,
         R: RangeBounds<Q> + 'a,
     {
-        SetIter(self.t.range(r))
+        SetIter(self.0.range(r))
     }
 }
 
@@ -582,6 +523,6 @@ where
 {
     #[allow(dead_code)]
     pub(crate) fn invariant(&self) -> () {
-        self.t.invariant()
+        self.0.invariant()
     }
 }
