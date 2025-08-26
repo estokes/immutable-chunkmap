@@ -14,7 +14,7 @@ use core::{
     default::Default,
     fmt::{self, Debug, Formatter},
     hash::{Hash, Hasher},
-    hint, iter,
+    iter,
     marker::PhantomData,
     ops::{Bound, Index, RangeBounds, RangeFull},
     slice,

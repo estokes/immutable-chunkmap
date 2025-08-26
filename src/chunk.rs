@@ -3,7 +3,7 @@ use alloc::vec::Vec;
 use arrayvec::ArrayVec;
 use core::{
     borrow::Borrow,
-    cmp::{min, Ord},
+    cmp::{min, Ord, Ordering},
     fmt::{self, Debug, Formatter},
     iter, mem,
     ops::Deref,
@@ -176,11 +176,19 @@ where
         if len == 0 {
             Loc::NotPresent(0)
         } else {
-            match self.keys.binary_search_by_key(&k, |k| k.borrow()) {
-                Result::Ok(i) => Loc::Here(i),
-                Result::Err(i) if i == 0 => Loc::InLeft,
-                Result::Err(i) if i >= len => Loc::InRight,
-                Result::Err(i) => Loc::NotPresent(i),
+            let first = k.cmp(&self.keys[0].borrow());
+            let last = k.cmp(&self.keys[len - 1].borrow());
+            match (first, last) {
+                (Ordering::Equal, _) => Loc::Here(0),
+                (_, Ordering::Equal) => Loc::Here(len - 1),
+                (Ordering::Less, _) => Loc::InLeft,
+                (_, Ordering::Greater) => Loc::InRight,
+                (Ordering::Greater, Ordering::Less) => {
+                    match self.keys.binary_search_by_key(&k, |k| k.borrow()) {
+                        Result::Ok(i) => Loc::Here(i),
+                        Result::Err(i) => Loc::NotPresent(i),
+                    }
+                }
             }
         }
     }
@@ -198,7 +206,7 @@ where
         K: Borrow<Q>,
         F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
     {
-        debug_assert!(chunk.len() <= SIZE && chunk.len() > 0 && self.len() > 0);
+        assert!(chunk.len() <= SIZE && chunk.len() > 0 && self.len() > 0);
         let full = !leaf || self.len() >= SIZE;
         let in_left = self.get(&chunk[chunk.len() - 1].0) == Loc::InLeft;
         let in_right = self.get(&chunk[0].0) == Loc::InRight;
