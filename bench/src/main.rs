@@ -2,6 +2,7 @@ mod utils;
 use crate::utils::Rand;
 use arcstr::ArcStr;
 use immutable_chunkmap::map::{Map, DEFAULT_SIZE};
+use rand::{thread_rng, Rng};
 use std::{
     borrow::Borrow,
     cmp::{max, min},
@@ -176,19 +177,18 @@ where
         let vals = Arc::new(utils::randvec::<V>(n, size));
         // warmup
         let (wm, _) = Self::bench_insert_many_par(&*keys, &*vals, n);
-        // fragment
-        wm.bench_remove(
-            &keys
-                .into_iter()
+        // fragment the heap
+        wm.bench_remove(&Arc::new(
+            keys.iter()
                 .filter_map(|k| {
-                    if thread_rng().gen_bool() {
+                    if thread_rng().gen_bool(0.5) {
                         Some(k.clone())
                     } else {
                         None
                     }
                 })
                 .collect::<Vec<_>>(),
-        );
+        ));
         // benchmark
         let (m, insertmp) = Self::bench_insert_many_par(&*keys, &*vals, n);
         let rm = m.bench_remove(&keys);

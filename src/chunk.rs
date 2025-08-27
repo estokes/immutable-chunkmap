@@ -33,7 +33,7 @@ elts is a sorted array of pairs, increasing the SIZE has several effects;
 -- icreases the overall amount of memory allocated for each change to
    the tree
 */
-pub const DEFAULT_SIZE: usize = 256;
+pub const DEFAULT_SIZE: usize = 512;
 
 pub(crate) enum UpdateChunk<
     Q: Ord,
