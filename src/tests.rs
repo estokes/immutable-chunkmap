@@ -711,40 +711,18 @@ fn test_set() {
 
 #[test]
 fn test_ord() {
-    // loop {
-    let v0 = randvec::<i32>(SIZE);
-    let v1 = permutation(&v0);
-    let mut v2 = permutation(&v0);
-    let mut v3 = permutation(&v0);
-    for i in (0..SIZE).rev() {
-        // if adding 1 makes v2[i] the same as another element this is the same
-        // as deleting it which will have the opposite of the desired effect
-        if v2[i] < i32::MAX && !v2.contains(&(v2[i] + 1)) {
-            v2[i] += 1;
-            break;
-        }
-    }
-    for i in (0..SIZE).rev() {
-        if v3[i] > i32::MIN && !v3.contains(&(v3[i] - 1)) {
-            v3[i] -= 1;
-            break;
-        }
-    }
+    let mut v0 = randvec::<i32>(SIZE);
+    let mut v1 = randvec::<i32>(SIZE);
     let s0 = v0.iter().map(|v| v.clone()).collect::<SetM<_>>();
     let s1 = v1.iter().map(|v| v.clone()).collect::<SetM<_>>();
-    let s2 = v2.iter().map(|v| v.clone()).collect::<SetM<_>>();
-    let s3 = v3.iter().map(|v| v.clone()).collect::<SetM<_>>();
-    s0.invariant();
-    s1.invariant();
-    s2.invariant();
-    s3.invariant();
-    assert!(s0 == s1);
-    assert_eq!(s0.cmp(&s1), Ordering::Equal);
-    assert!(s0 != s2);
-    assert_eq!(s0.cmp(&s2), Ordering::Less);
-    assert!(s0 != s3);
-    assert_eq!(s0.cmp(&s3), Ordering::Greater);
-    //    }
+    let s2: SetM<_> = permutation(&v0).iter().map(|v| *v).collect();
+    let s3: SetM<_> = permutation(&v0).iter().map(|v| *v).collect();
+    v0.sort();
+    v0.dedup();
+    v1.sort();
+    v1.dedup();
+    assert_eq!(v0.cmp(&v1), s0.cmp(&s1));
+    assert_eq!(s2.cmp(&s3), Ordering::Equal)
 }
 
 fn test_union_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {

@@ -175,8 +175,20 @@ where
         let keys = Arc::new(utils::randvec::<K>(n, size));
         let vals = Arc::new(utils::randvec::<V>(n, size));
         // warmup
-        let (m, _) = Self::bench_insert_many_par(&*keys, &*vals, n);
-        m.bench_insert(&*keys, &*vals);
+        let (wm, _) = Self::bench_insert_many_par(&*keys, &*vals, n);
+        // fragment
+        wm.bench_remove(
+            &keys
+                .into_iter()
+                .filter_map(|k| {
+                    if thread_rng().gen_bool() {
+                        Some(k.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>(),
+        );
         // benchmark
         let (m, insertmp) = Self::bench_insert_many_par(&*keys, &*vals, n);
         let rm = m.bench_remove(&keys);
