@@ -709,6 +709,7 @@ fn test_set() {
     test_set_gen::<(i32, Arc<str>)>();
 }
 
+/*
 #[test]
 fn test_ord() {
     let mut v0 = randvec::<i32>(SIZE);
@@ -723,6 +724,45 @@ fn test_ord() {
     v1.dedup();
     assert_eq!(v0.cmp(&v1), s0.cmp(&s1));
     assert_eq!(s2.cmp(&s3), Ordering::Equal)
+}
+*/
+
+#[test]
+fn test_ord() {
+    loop {
+        let mut v0 = randvec::<i32>(SIZE);
+        let v1 = permutation(&v0);
+        let mut v2 = permutation(&v0);
+        let mut v3 = permutation(&v0);
+        for i in (0..SIZE).rev() {
+            if v2[i] < i32::MAX {
+                v2[i] += 1;
+                break;
+            }
+        }
+        for i in (0..SIZE).rev() {
+            if v3[i] > i32::MIN {
+                v3[i] -= 1;
+                break;
+            }
+        }
+        let s0 = v0.iter().map(|v| v.clone()).collect::<SetM<_>>();
+        let s1 = v1.iter().map(|v| v.clone()).collect::<SetM<_>>();
+        let s2 = v2.iter().map(|v| v.clone()).collect::<SetM<_>>();
+        let s3 = v3.iter().map(|v| v.clone()).collect::<SetM<_>>();
+        v0.sort();
+        v0.dedup();
+        v2.sort();
+        v2.dedup();
+        v3.sort();
+        v3.dedup();
+        assert!(s0 == s1);
+        assert_eq!(s0.cmp(&s1), Ordering::Equal);
+        assert!(s0 != s2);
+        assert_eq!(s0.cmp(&s2), v0.cmp(&v2));
+        assert!(s0 != s3);
+        assert_eq!(s0.cmp(&s3), v0.cmp(&v3));
+    }
 }
 
 fn test_union_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {
