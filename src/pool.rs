@@ -1,4 +1,4 @@
-use crate::{avl::Node, chunk::ChunkInner};
+use crate::{avl::Node, chunk::PVec};
 use core::alloc::Layout;
 use fxhash::FxHashMap;
 use poolshark::RawPool;
@@ -9,7 +9,8 @@ pub use poolshark::{
 use std::{cell::RefCell, collections::HashMap, sync::Arc as SArc};
 
 struct ChunkPoolInner<K: Ord + Clone, V: Clone, const SIZE: usize> {
-    chunk: RawPool<Arc<ChunkInner<K, V, SIZE>>>,
+    keys: RawPool<Arc<PVec<K, SIZE>>>,
+    vals: RawPool<Arc<PVec<V, SIZE>>>,
     node: RawPool<Arc<Node<K, V, SIZE>>>,
 }
 
@@ -29,13 +30,18 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> Clone for ChunkPool<K, V, SIZE
 impl<K: Ord + Clone, V: Clone, const SIZE: usize> ChunkPool<K, V, SIZE> {
     pub fn new(max_elts: usize) -> Self {
         ChunkPool(SArc::new(ChunkPoolInner {
-            chunk: RawPool::new(max_elts, 1),
+            keys: RawPool::new(max_elts, 1),
+            vals: RawPool::new(max_elts, 1),
             node: RawPool::new(max_elts, 1),
         }))
     }
 
-    pub(crate) fn take_chunk(&self) -> Arc<ChunkInner<K, V, SIZE>> {
-        self.0.chunk.take()
+    pub(crate) fn take_keys(&self) -> Arc<PVec<K, SIZE>> {
+        self.0.keys.take()
+    }
+
+    pub(crate) fn take_vals(&self) -> Arc<PVec<V, SIZE>> {
+        self.0.vals.take()
     }
 
     pub(crate) fn new_node(&self, n: Node<K, V, SIZE>) -> Arc<Node<K, V, SIZE>> {

@@ -1,4 +1,4 @@
-use crate::{avl::Node, chunk::ChunkInner};
+use crate::{avl::Node, chunk::PVec};
 pub use alloc::sync::{Arc, Weak};
 use core::marker::PhantomData;
 
@@ -25,8 +25,12 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> ChunkPool<K, V, SIZE> {
         ChunkPool(PhantomData, PhantomData)
     }
 
-    pub(crate) fn take_chunk(&self) -> Arc<ChunkInner<K, V, SIZE>> {
-        Arc::new(ChunkInner::empty())
+    pub(crate) fn take_keys(&self) -> Arc<PVec<K, SIZE>> {
+        Arc::new(PVec::empty())
+    }
+
+    pub(crate) fn take_vals(&self) -> Arc<PVec<V, SIZE>> {
+        Arc::new(PVec::empty())
     }
 
     pub(crate) fn new_node(&self, n: Node<K, V, SIZE>) -> Arc<Node<K, V, SIZE>> {
