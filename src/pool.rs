@@ -1,62 +1,63 @@
-use crate::{avl::Node, chunk::ChunkInner};
-use core::alloc::Layout;
+use crate::{avl::NodeInner, chunk::ChunkInner};
+use core::{alloc::Layout, hash::Hash};
 use fxhash::FxHashMap;
-use poolshark::RawPool;
-pub use poolshark::{
-    arc::{Arc, Weak},
-    Poolable,
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    sync::{Arc, LazyLock, Mutex},
 };
-use std::{cell::RefCell, collections::HashMap, sync::Arc as SArc};
 
-struct ChunkPoolInner<K: Ord + Clone, V: Clone, const SIZE: usize> {
-    chunk: RawPool<Arc<ChunkInner<K, V, SIZE>>>,
-    node: RawPool<Arc<Node<K, V, SIZE>>>,
+pub(crate) struct Pool<K: Ord + Clone, V: Clone, const SIZE: usize> {
+    pub(crate) max: usize,
+    pub(crate) chunks: Vec<Arc<ChunkInner<K, V, SIZE>>>,
+    pub(crate) nodes: Vec<Arc<NodeInner<K, V, SIZE>>>,
 }
 
-/// a chunk pool holds unused chunks in a thread safe queue so they can be
-/// recycled. This reduces memory fragmentation, and allocation.
-#[repr(transparent)]
-pub struct ChunkPool<K: Ord + Clone, V: Clone, const SIZE: usize>(
-    SArc<ChunkPoolInner<K, V, SIZE>>,
-);
-
-impl<K: Ord + Clone, V: Clone, const SIZE: usize> Clone for ChunkPool<K, V, SIZE> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
+impl<K: Ord + Clone, V: Clone, const SIZE: usize> Pool<K, V, SIZE> {
+    fn new(max: usize) -> Self {
+        Self {
+            max,
+            chunks: Vec::with_capacity(max),
+            nodes: Vec::with_capacity(max),
+        }
     }
 }
 
-impl<K: Ord + Clone, V: Clone, const SIZE: usize> ChunkPool<K, V, SIZE> {
-    pub fn new(max_elts: usize) -> Self {
-        ChunkPool(SArc::new(ChunkPoolInner {
-            chunk: RawPool::new(max_elts, 1),
-            node: RawPool::new(max_elts, 1),
-        }))
-    }
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+struct ULayout(u16);
 
-    pub(crate) fn take_chunk(&self) -> Arc<ChunkInner<K, V, SIZE>> {
-        self.0.chunk.take()
-    }
-
-    pub(crate) fn new_node(&self, n: Node<K, V, SIZE>) -> Arc<Node<K, V, SIZE>> {
-        Arc::new(&self.0.node, n)
+impl ULayout {
+    fn new<T>() -> Option<Self> {
+        let l = Layout::new::<T>();
+        let size = l.size();
+        let align = l.align();
+        if size >= 0xFFFF {
+            return None;
+        }
+        if align > 0x0F {
+            return None;
+        }
+        Some(Self(((size << 4) | (0x0F & align)) as u16))
     }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 struct Discriminant {
-    k: Layout,
-    v: Layout,
-    size: usize,
+    k: ULayout,
+    v: ULayout,
+    size: u16,
 }
 
 impl Discriminant {
-    fn new<K: Ord + Clone, V: Clone, const SIZE: usize>() -> Self {
-        Self {
-            k: Layout::new::<K>(),
-            v: Layout::new::<V>(),
-            size: SIZE,
+    fn new<K, V, const SIZE: usize>() -> Option<Self> {
+        if SIZE >= 0xFFFF {
+            return None;
         }
+        Some(Self {
+            k: ULayout::new::<K>()?,
+            v: ULayout::new::<V>()?,
+            size: SIZE as u16,
+        })
     }
 }
 
@@ -78,41 +79,58 @@ thread_local! {
         RefCell::new(HashMap::default());
 }
 
+static SIZES: LazyLock<Mutex<FxHashMap<Discriminant, usize>>> =
+    LazyLock::new(|| Mutex::new(FxHashMap::default()));
+
 // This is safe because:
 // 1. Chunks are reset before being returned to pools, so they contain no active K or V values
 // 2. We only reuse pools for types with identical memory layouts (same size/alignment via Discriminant)
 // 3. The Opaque wrapper ensures proper cleanup when the thread local is destroyed
-pub(crate) fn pool<K: Ord + Clone, V: Clone, const SIZE: usize>(
-    size: usize,
-) -> ChunkPool<K, V, SIZE> {
-    POOLS.with_borrow_mut(|pools| {
-        let pool = pools
-            .entry(Discriminant::new::<K, V, SIZE>())
-            .or_insert_with(|| {
-                let b = Box::new(ChunkPool::<K, V, SIZE>::new(size));
+pub(crate) fn with_pool<K, V, R, F, const SIZE: usize>(f: F) -> R
+where
+    K: Ord + Clone,
+    V: Clone,
+    F: FnOnce(Option<&mut Pool<K, V, SIZE>>) -> R,
+{
+    POOLS.with_borrow_mut(|pools| match Discriminant::new::<K, V, SIZE>() {
+        Some(d) => {
+            let pool = pools.entry(d).or_insert_with(|| {
+                let size = *SIZES.lock().unwrap().get(&d).unwrap_or(&1024);
+                let b = Box::new(Pool::<K, V, SIZE>::new(size));
                 let t = Box::into_raw(b) as *mut ();
                 let drop = Some(Box::new(|t: *mut ()| unsafe {
-                    drop(Box::from_raw(t as *mut ChunkPool<K, V, SIZE>))
+                    drop(Box::from_raw(t as *mut Pool<K, V, SIZE>))
                 }) as Box<dyn FnOnce(*mut ())>);
                 Opaque { t, drop }
             });
-        unsafe { &*(pool.t as *const ChunkPool<K, V, SIZE>) }.clone()
+            f(unsafe { Some(&mut *(pool.t as *mut Pool<K, V, SIZE>)) })
+        }
+        None => f(None),
     })
 }
 
 /// Clear all thread local pools on this thread. Note this will happen
-/// automatically when the thread dies. If there are maps using these pools they
-/// will not be freed until those maps are freed.
+/// automatically when the thread dies.
 pub fn clear() {
     POOLS.with_borrow_mut(|pools| pools.clear())
 }
 
-/// Clear the thread local pool for the specified K, V and SIZE. This will
-/// happen automatically when the current thread dies. If there are maps using
-/// the pool associated with the specified type then it will not be freed until
-/// they are freed.
-pub fn clear_type<K: Ord + Clone, V: Clone, const SIZE: usize>() {
+/// Delete the thread local pool for the specified K, V and SIZE. This will
+/// happen automatically when the current thread dies.
+pub fn clear_type<K, V, const SIZE: usize>() {
     POOLS.with_borrow_mut(|pools| {
-        pools.remove(&Discriminant::new::<K, V, SIZE>());
+        if let Some(d) = Discriminant::new::<K, V, SIZE>() {
+            pools.remove(&d);
+        }
     })
+}
+
+/// Set the pool size for this type. Pools that have already been created will
+/// not be resized, but new pools (on new threads) will use the specified size
+/// as their max size. If you wish to resize an existing pool you can first
+/// clear_type (or clear) and then set_size.
+pub fn set_size<K, V, const SIZE: usize>(size: usize) {
+    if let Some(d) = Discriminant::new::<K, V, SIZE>() {
+        SIZES.lock().unwrap().insert(d, size);
+    }
 }

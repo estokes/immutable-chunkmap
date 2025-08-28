@@ -1,8 +1,5 @@
+use crate::avl::{Iter, IterMut, Tree, WeakTree};
 pub use crate::chunk::DEFAULT_SIZE;
-use crate::{
-    avl::{Iter, IterMut, Tree, WeakTree},
-    pool::{pool, ChunkPool},
-};
 use core::{
     borrow::Borrow,
     cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd},
@@ -68,10 +65,7 @@ use rayon::{
 /// }
 /// ```
 #[derive(Clone)]
-pub struct Map<K: Ord + Clone, V: Clone, const SIZE: usize> {
-    pool: ChunkPool<K, V, SIZE>,
-    t: Tree<K, V, SIZE>,
-}
+pub struct Map<K: Ord + Clone, V: Clone, const SIZE: usize>(Tree<K, V, SIZE>);
 
 /// Map using a smaller chunk size, faster to update, slower to search
 pub type MapS<K, V> = Map<K, V, { DEFAULT_SIZE / 2 }>;
@@ -84,10 +78,7 @@ pub type MapL<K, V> = Map<K, V, { DEFAULT_SIZE * 2 }>;
 
 /// A weak reference to a map.
 #[derive(Clone)]
-pub struct WeakMapRef<K: Ord + Clone, V: Clone, const SIZE: usize> {
-    pool: ChunkPool<K, V, SIZE>,
-    t: WeakTree<K, V, SIZE>,
-}
+pub struct WeakMapRef<K: Ord + Clone, V: Clone, const SIZE: usize>(WeakTree<K, V, SIZE>);
 
 pub type WeakMapRefS<K, V> = WeakMapRef<K, V, { DEFAULT_SIZE / 2 }>;
 pub type WeakMapRefM<K, V> = WeakMapRef<K, V, DEFAULT_SIZE>;
@@ -99,10 +90,7 @@ where
     V: Clone,
 {
     pub fn upgrade(&self) -> Option<Map<K, V, SIZE>> {
-        self.t.upgrade().map(|t| Map {
-            pool: self.pool.clone(),
-            t,
-        })
+        self.0.upgrade().map(Map)
     }
 }
 
@@ -112,7 +100,7 @@ where
     V: Hash + Clone,
 {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.t.hash(state)
+        self.0.hash(state)
     }
 }
 
@@ -132,7 +120,7 @@ where
     V: PartialEq + Clone,
 {
     fn eq(&self, other: &Map<K, V, SIZE>) -> bool {
-        self.t == other.t
+        self.0 == other.0
     }
 }
 
@@ -149,7 +137,7 @@ where
     V: PartialOrd + Clone,
 {
     fn partial_cmp(&self, other: &Map<K, V, SIZE>) -> Option<Ordering> {
-        self.t.partial_cmp(&other.t)
+        self.0.partial_cmp(&other.0)
     }
 }
 
@@ -159,7 +147,7 @@ where
     V: Ord + Clone,
 {
     fn cmp(&self, other: &Map<K, V, SIZE>) -> Ordering {
-        self.t.cmp(&other.t)
+        self.0.cmp(&other.0)
     }
 }
 
@@ -169,7 +157,7 @@ where
     V: Debug + Clone,
 {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        self.t.fmt(f)
+        self.0.fmt(f)
     }
 }
 
@@ -214,7 +202,7 @@ where
     type Item = (&'a K, &'a V);
     type IntoIter = Iter<'a, RangeFull, K, K, V, SIZE>;
     fn into_iter(self) -> Self::IntoIter {
-        self.t.into_iter()
+        self.0.into_iter()
     }
 }
 
@@ -322,36 +310,22 @@ where
 {
     /// Create a new empty map
     pub fn new() -> Self {
-        Map {
-            pool: pool(1024),
-            t: Tree::new(),
-        }
-    }
-
-    #[cfg(feature = "pool")]
-    pub fn new_with_pool(pool: ChunkPool<K, V, SIZE>) -> Self {
-        Map {
-            pool,
-            t: Tree::new(),
-        }
+        Map(Tree::new())
     }
 
     /// Create a weak reference to this map
     pub fn downgrade(&self) -> WeakMapRef<K, V, SIZE> {
-        WeakMapRef {
-            pool: self.pool.clone(),
-            t: self.t.downgrade(),
-        }
+        WeakMapRef(self.0.downgrade())
     }
 
     /// Return the number of strong references to this map (see Arc)
     pub fn strong_count(&self) -> usize {
-        self.t.strong_count()
+        self.0.strong_count()
     }
 
     /// Return the number of weak references to this map (see Arc)
     pub fn weak_count(&self) -> usize {
-        self.t.weak_count()
+        self.0.weak_count()
     }
 
     /// This will insert many elements at once, and is
@@ -373,11 +347,7 @@ where
     /// }
     /// ```
     pub fn insert_many<E: IntoIterator<Item = (K, V)>>(&self, elts: E) -> Self {
-        let t = self.t.insert_many(&self.pool, elts);
-        Map {
-            pool: self.pool.clone(),
-            t,
-        }
+        Map(self.0.insert_many(elts))
     }
 
     /// This will remove many elements at once, and is potentially a
@@ -428,11 +398,7 @@ where
         K: Borrow<Q>,
         F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
     {
-        let t = self.t.update_many(&self.pool, elts, &mut f);
-        Map {
-            pool: self.pool.clone(),
-            t,
-        }
+        Map(self.0.update_many(elts, &mut f))
     }
 
     /// return a new map with (k, v) inserted into it. If k
@@ -441,18 +407,14 @@ where
     /// binding. In fact this method is just a wrapper around
     /// update.
     pub fn insert(&self, k: K, v: V) -> (Self, Option<V>) {
-        let (t, prev) = self.t.insert(&self.pool, k, v);
-        let m = Map {
-            pool: self.pool.clone(),
-            t,
-        };
-        (m, prev)
+        let (root, prev) = self.0.insert(k, v);
+        (Map(root), prev)
     }
 
     /// insert in place using copy on write semantics if self is not a
     /// unique reference to the map. see `update_cow`.
     pub fn insert_cow(&mut self, k: K, v: V) -> Option<V> {
-        self.t.insert_cow(&self.pool, k, v)
+        self.0.insert_cow(k, v)
     }
 
     /// return a new map with the binding for q, which can be any
@@ -490,12 +452,8 @@ where
         K: Borrow<Q>,
         F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
     {
-        let (t, prev) = self.t.update(&self.pool, q, d, &mut f);
-        let m = Map {
-            pool: self.pool.clone(),
-            t,
-        };
-        (m, prev)
+        let (root, prev) = self.0.update(q, d, &mut f);
+        (Map(root), prev)
     }
 
     /// Perform a copy on write update to the map. In the case that
@@ -541,7 +499,7 @@ where
         K: Borrow<Q>,
         F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
     {
-        self.t.update_cow(&self.pool, q, d, &mut f)
+        self.0.update_cow(q, d, &mut f)
     }
 
     /// Merge two maps together. Bindings that exist in both maps will
@@ -580,11 +538,7 @@ where
     where
         F: FnMut(&K, &V, &V) -> Option<V>,
     {
-        let t = Tree::union(&self.pool, &self.t, &other.t, &mut f);
-        Map {
-            pool: self.pool.clone(),
-            t,
-        }
+        Map(Tree::union(&self.0, &other.0, &mut f))
     }
 
     /// Produce a map containing the mapping over F of the
@@ -616,11 +570,7 @@ where
     where
         F: FnMut(&K, &V, &V) -> Option<V>,
     {
-        let t = Tree::intersect(&self.pool, &self.t, &other.t, &mut f);
-        Map {
-            pool: self.pool.clone(),
-            t,
-        }
+        Map(Tree::intersect(&self.0, &other.0, &mut f))
     }
 
     /// Produce a map containing the second map subtracted from the
@@ -655,11 +605,7 @@ where
         K: Debug,
         V: Debug,
     {
-        let t = Tree::diff(&self.pool, &self.t, &other.t, &mut f);
-        Map {
-            pool: self.pool.clone(),
-            t,
-        }
+        Map(Tree::diff(&self.0, &other.0, &mut f))
     }
 
     /// lookup the mapping for k. If it doesn't exist return
@@ -669,7 +615,7 @@ where
     where
         K: Borrow<Q>,
     {
-        self.t.get(k)
+        self.0.get(k)
     }
 
     /// lookup the mapping for k. Return the key. If it doesn't exist
@@ -679,7 +625,7 @@ where
     where
         K: Borrow<Q>,
     {
-        self.t.get_key(k)
+        self.0.get_key(k)
     }
 
     /// lookup the mapping for k. Return both the key and the
@@ -689,7 +635,7 @@ where
     where
         K: Borrow<Q>,
     {
-        self.t.get_full(k)
+        self.0.get_full(k)
     }
 
     /// Get a mutable reference to the value mapped to `k` using copy on write semantics.
@@ -704,7 +650,7 @@ where
     /// ```
     /// use core::iter::FromIterator;
     /// use self::immutable_chunkmap::map::MapM as Map;
-    ///
+    ///  
     /// let mut m = Map::from_iter((0..100).map(|k| (k, Map::from_iter((0..100).map(|k| (k, 1))))));
     /// let orig = m.clone();
     ///
@@ -721,7 +667,7 @@ where
     where
         K: Borrow<Q>,
     {
-        self.t.get_mut_cow(k)
+        self.0.get_mut_cow(k)
     }
 
     /// Same as `get_mut_cow` except if the value is not in the map it will
@@ -730,7 +676,7 @@ where
     where
         F: FnOnce() -> V,
     {
-        self.t.get_or_insert_cow(&self.pool, k, f)
+        self.0.get_or_insert_cow(k, f)
     }
 
     /// return a new map with the mapping under k removed. If
@@ -741,12 +687,8 @@ where
     where
         K: Borrow<Q>,
     {
-        let (t, prev) = self.t.remove(&self.pool, k);
-        let m = Map {
-            pool: self.pool.clone(),
-            t,
-        };
-        (m, prev)
+        let (t, prev) = self.0.remove(k);
+        (Map(t), prev)
     }
 
     /// remove in place using copy on write semantics if self is not a
@@ -755,12 +697,12 @@ where
     where
         K: Borrow<Q>,
     {
-        self.t.remove_cow(&self.pool, k)
+        self.0.remove_cow(k)
     }
 
     /// get the number of elements in the map O(1) time and space
     pub fn len(&self) -> usize {
-        self.t.len()
+        self.0.len()
     }
 
     /// return an iterator over the subset of elements in the
@@ -777,7 +719,7 @@ where
         K: Borrow<Q>,
         R: RangeBounds<Q> + 'a,
     {
-        self.t.range(r)
+        self.0.range(r)
     }
 
     /// return a mutable iterator over the subset of elements in the
@@ -797,7 +739,7 @@ where
         K: Borrow<Q>,
         R: RangeBounds<Q> + 'a,
     {
-        self.t.range_mut_cow(r)
+        self.0.range_mut_cow(r)
     }
 
     /// return a mutable iterator over the entire map. The iterator
@@ -808,7 +750,7 @@ where
     /// constant space. N is the number of elements in the
     /// tree, and M is the number of elements you examine.
     pub fn iter_mut_cow<'a>(&'a mut self) -> IterMut<'a, RangeFull, K, K, V, SIZE> {
-        self.t.iter_mut_cow()
+        self.0.iter_mut_cow()
     }
 }
 
@@ -831,6 +773,6 @@ where
 {
     #[allow(dead_code)]
     pub fn invariant(&self) -> () {
-        self.t.invariant()
+        self.0.invariant()
     }
 }
