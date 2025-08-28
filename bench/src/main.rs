@@ -2,6 +2,7 @@ mod utils;
 use crate::utils::Rand;
 use arcstr::ArcStr;
 use immutable_chunkmap::map::{Map, DEFAULT_SIZE};
+use netidx_value::Value;
 use rand::{thread_rng, Rng};
 use std::{
     borrow::Borrow,
@@ -375,6 +376,7 @@ fn usage() {
 
 type S = ArcStr;
 type P = usize;
+type V = Value;
 
 fn main() {
     let args = Vec::from_iter(env::args());
@@ -385,6 +387,7 @@ fn main() {
         match (args[1].as_ref(), args[2].as_ref()) {
             ("cm", "ptr") => Bench::<CMWrap<P, P, DEFAULT_SIZE>, P, P>::run(size),
             ("cm", "str") => Bench::<CMWrap<S, S, DEFAULT_SIZE>, S, S>::run(size),
+            ("cm", "val") => Bench::<CMWrap<V, V, 32>, V, V>::run(size),
             ("cmS", "ptr") => {
                 Bench::<CMWrap<P, P, { DEFAULT_SIZE / 2 }>, P, P>::run(size)
             }

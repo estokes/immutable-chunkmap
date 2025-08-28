@@ -1,13 +1,15 @@
-use rand::Rng;
 use arcstr::ArcStr;
+use netidx_value::{ValArray, Value};
+use rand::Rng;
 use smallvec::SmallVec;
 use std::{
-    time::Duration,
-    sync::{Arc, mpsc::channel},
     collections::HashSet,
     hash::Hash,
     iter::FromIterator,
-    thread, mem,
+    mem,
+    sync::{mpsc::channel, Arc},
+    thread,
+    time::Duration,
 };
 
 pub(crate) const STRSIZE: usize = 32;
@@ -87,13 +89,27 @@ impl Rand for usize {
     }
 }
 
+impl Rand for Value {
+    fn rand<R: Rng>(r: &mut R) -> Self {
+        /*
+        if r.gen_bool(0.50) {
+            Value::String(ArcStr::rand(r))
+        } else {
+            Value::I64(r.gen())
+        }
+        */
+        Value::String(ArcStr::rand(r))
+    }
+}
+
 pub(crate) fn random<T: Rand>() -> T {
     let mut rng = rand::thread_rng();
     T::rand(&mut rng)
 }
 
 pub(crate) fn randvec<T>(n: usize, len: usize) -> Vec<T>
-where T: Ord + Clone + Hash + Rand + Send + 'static
+where
+    T: Ord + Clone + Hash + Rand + Send + 'static,
 {
     let csize = len / n;
     let (tx, rx) = channel();
