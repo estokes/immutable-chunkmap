@@ -1,7 +1,4 @@
-use crate::{
-    chunk::{Chunk, Loc, MutUpdate, Update, UpdateChunk},
-    pool::with_pool,
-};
+use crate::chunk::{Chunk, Loc, MutUpdate, Update, UpdateChunk};
 use alloc::{
     sync::{Arc, Weak},
     vec::Vec,
@@ -17,10 +14,14 @@ use core::{
     hash::{Hash, Hasher},
     iter,
     marker::PhantomData,
-    mem::ManuallyDrop,
     ops::{Bound, Deref, Index, RangeBounds, RangeFull},
-    ptr, slice,
+    slice,
 };
+
+#[cfg(feature = "pool")]
+use crate::pool::with_pool;
+#[cfg(feature = "pool")]
+use core::{mem::ManuallyDrop, ptr};
 
 // until we get 128 bit machines with exabytes of memory
 const MAX_DEPTH: usize = 64;
@@ -41,10 +42,12 @@ pub(crate) struct NodeInner<K: Ord + Clone, V: Clone, const SIZE: usize> {
     height_and_size: u64,
 }
 
+#[cfg(feature = "pool")]
 pub(crate) struct Node<K: Ord + Clone, V: Clone, const SIZE: usize>(
     ManuallyDrop<Arc<NodeInner<K, V, SIZE>>>,
 );
 
+#[cfg(feature = "pool")]
 impl<K: Ord + Clone, V: Clone, const SIZE: usize> Drop for Node<K, V, SIZE> {
     fn drop(&mut self) {
         match Arc::get_mut(&mut self.0) {
@@ -74,6 +77,36 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> Drop for Node<K, V, SIZE> {
     }
 }
 
+#[cfg(feature = "pool")]
+impl<K: Ord + Clone, V: Clone, const SIZE: usize> Clone for Node<K, V, SIZE> {
+    fn clone(&self) -> Self {
+        Self(ManuallyDrop::new(Arc::clone(&*self.0)))
+    }
+}
+
+#[cfg(not(feature = "pool"))]
+#[derive(Clone, Debug)]
+pub(crate) struct NodeInner<K: Ord + Clone, V: Clone, const SIZE: usize> {
+    elts: Chunk<K, V, SIZE>,
+    min_key: K,
+    max_key: K,
+    left: Tree<K, V, SIZE>,
+    right: Tree<K, V, SIZE>,
+    height_and_size: u64,
+}
+
+#[cfg(not(feature = "pool"))]
+pub(crate) struct Node<K: Ord + Clone, V: Clone, const SIZE: usize>(
+    Arc<NodeInner<K, V, SIZE>>,
+);
+
+#[cfg(not(feature = "pool"))]
+impl<K: Ord + Clone, V: Clone, const SIZE: usize> Clone for Node<K, V, SIZE> {
+    fn clone(&self) -> Self {
+        Self(Arc::clone(&self.0))
+    }
+}
+
 impl<K: Ord + Clone, V: Clone, const SIZE: usize> Deref for Node<K, V, SIZE> {
     type Target = NodeInner<K, V, SIZE>;
 
@@ -82,15 +115,9 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> Deref for Node<K, V, SIZE> {
     }
 }
 
-impl<K: Ord + Clone, V: Clone, const SIZE: usize> Clone for Node<K, V, SIZE> {
-    fn clone(&self) -> Self {
-        Self(ManuallyDrop::new(Arc::clone(&*self.0)))
-    }
-}
-
 impl<K: Ord + Clone, V: Clone, const SIZE: usize> Node<K, V, SIZE> {
     fn downgrade(&self) -> WeakNode<K, V, SIZE> {
-        WeakNode(Arc::downgrade(&*self.0))
+        WeakNode(Arc::downgrade(&self.0))
     }
 }
 
@@ -101,19 +128,15 @@ pub(crate) struct WeakNode<K: Ord + Clone, V: Clone, const SIZE: usize>(
 
 impl<K: Ord + Clone, V: Clone, const SIZE: usize> WeakNode<K, V, SIZE> {
     fn upgrade(&self) -> Option<Node<K, V, SIZE>> {
-        Weak::upgrade(&self.0).map(|n| Node(ManuallyDrop::new(n)))
+        #[cfg(feature = "pool")]
+        {
+            Weak::upgrade(&self.0).map(|n| Node(ManuallyDrop::new(n)))
+        }
+        #[cfg(not(feature = "pool"))]
+        {
+            Weak::upgrade(&self.0).map(Node)
+        }
     }
-}
-
-#[cfg(not(feature = "pool"))]
-#[derive(Clone, Debug)]
-pub(crate) struct Node<K: Ord + Clone, V: Clone, const SIZE: usize> {
-    elts: Chunk<K, V, SIZE>,
-    min_key: K,
-    max_key: K,
-    left: Tree<K, V, SIZE>,
-    right: Tree<K, V, SIZE>,
-    height_and_size: u64,
 }
 
 impl<K, V, const SIZE: usize> NodeInner<K, V, SIZE>
@@ -1074,6 +1097,7 @@ where
         }
     }
 
+    #[cfg(feature = "pool")]
     fn create(
         l: &Tree<K, V, SIZE>,
         elts: Chunk<K, V, SIZE>,
@@ -1082,20 +1106,10 @@ where
         let (min_key, max_key) = elts.min_max_key().unwrap();
         let height_and_size =
             pack_height_and_size(1 + max(l.height(), r.height()), l.len() + r.len());
-        #[cfg(feature = "pool")]
         let n = NodeInner {
             elts: Some(elts),
             min_key: Some(min_key),
             max_key: Some(max_key),
-            left: l.clone(),
-            right: r.clone(),
-            height_and_size,
-        };
-        #[cfg(not(feature = "pool"))]
-        let n = Node {
-            elts,
-            min_key,
-            max_key,
             left: l.clone(),
             right: r.clone(),
             height_and_size,
@@ -1109,6 +1123,26 @@ where
             }
             None => Tree::Node(Node(ManuallyDrop::new(Arc::new(n)))),
         }
+    }
+
+    #[cfg(not(feature = "pool"))]
+    fn create(
+        l: &Tree<K, V, SIZE>,
+        elts: Chunk<K, V, SIZE>,
+        r: &Tree<K, V, SIZE>,
+    ) -> Self {
+        let (min_key, max_key) = elts.min_max_key().unwrap();
+        let height_and_size =
+            pack_height_and_size(1 + max(l.height(), r.height()), l.len() + r.len());
+        let n = NodeInner {
+            elts,
+            min_key,
+            max_key,
+            left: l.clone(),
+            right: r.clone(),
+            height_and_size,
+        };
+        Tree::Node(Node(Arc::new(n)))
     }
 
     fn in_bal(l: &Tree<K, V, SIZE>, r: &Tree<K, V, SIZE>) -> bool {

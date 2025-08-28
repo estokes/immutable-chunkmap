@@ -4,13 +4,15 @@ use core::{
     borrow::Borrow,
     cmp::{min, Ord, Ordering},
     fmt::{self, Debug, Formatter},
-    iter,
-    mem::{self, ManuallyDrop},
+    iter, mem,
     ops::Deref,
-    ptr, slice,
+    slice,
 };
 
+#[cfg(feature = "pool")]
 use crate::pool::with_pool;
+#[cfg(feature = "pool")]
+use core::{mem::ManuallyDrop, ptr};
 
 #[derive(PartialEq)]
 pub(crate) enum Loc {
@@ -85,11 +87,13 @@ pub(crate) struct ChunkInner<K, V, const SIZE: usize> {
     vals: ArrayVec<V, SIZE>,
 }
 
+#[cfg(feature = "pool")]
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct Chunk<K: Ord + Clone, V: Clone, const SIZE: usize>(
     ManuallyDrop<Arc<ChunkInner<K, V, SIZE>>>,
 );
 
+#[cfg(feature = "pool")]
 impl<K: Ord + Clone, V: Clone, const SIZE: usize> Drop for Chunk<K, V, SIZE> {
     fn drop(&mut self) {
         match Arc::get_mut(&mut self.0) {
@@ -109,6 +113,12 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> Drop for Chunk<K, V, SIZE> {
         }
     }
 }
+
+#[cfg(not(feature = "pool"))]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct Chunk<K: Ord + Clone, V: Clone, const SIZE: usize>(
+    Arc<ChunkInner<K, V, SIZE>>,
+);
 
 impl<K: Ord + Clone, V: Clone, const SIZE: usize> Deref for Chunk<K, V, SIZE> {
     type Target = ChunkInner<K, V, SIZE>;
@@ -141,6 +151,7 @@ where
         t
     }
 
+    #[cfg(feature = "pool")]
     pub(crate) fn empty() -> Self {
         with_pool::<K, V, _, _, SIZE>(|pool| match pool {
             Some(pool) => match pool.chunks.pop() {
@@ -155,6 +166,14 @@ where
                 vals: ArrayVec::new(),
             }))),
         })
+    }
+
+    #[cfg(not(feature = "pool"))]
+    pub(crate) fn empty() -> Self {
+        Self(Arc::new(ChunkInner {
+            keys: ArrayVec::new(),
+            vals: ArrayVec::new(),
+        }))
     }
 
     pub(crate) fn create_with<Q, D, F>(chunk: Vec<(Q, D)>, f: &mut F) -> Self
