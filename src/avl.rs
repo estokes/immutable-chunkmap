@@ -1586,9 +1586,6 @@ where
             Tree::Node(n) => {
                 let mut tn = n;
                 loop {
-                    //let in_left = hint::select_unpredictable(k.cmp(tn.min_key().borrow()) == Ordering::Less, true, false);
-                    //let in_right = hint::select_unpredictable(k.cmp(tn.max_key().borrow()), true, false);
-                    // CR estokes: use select_unpredictable here
                     match (k.cmp(tn.min_key().borrow()), k.cmp(tn.max_key().borrow())) {
                         (Ordering::Less, _) => match tn.left {
                             Tree::Empty => break None,
