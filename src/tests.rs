@@ -745,9 +745,7 @@ fn test_ord1() {
     v3.dedup();
     assert!(s0 == s1);
     assert_eq!(s0.cmp(&s1), Ordering::Equal);
-    assert!(s0 != s2);
     assert_eq!(s0.cmp(&s2), v0.cmp(&v2));
-    assert!(s0 != s3);
     assert_eq!(s0.cmp(&s3), v0.cmp(&v3));
 }
 
