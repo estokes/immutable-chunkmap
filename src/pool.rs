@@ -23,7 +23,7 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> Pool<K, V, SIZE> {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct ULayout(u16);
 
 impl ULayout {
@@ -41,7 +41,7 @@ impl ULayout {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct Discriminant {
     k: ULayout,
     v: ULayout,
