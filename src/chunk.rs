@@ -13,9 +13,8 @@ use core::{
 use core::{mem::ManuallyDrop, ptr};
 #[cfg(feature = "pool")]
 use poolshark::{
-    container_id_once,
     local::{insert_raw, take},
-    Discriminant, LocalPoolable, Poolable,
+    location_id, Discriminant, LocalPoolable, Poolable,
 };
 
 #[derive(PartialEq)]
@@ -134,10 +133,8 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> Poolable for Chunk<K, V, SIZE>
 unsafe impl<K: Ord + Clone, V: Clone, const SIZE: usize> LocalPoolable
     for Chunk<K, V, SIZE>
 {
-    fn discriminant() -> Option<Discriminant> {
-        let id = container_id_once!();
-        Discriminant::new_p2_size::<K, V, SIZE>(id)
-    }
+    const DISCRIMINANT: Discriminant =
+        Discriminant::new_p2_size::<K, V, SIZE>(location_id!());
 }
 
 #[cfg(feature = "pool")]
@@ -150,7 +147,8 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> Drop for Chunk<K, V, SIZE> {
             Some(inner) => {
                 inner.reset();
                 if let Some(mut t) = unsafe { insert_raw::<Self>(ptr::read(self)) } {
-                    unsafe { ManuallyDrop::drop(&mut t.0) }
+                    unsafe { ManuallyDrop::drop(&mut t.0) };
+                    mem::forget(t); // don't call ourselves recursively
                 }
             }
         }

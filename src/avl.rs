@@ -14,6 +14,7 @@ use core::{
     hash::{Hash, Hasher},
     iter,
     marker::PhantomData,
+    mem,
     ops::{Bound, Deref, Index, RangeBounds, RangeFull},
     slice,
 };
@@ -22,9 +23,8 @@ use core::{
 use core::{mem::ManuallyDrop, ptr};
 #[cfg(feature = "pool")]
 use poolshark::{
-    container_id_once,
     local::{insert_raw, take},
-    Discriminant, LocalPoolable, Poolable,
+    location_id, Discriminant, LocalPoolable, Poolable,
 };
 
 // until we get 128 bit machines with exabytes of memory
@@ -82,10 +82,8 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> Poolable for Node<K, V, SIZE> 
 unsafe impl<K: Ord + Clone, V: Clone, const SIZE: usize> LocalPoolable
     for Node<K, V, SIZE>
 {
-    fn discriminant() -> Option<Discriminant> {
-        let id = container_id_once!();
-        Discriminant::new_p2_size::<K, V, SIZE>(id)
-    }
+    const DISCRIMINANT: Discriminant =
+        Discriminant::new_p2_size::<K, V, SIZE>(location_id!());
 }
 
 #[cfg(feature = "pool")]
@@ -96,7 +94,8 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> Drop for Node<K, V, SIZE> {
             Some(inner) => {
                 inner.reset();
                 if let Some(mut n) = unsafe { insert_raw(ptr::read(self)) } {
-                    unsafe { ManuallyDrop::drop(&mut n.0) }
+                    unsafe { ManuallyDrop::drop(&mut n.0) };
+                    mem::forget(n); // don't call ourselves recursively
                 }
             }
         }

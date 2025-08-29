@@ -142,6 +142,15 @@ where
 }
 
 #[test]
+fn test_pool_hashmap() {
+    use poolshark::local::Pooled;
+    use std::collections::HashMap;
+    let mut tbl: Pooled<HashMap<usize, usize>> = Pooled::take();
+    tbl.insert(1, 42);
+    tbl.insert(42, 1);
+}
+
+#[test]
 fn test_insert_int_seq_asc() {
     let t = insert((0..SIZE).into_iter().map(|i| (i, i)));
     let len = t.len();
