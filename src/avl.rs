@@ -19,9 +19,13 @@ use core::{
 };
 
 #[cfg(feature = "pool")]
-use crate::pool::with_pool;
-#[cfg(feature = "pool")]
 use core::{mem::ManuallyDrop, ptr};
+#[cfg(feature = "pool")]
+use poolshark::{
+    container_id_once,
+    local::{insert_raw, take},
+    ContainerId, Discriminant, LocalPoolable, Poolable,
+};
 
 // until we get 128 bit machines with exabytes of memory
 const MAX_DEPTH: usize = 64;
@@ -48,30 +52,52 @@ pub(crate) struct Node<K: Ord + Clone, V: Clone, const SIZE: usize>(
 );
 
 #[cfg(feature = "pool")]
+impl<K: Ord + Clone, V: Clone, const SIZE: usize> Poolable for Node<K, V, SIZE> {
+    fn capacity(&self) -> usize {
+        1
+    }
+
+    fn empty() -> Self {
+        let n = NodeInner {
+            elts: None,
+            min_key: None,
+            max_key: None,
+            left: Tree::Empty,
+            right: Tree::Empty,
+            height_and_size: 0,
+        };
+        Node(ManuallyDrop::new(Arc::new(n)))
+    }
+
+    fn really_dropped(&mut self) -> bool {
+        Arc::get_mut(&mut *self.0).is_some()
+    }
+
+    fn reset(&mut self) {
+        Arc::get_mut(&mut self.0).unwrap().reset()
+    }
+}
+
+#[cfg(feature = "pool")]
+unsafe impl<K: Ord + Clone, V: Clone, const SIZE: usize> LocalPoolable
+    for Node<K, V, SIZE>
+{
+    fn discriminant() -> Option<Discriminant> {
+        let id = container_id_once!();
+        dbg!(Discriminant::new_p1::<NodeInner<K, V, SIZE>>(id))
+    }
+}
+
+#[cfg(feature = "pool")]
 impl<K: Ord + Clone, V: Clone, const SIZE: usize> Drop for Node<K, V, SIZE> {
     fn drop(&mut self) {
         match Arc::get_mut(&mut self.0) {
             None => unsafe { ManuallyDrop::drop(&mut self.0) },
-            Some(NodeInner {
-                elts,
-                min_key,
-                max_key,
-                left,
-                right,
-                height_and_size,
-            }) => {
-                *elts = None;
-                *min_key = None;
-                *max_key = None;
-                *right = Tree::Empty;
-                *left = Tree::Empty;
-                *height_and_size = 0;
-                with_pool::<K, V, _, _, SIZE>(|pool| match pool {
-                    Some(pool) if pool.nodes.len() < pool.max => {
-                        pool.nodes.push(unsafe { ptr::read(&*self.0) });
-                    }
-                    Some(_) | None => unsafe { ManuallyDrop::drop(&mut self.0) },
-                })
+            Some(inner) => {
+                inner.reset();
+                if let Some(mut n) = unsafe { insert_raw(ptr::read(self)) } {
+                    unsafe { ManuallyDrop::drop(&mut n.0) }
+                }
             }
         }
     }
@@ -144,6 +170,24 @@ where
     K: Ord + Clone,
     V: Clone,
 {
+    #[cfg(feature = "pool")]
+    fn reset(&mut self) {
+        let Self {
+            elts,
+            min_key,
+            max_key,
+            left,
+            right,
+            height_and_size,
+        } = self;
+        *elts = None;
+        *min_key = None;
+        *max_key = None;
+        *left = Tree::Empty;
+        *right = Tree::Empty;
+        *height_and_size = 0
+    }
+
     // a node that is not in the pool will never have elts set to None
     #[cfg(feature = "pool")]
     fn elts(&self) -> &Chunk<K, V, SIZE> {
@@ -1106,23 +1150,15 @@ where
         let (min_key, max_key) = elts.min_max_key().unwrap();
         let height_and_size =
             pack_height_and_size(1 + max(l.height(), r.height()), l.len() + r.len());
-        let n = NodeInner {
-            elts: Some(elts),
-            min_key: Some(min_key),
-            max_key: Some(max_key),
-            left: l.clone(),
-            right: r.clone(),
-            height_and_size,
-        };
-        match with_pool::<K, V, _, _, SIZE>(|pool| pool.and_then(|pool| pool.nodes.pop()))
-        {
-            Some(mut t) => {
-                let inner = Arc::get_mut(&mut t).unwrap();
-                *inner = n;
-                Tree::Node(Node(ManuallyDrop::new(t)))
-            }
-            None => Tree::Node(Node(ManuallyDrop::new(Arc::new(n)))),
-        }
+        let mut t = take::<Node<K, V, SIZE>>();
+        let inner = Arc::get_mut(&mut t.0).unwrap();
+        inner.elts = Some(elts);
+        inner.min_key = Some(min_key);
+        inner.max_key = Some(max_key);
+        inner.left = l.clone();
+        inner.right = r.clone();
+        inner.height_and_size = height_and_size;
+        Tree::Node(t)
     }
 
     #[cfg(not(feature = "pool"))]

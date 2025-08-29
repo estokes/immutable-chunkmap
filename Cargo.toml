@@ -12,10 +12,10 @@ repository = "https://github.com/estokes/immutable-chunkmap"
 edition = "2018"
 
 [features]
-default = []
+default = ["pool"]
 serde = ["dep:serde"]
 rayon = ["dep:rayon"]
-pool = ["dep:fxhash"]
+pool = ["dep:poolshark", "dep:fxhash"]
 
 [dependencies]
 arrayvec = { version = "0.7", default-features = false }
@@ -24,6 +24,7 @@ serde = { version = "1", default-features = false, features = [
 ], optional = true }
 rayon = { version = "1", optional = true }
 fxhash = { version = "0.2", optional = true }
+poolshark = { version = "0.1.5", path = "../poolshark", optional = true }
 
 [dev-dependencies]
 rayon = "1"

@@ -9,8 +9,5 @@ pub(crate) mod chunk;
 pub mod map;
 pub mod set;
 
-#[cfg(feature = "pool")]
-pub mod pool;
-
 #[cfg(test)]
 mod tests;

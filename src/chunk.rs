@@ -10,9 +10,13 @@ use core::{
 };
 
 #[cfg(feature = "pool")]
-use crate::pool::with_pool;
-#[cfg(feature = "pool")]
 use core::{mem::ManuallyDrop, ptr};
+#[cfg(feature = "pool")]
+use poolshark::{
+    container_id_once,
+    local::{insert_raw, take},
+    ContainerId, Discriminant, LocalPoolable, Poolable,
+};
 
 #[derive(PartialEq)]
 pub(crate) enum Loc {
@@ -88,10 +92,53 @@ pub(crate) struct ChunkInner<K, V, const SIZE: usize> {
 }
 
 #[cfg(feature = "pool")]
+impl<K, V, const SIZE: usize> ChunkInner<K, V, SIZE> {
+    fn new() -> Self {
+        Self {
+            keys: ArrayVec::new(),
+            vals: ArrayVec::new(),
+        }
+    }
+
+    fn reset(&mut self) {
+        self.keys.clear();
+        self.vals.clear();
+    }
+}
+
+#[cfg(feature = "pool")]
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct Chunk<K: Ord + Clone, V: Clone, const SIZE: usize>(
     ManuallyDrop<Arc<ChunkInner<K, V, SIZE>>>,
 );
+
+#[cfg(feature = "pool")]
+impl<K: Ord + Clone, V: Clone, const SIZE: usize> Poolable for Chunk<K, V, SIZE> {
+    fn capacity(&self) -> usize {
+        1
+    }
+
+    fn empty() -> Self {
+        Self(ManuallyDrop::new(Arc::new(ChunkInner::new())))
+    }
+
+    fn really_dropped(&mut self) -> bool {
+        Arc::get_mut(&mut self.0).is_some()
+    }
+
+    fn reset(&mut self) {
+        Arc::get_mut(&mut self.0).unwrap().reset()
+    }
+}
+
+unsafe impl<K: Ord + Clone, V: Clone, const SIZE: usize> LocalPoolable
+    for Chunk<K, V, SIZE>
+{
+    fn discriminant() -> Option<Discriminant> {
+        let id = container_id_once!();
+        dbg!(Discriminant::new_p1::<ChunkInner<K, V, SIZE>>(id))
+    }
+}
 
 #[cfg(feature = "pool")]
 impl<K: Ord + Clone, V: Clone, const SIZE: usize> Drop for Chunk<K, V, SIZE> {
@@ -100,15 +147,11 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> Drop for Chunk<K, V, SIZE> {
             None => unsafe {
                 ManuallyDrop::drop(&mut self.0);
             },
-            Some(ChunkInner { keys, vals }) => {
-                keys.clear();
-                vals.clear();
-                with_pool::<K, V, _, _, SIZE>(|pool| match pool {
-                    Some(pool) if pool.chunks.len() < pool.max => {
-                        pool.chunks.push(unsafe { ptr::read(&*self.0) })
-                    }
-                    Some(_) | None => unsafe { ManuallyDrop::drop(&mut self.0) },
-                })
+            Some(inner) => {
+                inner.reset();
+                if let Some(mut t) = unsafe { insert_raw::<Self>(ptr::read(self)) } {
+                    unsafe { ManuallyDrop::drop(&mut t.0) }
+                }
             }
         }
     }
@@ -153,19 +196,7 @@ where
 
     #[cfg(feature = "pool")]
     pub(crate) fn empty() -> Self {
-        with_pool::<K, V, _, _, SIZE>(|pool| match pool {
-            Some(pool) => match pool.chunks.pop() {
-                Some(t) => Self(ManuallyDrop::new(t)),
-                None => Self(ManuallyDrop::new(Arc::new(ChunkInner {
-                    keys: ArrayVec::new(),
-                    vals: ArrayVec::new(),
-                }))),
-            },
-            None => Self(ManuallyDrop::new(Arc::new(ChunkInner {
-                keys: ArrayVec::new(),
-                vals: ArrayVec::new(),
-            }))),
-        })
+        take()
     }
 
     #[cfg(not(feature = "pool"))]
