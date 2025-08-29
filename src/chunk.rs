@@ -15,7 +15,7 @@ use core::{mem::ManuallyDrop, ptr};
 use poolshark::{
     container_id_once,
     local::{insert_raw, take},
-    ContainerId, Discriminant, LocalPoolable, Poolable,
+    Discriminant, LocalPoolable, Poolable,
 };
 
 #[derive(PartialEq)]
@@ -136,7 +136,7 @@ unsafe impl<K: Ord + Clone, V: Clone, const SIZE: usize> LocalPoolable
 {
     fn discriminant() -> Option<Discriminant> {
         let id = container_id_once!();
-        dbg!(Discriminant::new_p1::<ChunkInner<K, V, SIZE>>(id))
+        Discriminant::new_p2_size::<K, V, SIZE>(id)
     }
 }
 
