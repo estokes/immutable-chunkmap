@@ -14,7 +14,6 @@ use core::{
     hash::{Hash, Hasher},
     iter,
     marker::PhantomData,
-    mem,
     ops::{Bound, Deref, Index, RangeBounds, RangeFull},
     slice,
 };

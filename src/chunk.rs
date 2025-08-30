@@ -130,6 +130,7 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> Poolable for Chunk<K, V, SIZE>
     }
 }
 
+#[cfg(feature = "pool")]
 unsafe impl<K: Ord + Clone, V: Clone, const SIZE: usize> LocalPoolable
     for Chunk<K, V, SIZE>
 {
