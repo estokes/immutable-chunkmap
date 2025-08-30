@@ -134,7 +134,7 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> Poolable for Chunk<K, V, SIZE>
 unsafe impl<K: Ord + Clone, V: Clone, const SIZE: usize> LocalPoolable
     for Chunk<K, V, SIZE>
 {
-    const DISCRIMINANT: Discriminant =
+    const DISCRIMINANT: Option<Discriminant> =
         Discriminant::new_p2_size::<K, V, SIZE>(location_id!());
 }
 

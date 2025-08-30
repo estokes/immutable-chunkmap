@@ -19,7 +19,10 @@ use core::{
 };
 
 #[cfg(feature = "pool")]
-use core::{mem::ManuallyDrop, ptr};
+use core::{
+    mem::{self, ManuallyDrop},
+    ptr,
+};
 #[cfg(feature = "pool")]
 use poolshark::{
     local::{insert_raw, take},
@@ -81,7 +84,7 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> Poolable for Node<K, V, SIZE> 
 unsafe impl<K: Ord + Clone, V: Clone, const SIZE: usize> LocalPoolable
     for Node<K, V, SIZE>
 {
-    const DISCRIMINANT: Discriminant =
+    const DISCRIMINANT: Option<Discriminant> =
         Discriminant::new_p2_size::<K, V, SIZE>(location_id!());
 }
 
