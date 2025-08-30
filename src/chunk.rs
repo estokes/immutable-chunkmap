@@ -14,7 +14,7 @@ use core::{mem::ManuallyDrop, ptr};
 #[cfg(feature = "pool")]
 use poolshark::{
     local::{insert_raw, take},
-    location_id, Discriminant, LocalPoolable, Poolable,
+    location_id, Discriminant, IsoPoolable, Poolable,
 };
 
 #[derive(PartialEq)]
@@ -131,7 +131,7 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> Poolable for Chunk<K, V, SIZE>
 }
 
 #[cfg(feature = "pool")]
-unsafe impl<K: Ord + Clone, V: Clone, const SIZE: usize> LocalPoolable
+unsafe impl<K: Ord + Clone, V: Clone, const SIZE: usize> IsoPoolable
     for Chunk<K, V, SIZE>
 {
     const DISCRIMINANT: Option<Discriminant> =
