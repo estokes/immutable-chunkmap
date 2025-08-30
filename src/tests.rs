@@ -1,5 +1,5 @@
 use crate::{avl, chunk::DEFAULT_SIZE, map::MapM, set::SetM};
-use alloc::{collections::BTreeMap, string::String, sync::Arc, vec::Vec, vec};
+use alloc::{collections::BTreeMap, string::String, sync::Arc, vec, vec::Vec};
 use core::{
     borrow::Borrow,
     cmp::Ordering,
@@ -10,7 +10,7 @@ use core::{
     ops::Bound::{Excluded, Included},
 };
 use hashbrown::{HashMap, HashSet};
-use rand::Rng;
+use rand::{thread_rng, Rng};
 
 const STRSIZE: usize = 10;
 const SIZE: usize = 500000;
@@ -114,18 +114,14 @@ fn random<T: Rand>() -> T {
 }
 
 fn randvec<T: Rand>(len: usize) -> Vec<T> {
-    let mut v: Vec<T> = Vec::new();
-    for _ in 0..len {
-        v.push(random())
-    }
-    v
+    (0..len).map(|_| random()).collect()
 }
 
 fn permutation<T: Clone>(v: &Vec<T>) -> Vec<T> {
-    let p = randvec::<usize>(v.len());
-    let mut p = p.iter().zip(v).collect::<Vec<_>>();
-    p.sort_by(|(k0, _), (k1, _)| k0.cmp(k1));
-    p.into_iter().map(|(_, v)| v.clone()).collect::<Vec<T>>()
+    use rand::{seq::SliceRandom, thread_rng};
+    let mut v = v.clone();
+    v.shuffle(&mut thread_rng());
+    v
 }
 
 fn insert<I, K, V>(r: I) -> avl::Tree<K, V, DEFAULT_SIZE>
@@ -595,14 +591,15 @@ where
 {
     let mut vals = randvec::<(K, V)>(SIZE);
     dedup_with(&mut vals, |(ref k, _)| k);
+    let dd_len = vals.len();
     let mut t: MapM<K, V> = MapM::new();
     t = t.insert_many(vals.iter().map(|(k, v)| (k.clone(), v.clone())));
     t.invariant();
     vals.sort_unstable_by(|t0, t1| t0.0.cmp(&t1.0));
     let (start, end) = loop {
         let mut r = rand::thread_rng();
-        let i = r.gen_range(0..SIZE);
-        let j = r.gen_range(0..SIZE);
+        let i = r.gen_range(0..dd_len);
+        let j = r.gen_range(0..dd_len);
         if i == j {
             continue;
         } else if i < j {
@@ -707,33 +704,43 @@ fn test_set() {
 }
 
 #[test]
-fn test_ord() {
-    let v0 = randvec::<i32>(SIZE);
+fn test_ord0() {
+    let mut v0 = randvec::<i32>(SIZE);
+    let mut v1 = randvec::<i32>(SIZE);
+    let s0 = v0.iter().map(|v| v.clone()).collect::<SetM<_>>();
+    let s1 = v1.iter().map(|v| v.clone()).collect::<SetM<_>>();
+    let s2: SetM<_> = permutation(&v0).iter().map(|v| *v).collect();
+    let s3: SetM<_> = permutation(&v0).iter().map(|v| *v).collect();
+    v0.sort();
+    v0.dedup();
+    v1.sort();
+    v1.dedup();
+    assert_eq!(v0.cmp(&v1), s0.cmp(&s1));
+    assert_eq!(s2.cmp(&s3), Ordering::Equal)
+}
+
+#[test]
+fn test_ord1() {
+    let mut v0 = randvec::<i32>(SIZE);
     let v1 = permutation(&v0);
     let mut v2 = permutation(&v0);
     let mut v3 = permutation(&v0);
-    for i in (0..SIZE).rev() {
-        if v2[i] < i32::MAX {
-            v2[i] += 1;
-            break;
-        }
-    }
-    for i in (0..SIZE).rev() {
-        if v3[i] > i32::MIN {
-            v3[i] -= 1;
-            break;
-        }
-    }
+    v2[thread_rng().gen_range(0..SIZE)] += 1;
+    v3[thread_rng().gen_range(0..SIZE)] -= 1;
     let s0 = v0.iter().map(|v| v.clone()).collect::<SetM<_>>();
     let s1 = v1.iter().map(|v| v.clone()).collect::<SetM<_>>();
     let s2 = v2.iter().map(|v| v.clone()).collect::<SetM<_>>();
     let s3 = v3.iter().map(|v| v.clone()).collect::<SetM<_>>();
+    v0.sort();
+    v0.dedup();
+    v2.sort();
+    v2.dedup();
+    v3.sort();
+    v3.dedup();
     assert!(s0 == s1);
     assert_eq!(s0.cmp(&s1), Ordering::Equal);
-    assert!(s0 != s2);
-    assert_eq!(s0.cmp(&s2), Ordering::Less);
-    assert!(s0 != s3);
-    assert_eq!(s0.cmp(&s3), Ordering::Greater);
+    assert_eq!(s0.cmp(&s2), v0.cmp(&v2));
+    assert_eq!(s0.cmp(&s3), v0.cmp(&v3));
 }
 
 fn test_union_gen<T: Borrow<T> + Ord + Clone + Debug + Rand + Hash>() {

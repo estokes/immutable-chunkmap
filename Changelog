@@ -1,3 +1,16 @@
+2.1.0
+
+* add an optional feature "pool". If enabled memory allocation is greatly
+  reduced by reusing tree components instead of freeing them. The performance
+  improvement depends on key type and tree size but can be as high as %30 for
+  plain insert/remove on very large maps. Memory fragmentation will also be
+  greatly reduced, but this is much harder to measure.
+
+* pool is not compatible with no_std
+
+* fix a number of test bugs (actual bugs in the TEST code, not the tree) that
+  cropped up when running model checking for multiple days continuously
+
 2.0.6
 
 * merge #10, no_std support (alloc required)
@@ -23,7 +36,7 @@
 
 2.0.1
 
-* implement get_mut_cow to improve the ergonomics of using nested 
+* implement get_mut_cow to improve the ergonomics of using nested
   maps with COW operations
 
 2.0.0

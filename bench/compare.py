@@ -22,7 +22,7 @@ def compare(k, res0, res1, cmp0, cmp1):
         remove = d1['remove'][i] / d0['remove'][i]
         print(f'{n:8},{insert:.2f},{insert_many:.2f},{insert_many_par:.2f},{get:.2f},{get_parallel:.2f},{remove:.2f}')
         n = n*10
-    
+
 parser = argparse.ArgumentParser(description = "compare benchmarks")
 parser.add_argument('data', nargs=2, metavar = 'FILE')
 parser.add_argument('compare', nargs=2, choices = ['cm', 'cow', 'hm', 'btm', 'oc'])
@@ -31,5 +31,6 @@ args = parser.parse_args()
 res0 = load_results(args.data[0])
 res1 = load_results(args.data[1])
 
+print("       n, ins,insm,insp, get,getp, rem")
 compare('ptr', res0, res1, args.compare[0], args.compare[1])
 compare('str', res0, res1, args.compare[0], args.compare[1])
