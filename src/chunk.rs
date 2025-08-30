@@ -186,11 +186,29 @@ where
     V: Clone,
 {
     pub(crate) fn singleton(k: K, v: V) -> Self {
-        let mut t = Chunk::empty();
-        let inner = Arc::make_mut(&mut t.0);
+        let mut t = Self::empty();
+        let inner = Arc::get_mut(&mut t.0).unwrap();
         inner.keys.push(k);
         inner.vals.push(v);
         t
+    }
+
+    #[cfg(feature = "pool")]
+    fn make_mut<'a>(&'a mut self) -> &'a mut ChunkInner<K, V, SIZE> {
+        match Arc::get_mut(&mut *self.0).map(|i| i as *mut _) {
+            Some(i) => unsafe { &mut *i },
+            None => {
+                let mut ni = Self::empty();
+                *Arc::get_mut(&mut *ni.0).unwrap() = (**self.0).clone();
+                *self = ni;
+                Arc::get_mut(&mut *self.0).unwrap()
+            }
+        }
+    }
+
+    #[cfg(not(feature = "pool"))]
+    fn make_mut<'a>(&'a mut self) -> &'a mut ChunkInner<K, V, SIZE> {
+        Arc::make_mut(&mut self.0)
     }
 
     #[cfg(feature = "pool")]
@@ -213,7 +231,7 @@ where
         F: FnMut(Q, D, Option<(&K, &V)>) -> Option<(K, V)>,
     {
         let mut t = Chunk::empty();
-        let inner = Arc::make_mut(&mut t.0);
+        let inner = Arc::get_mut(&mut t.0).unwrap();
         for (k, v) in chunk.into_iter().filter_map(|(q, d)| f(q, d, None)) {
             inner.keys.push(k);
             inner.vals.push(v);
@@ -280,7 +298,7 @@ where
             let iter = chunk.into_iter().filter_map(|(q, d)| f(q, d, None));
             let mut overflow_right = Vec::new();
             let mut elts = Chunk::empty();
-            let inner = Arc::make_mut(&mut elts.0);
+            let inner = Arc::get_mut(&mut elts.0).unwrap();
             if in_right {
                 inner.clone_from(self);
                 for (k, v) in iter {
@@ -350,7 +368,7 @@ where
             let mut overflow_right = Vec::new();
             let mut m = 0;
             let mut elts = Chunk::empty();
-            let inner = Arc::make_mut(&mut elts.0);
+            let inner = Arc::get_mut(&mut elts.0).unwrap();
             let mut chunk = chunk.into_iter();
             loop {
                 if m == self.len() && inner.keys.len() == 0 {
@@ -458,7 +476,7 @@ where
         match self.get(&q) {
             Loc::Here(i) => {
                 let mut elts = Chunk::empty();
-                let inner = Arc::make_mut(&mut elts.0);
+                let inner = Arc::get_mut(&mut elts.0).unwrap();
                 inner.keys.extend(self.keys[0..i].iter().cloned());
                 inner.vals.extend(self.vals[0..i].iter().cloned());
                 if let Some((k, v)) = f(q, d, Some((&self.keys[i], &self.vals[i]))) {
@@ -481,7 +499,7 @@ where
             }
             Loc::NotPresent(i) => {
                 let mut elts = Chunk::empty();
-                let inner = Arc::make_mut(&mut elts.0);
+                let inner = Arc::get_mut(&mut elts.0).unwrap();
                 inner.keys.extend(self.keys[0..i].iter().cloned());
                 inner.vals.extend(self.vals[0..i].iter().cloned());
                 let overflow = match f(q, d, None) {
@@ -531,7 +549,7 @@ where
                     }
                 } else {
                     let mut elts = Chunk::empty();
-                    let inner = Arc::make_mut(&mut elts.0);
+                    let inner = Arc::get_mut(&mut elts.0).unwrap();
                     match loc {
                         Loc::InLeft => {
                             if let Some((k, v)) = f(q, d, None) {
@@ -576,7 +594,7 @@ where
         match self.get(&q) {
             Loc::Here(i) => match f(q, d, Some((&self.keys[i], &self.vals[i]))) {
                 Some((k, v)) => {
-                    let inner = Arc::make_mut(&mut self.0);
+                    let inner = self.make_mut();
                     inner.keys[i] = k;
                     MutUpdate::Updated {
                         overflow: None,
@@ -584,7 +602,7 @@ where
                     }
                 }
                 None => {
-                    let inner = Arc::make_mut(&mut self.0);
+                    let inner = self.make_mut();
                     inner.keys.remove(i);
                     MutUpdate::Updated {
                         overflow: None,
@@ -594,7 +612,7 @@ where
             },
             Loc::NotPresent(i) => match f(q, d, None) {
                 Some((k, v)) => {
-                    let inner = Arc::make_mut(&mut self.0);
+                    let inner = self.make_mut();
                     let overflow = if inner.keys.len() == SIZE {
                         let (ok, ov) =
                             (inner.keys.pop().unwrap(), inner.vals.pop().unwrap());
@@ -624,7 +642,7 @@ where
                         Loc::Here(..) | Loc::NotPresent(..) => unreachable!(),
                     }
                 } else {
-                    let inner = Arc::make_mut(&mut self.0);
+                    let inner = self.make_mut();
                     match loc {
                         Loc::InLeft => {
                             if let Some((k, v)) = f(q, d, None) {
@@ -674,7 +692,7 @@ where
 
     pub(crate) fn remove_elt_at(&self, i: usize) -> Self {
         let mut elts = Chunk::empty();
-        let t = Arc::make_mut(&mut elts.0);
+        let t = Arc::get_mut(&mut elts.0).unwrap();
         if i >= self.keys.len() {
             panic!("remove_elt_at: out of bounds")
         } else if self.len() == 1 {
@@ -700,7 +718,7 @@ where
         if i >= self.len() {
             panic!("remove_elt_at_mut: out of bounds")
         } else {
-            let inner = Arc::make_mut(&mut self.0);
+            let inner = self.make_mut();
             let k = inner.keys.remove(i);
             let v = inner.vals.remove(i);
             (k, v)
@@ -709,7 +727,7 @@ where
 
     pub(crate) fn append<I: IntoIterator<Item = (K, V)>>(&self, other: I) -> Self {
         let mut elts = self.clone();
-        let inner = Arc::make_mut(&mut elts.0);
+        let inner = elts.make_mut();
         for (k, v) in other {
             if inner.keys.len() < SIZE {
                 inner.keys.push(k);
@@ -757,7 +775,7 @@ where
     }
 
     pub(crate) fn val_mut(&mut self, i: usize) -> &mut V {
-        &mut Arc::make_mut(&mut self.0).vals[i]
+        &mut self.make_mut().vals[i]
     }
 
     pub(crate) fn kv(&self, i: usize) -> (&K, &V) {
@@ -776,7 +794,7 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> IntoIterator for Chunk<K, V, S
     type IntoIter = iter::Zip<arrayvec::IntoIter<K, SIZE>, arrayvec::IntoIter<V, SIZE>>;
     fn into_iter(mut self) -> Self::IntoIter {
         let inner = mem::replace(
-            Arc::make_mut(&mut self.0),
+            self.make_mut(),
             ChunkInner {
                 keys: ArrayVec::new(),
                 vals: ArrayVec::new(),
@@ -802,7 +820,7 @@ impl<'a, K: Ord + Clone, V: Clone, const SIZE: usize> IntoIterator
     type Item = (&'a K, &'a mut V);
     type IntoIter = iter::Zip<slice::Iter<'a, K>, slice::IterMut<'a, V>>;
     fn into_iter(self) -> Self::IntoIter {
-        let inner = Arc::make_mut(&mut self.0);
+        let inner = self.make_mut();
         (&inner.keys).into_iter().zip(&mut inner.vals)
     }
 }

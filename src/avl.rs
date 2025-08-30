@@ -48,9 +48,25 @@ pub(crate) struct NodeInner<K: Ord + Clone, V: Clone, const SIZE: usize> {
     height_and_size: u64,
 }
 
+#[cfg(not(feature = "pool"))]
+#[derive(Clone, Debug)]
+pub(crate) struct NodeInner<K: Ord + Clone, V: Clone, const SIZE: usize> {
+    elts: Chunk<K, V, SIZE>,
+    min_key: K,
+    max_key: K,
+    left: Tree<K, V, SIZE>,
+    right: Tree<K, V, SIZE>,
+    height_and_size: u64,
+}
+
 #[cfg(feature = "pool")]
 pub(crate) struct Node<K: Ord + Clone, V: Clone, const SIZE: usize>(
     ManuallyDrop<Arc<NodeInner<K, V, SIZE>>>,
+);
+
+#[cfg(not(feature = "pool"))]
+pub(crate) struct Node<K: Ord + Clone, V: Clone, const SIZE: usize>(
+    Arc<NodeInner<K, V, SIZE>>,
 );
 
 #[cfg(feature = "pool")]
@@ -112,22 +128,6 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> Clone for Node<K, V, SIZE> {
 }
 
 #[cfg(not(feature = "pool"))]
-#[derive(Clone, Debug)]
-pub(crate) struct NodeInner<K: Ord + Clone, V: Clone, const SIZE: usize> {
-    elts: Chunk<K, V, SIZE>,
-    min_key: K,
-    max_key: K,
-    left: Tree<K, V, SIZE>,
-    right: Tree<K, V, SIZE>,
-    height_and_size: u64,
-}
-
-#[cfg(not(feature = "pool"))]
-pub(crate) struct Node<K: Ord + Clone, V: Clone, const SIZE: usize>(
-    Arc<NodeInner<K, V, SIZE>>,
-);
-
-#[cfg(not(feature = "pool"))]
 impl<K: Ord + Clone, V: Clone, const SIZE: usize> Clone for Node<K, V, SIZE> {
     fn clone(&self) -> Self {
         Self(Arc::clone(&self.0))
@@ -145,6 +145,24 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> Deref for Node<K, V, SIZE> {
 impl<K: Ord + Clone, V: Clone, const SIZE: usize> Node<K, V, SIZE> {
     fn downgrade(&self) -> WeakNode<K, V, SIZE> {
         WeakNode(Arc::downgrade(&self.0))
+    }
+
+    #[cfg(feature = "pool")]
+    fn make_mut<'a>(&'a mut self) -> &'a mut NodeInner<K, V, SIZE> {
+        match Arc::get_mut(&mut *self.0).map(|n| n as *mut _) {
+            Some(t) => unsafe { &mut *t },
+            None => {
+                let mut n = take::<Node<K, V, SIZE>>();
+                *Arc::get_mut(&mut *n.0).unwrap() = (**self.0).clone();
+                *self = n;
+                Arc::get_mut(&mut *self.0).unwrap()
+            }
+        }
+    }
+
+    #[cfg(not(feature = "pool"))]
+    fn make_mut(&mut self) -> &mut NodeInner<K, V, SIZE> {
+        Arc::make_mut(&mut self.0)
     }
 }
 
@@ -665,13 +683,11 @@ where
             let (visited, current) = self.stack[top];
             if visited {
                 if self.any_elts_in_bounds(unsafe { &*current }) {
-                    self.elts = Some(
-                        (unsafe { (Arc::make_mut(&mut (*current).0)).elts_mut() })
-                            .into_iter(),
-                    );
+                    self.elts =
+                        Some((unsafe { (*current).make_mut().elts_mut() }).into_iter());
                 }
                 self.stack.pop();
-                match unsafe { &mut (Arc::make_mut(&mut (*current).0)).right } {
+                match unsafe { &mut (*current).make_mut().right } {
                     Tree::Empty => (),
                     Tree::Node(ref mut n) => {
                         if self.any_elts_below_ubound(n) || !n.left.is_empty() {
@@ -681,7 +697,7 @@ where
                 };
             } else {
                 self.stack[top].0 = true;
-                match unsafe { &mut (Arc::make_mut(&mut (*current).0)).left } {
+                match unsafe { &mut (*current).make_mut().left } {
                     Tree::Empty => (),
                     Tree::Node(n) => {
                         if self.any_elts_above_lbound(n) || !n.right.is_empty() {
@@ -733,13 +749,11 @@ where
             let (visited, current) = self.stack_rev[top];
             if visited {
                 if self.any_elts_in_bounds(unsafe { &*current }) {
-                    self.elts_rev = Some(
-                        (unsafe { (Arc::make_mut(&mut (*current).0)).elts_mut() })
-                            .into_iter(),
-                    );
+                    self.elts_rev =
+                        Some((unsafe { (*current).make_mut().elts_mut() }).into_iter());
                 }
                 self.stack_rev.pop();
-                match unsafe { &mut (Arc::make_mut(&mut (*current).0)).left } {
+                match unsafe { &mut (*current).make_mut().left } {
                     Tree::Empty => (),
                     Tree::Node(ref mut n) => {
                         if self.any_elts_above_lbound(n) || !n.right.is_empty() {
@@ -749,7 +763,7 @@ where
                 };
             } else {
                 self.stack_rev[top].0 = true;
-                match unsafe { &mut (Arc::make_mut(&mut (*current).0)).right } {
+                match unsafe { &mut (*current).make_mut().right } {
                     Tree::Empty => (),
                     Tree::Node(ref mut n) => {
                         if self.any_elts_below_ubound(n) || !n.left.is_empty() {
@@ -1379,7 +1393,7 @@ where
             },
             Tree::Node(ref mut tn) => {
                 // CR estokes: problem? doesn't use the pool. check chunk as well.
-                let tn = Arc::make_mut(&mut tn.0);
+                let tn = tn.make_mut();
                 let leaf = match (&tn.left, &tn.right) {
                     (&Tree::Empty, &Tree::Empty) => true,
                     (_, _) => false,
@@ -1571,7 +1585,7 @@ where
             Tree::Empty => None,
             Tree::Node(ref mut tn) => {
                 // CR estokes: validate this
-                let tn = Arc::make_mut(&mut tn.0);
+                let tn = tn.make_mut();
                 match tn.elts().get(k) {
                     Loc::NotPresent(_) => None,
                     Loc::Here(i) => {
@@ -1674,7 +1688,7 @@ where
         match self {
             Tree::Empty => None,
             Tree::Node(tn) => {
-                let tn = Arc::make_mut(&mut tn.0);
+                let tn = tn.make_mut();
                 match (k.cmp(tn.min_key().borrow()), k.cmp(tn.max_key().borrow())) {
                     (Ordering::Less, _) => tn.left.get_mut_cow(k),
                     (_, Ordering::Greater) => tn.right.get_mut_cow(k),
