@@ -6,6 +6,8 @@
   plain insert/remove on very large maps. Memory fragmentation will also be
   greatly reduced, but this is much harder to measure.
 
+* pool is not compatible with no_std
+
 * fix a number of test bugs (actual bugs in the TEST code, not the tree) that
   cropped up when running model checking for multiple days continuously
 
