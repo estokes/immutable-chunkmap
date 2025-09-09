@@ -18,17 +18,6 @@ use core::{
     slice,
 };
 
-#[cfg(feature = "pool")]
-use core::{
-    mem::{self, ManuallyDrop},
-    ptr,
-};
-#[cfg(feature = "pool")]
-use poolshark::{
-    local::{insert_raw, take},
-    location_id, Discriminant, IsoPoolable, Poolable,
-};
-
 // until we get 128 bit machines with exabytes of memory
 const MAX_DEPTH: usize = 64;
 
@@ -76,12 +65,6 @@ pub(crate) struct NodeInner<K: Ord + Clone, V: Clone, const SIZE: usize> {
     height_and_size: u64,
 }
 
-#[cfg(feature = "pool")]
-pub(crate) struct Node<K: Ord + Clone, V: Clone, const SIZE: usize>(
-    ManuallyDrop<Arc<NodeInner<K, V, SIZE>>>,
-);
-
-#[cfg(not(feature = "pool"))]
 pub(crate) struct Node<K: Ord + Clone, V: Clone, const SIZE: usize>(
     Arc<NodeInner<K, V, SIZE>>,
 );
@@ -164,20 +147,6 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> Node<K, V, SIZE> {
         WeakNode(Arc::downgrade(&self.0))
     }
 
-    #[cfg(feature = "pool")]
-    fn make_mut<'a>(&'a mut self) -> &'a mut NodeInner<K, V, SIZE> {
-        match Arc::get_mut(&mut *self.0).map(|n| n as *mut _) {
-            Some(t) => unsafe { &mut *t },
-            None => {
-                let mut n = take::<Node<K, V, SIZE>>();
-                *Arc::get_mut(&mut *n.0).unwrap() = (**self.0).clone();
-                *self = n;
-                Arc::get_mut(&mut *self.0).unwrap()
-            }
-        }
-    }
-
-    #[cfg(not(feature = "pool"))]
     fn make_mut(&mut self) -> &mut NodeInner<K, V, SIZE> {
         Arc::make_mut(&mut self.0)
     }
@@ -190,14 +159,7 @@ pub(crate) struct WeakNode<K: Ord + Clone, V: Clone, const SIZE: usize>(
 
 impl<K: Ord + Clone, V: Clone, const SIZE: usize> WeakNode<K, V, SIZE> {
     fn upgrade(&self) -> Option<Node<K, V, SIZE>> {
-        #[cfg(feature = "pool")]
-        {
-            Weak::upgrade(&self.0).map(|n| Node(ManuallyDrop::new(n)))
-        }
-        #[cfg(not(feature = "pool"))]
-        {
-            Weak::upgrade(&self.0).map(Node)
-        }
+        Weak::upgrade(&self.0).map(Node)
     }
 }
 
@@ -1410,7 +1372,6 @@ where
                 }
             },
             Tree::Node(ref mut tn) => {
-                // CR estokes: problem? doesn't use the pool. check chunk as well.
                 let tn = tn.make_mut();
                 let leaf = match (&tn.left, &tn.right) {
                     (&Tree::Empty, &Tree::Empty) => true,

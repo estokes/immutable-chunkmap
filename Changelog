@@ -1,3 +1,8 @@
+2.1.1
+
+* stop pooling tree nodes, because of notch analysis they can never meet the
+  safety requirements of IsoPoolable.
+
 2.1.0
 
 * add an optional feature "pool". If enabled memory allocation is greatly
