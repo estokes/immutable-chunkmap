@@ -5,7 +5,7 @@ use alloc::{
 };
 use arrayvec::ArrayVec;
 #[cfg(feature = "pool")]
-use core::hint::unreachable_unchecked;
+use core::mem::MaybeUninit;
 use core::{
     borrow::Borrow,
     cmp::{max, min, Eq, Ord, Ordering, PartialEq, PartialOrd},
@@ -38,14 +38,31 @@ fn pack_height_and_size(height: u8, size: usize) -> u64 {
 }
 
 #[cfg(feature = "pool")]
-#[derive(Clone, Debug)]
+#[derive(Debug)]
+#[repr(C)]
 pub(crate) struct NodeInner<K: Ord + Clone, V: Clone, const SIZE: usize> {
-    elts: Option<Chunk<K, V, SIZE>>, // only none in pool
-    min_key: Option<K>,              // only none in pool
-    max_key: Option<K>,              // only none in pool
+    elts: MaybeUninit<Chunk<K, V, SIZE>>,
+    min_key: MaybeUninit<K>,
+    max_key: MaybeUninit<K>,
     left: Tree<K, V, SIZE>,
     right: Tree<K, V, SIZE>,
     height_and_size: u64,
+}
+
+#[cfg(feature = "pool")]
+impl<K: Ord + Clone, V: Clone, const SIZE: usize> Clone for NodeInner<K, V, SIZE> {
+    fn clone(&self) -> Self {
+        unsafe {
+            Self {
+                elts: MaybeUninit::new(self.elts.assume_init_ref().clone()),
+                min_key: MaybeUninit::new(self.min_key.assume_init_ref().clone()),
+                max_key: MaybeUninit::new(self.max_key.assume_init_ref().clone()),
+                left: self.left.clone(),
+                right: self.right.clone(),
+                height_and_size: self.height_and_size,
+            }
+        }
+    }
 }
 
 #[cfg(not(feature = "pool"))]
@@ -77,9 +94,9 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> Poolable for Node<K, V, SIZE> 
 
     fn empty() -> Self {
         let n = NodeInner {
-            elts: None,
-            min_key: None,
-            max_key: None,
+            elts: MaybeUninit::zeroed(),
+            min_key: MaybeUninit::zeroed(),
+            max_key: MaybeUninit::zeroed(),
             left: Tree::Empty,
             right: Tree::Empty,
             height_and_size: 0,
@@ -88,11 +105,11 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> Poolable for Node<K, V, SIZE> 
     }
 
     fn really_dropped(&mut self) -> bool {
-        Arc::get_mut(&mut *self.0).is_some()
+        unreachable!()
     }
 
     fn reset(&mut self) {
-        Arc::get_mut(&mut self.0).unwrap().reset()
+        unreachable!()
     }
 }
 
@@ -110,7 +127,7 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> Drop for Node<K, V, SIZE> {
         match Arc::get_mut(&mut self.0) {
             None => unsafe { ManuallyDrop::drop(&mut self.0) },
             Some(inner) => {
-                inner.reset();
+                unsafe { inner.reset() }
                 if let Some(mut n) = unsafe { insert_raw(ptr::read(self)) } {
                     unsafe { ManuallyDrop::drop(&mut n.0) };
                     mem::forget(n); // don't call ourselves recursively
@@ -190,7 +207,7 @@ where
     V: Clone,
 {
     #[cfg(feature = "pool")]
-    fn reset(&mut self) {
+    unsafe fn reset(&mut self) {
         let Self {
             elts,
             min_key,
@@ -199,21 +216,22 @@ where
             right,
             height_and_size,
         } = self;
-        *elts = None;
-        *min_key = None;
-        *max_key = None;
-        *left = Tree::Empty;
-        *right = Tree::Empty;
-        *height_and_size = 0
+        if *height_and_size > 0 {
+            unsafe {
+                elts.assume_init_drop();
+                min_key.assume_init_drop();
+                max_key.assume_init_drop();
+            }
+            *left = Tree::Empty;
+            *right = Tree::Empty;
+            *height_and_size = 0
+        }
     }
 
     // a node that is not in the pool will never have elts set to None
     #[cfg(feature = "pool")]
     fn elts(&self) -> &Chunk<K, V, SIZE> {
-        match &self.elts {
-            Some(e) => e,
-            None => unsafe { unreachable_unchecked() },
-        }
+        unsafe { self.elts.assume_init_ref() }
     }
 
     #[cfg(not(feature = "pool"))]
@@ -224,10 +242,7 @@ where
     // a node that is not in the pool will never have elts set to None
     #[cfg(feature = "pool")]
     fn elts_mut(&mut self) -> &mut Chunk<K, V, SIZE> {
-        match &mut self.elts {
-            Some(e) => e,
-            None => unsafe { unreachable_unchecked() },
-        }
+        unsafe { self.elts.assume_init_mut() }
     }
 
     #[cfg(not(feature = "pool"))]
@@ -238,10 +253,7 @@ where
     // a node that is not in the pool will never have min_key set to None
     #[cfg(feature = "pool")]
     fn min_key(&self) -> &K {
-        match &self.min_key {
-            Some(k) => k,
-            None => unsafe { unreachable_unchecked() },
-        }
+        unsafe { self.min_key.assume_init_ref() }
     }
 
     #[cfg(not(feature = "pool"))]
@@ -252,10 +264,7 @@ where
     // a node that is not in the pool will never have max_key set to None
     #[cfg(feature = "pool")]
     fn max_key(&self) -> &K {
-        match &self.max_key {
-            Some(k) => k,
-            None => unsafe { unreachable_unchecked() },
-        }
+        unsafe { self.max_key.assume_init_ref() }
     }
 
     #[cfg(not(feature = "pool"))]
@@ -267,16 +276,25 @@ where
         (self.height_and_size >> 56) as u8
     }
 
+    #[cfg(feature = "pool")]
     fn mutated(&mut self) {
-        #[cfg(not(feature = "pool"))]
+        unsafe {
+            if let Some((min, max)) = self.elts().min_max_key() {
+                *self.min_key.assume_init_mut() = min;
+                *self.max_key.assume_init_mut() = max;
+            }
+            self.height_and_size = pack_height_and_size(
+                1 + max(self.left.height(), self.right.height()),
+                self.left.len() + self.right.len(),
+            );
+        }
+    }
+
+    #[cfg(not(feature = "pool"))]
+    fn mutated(&mut self) {
         if let Some((min, max)) = self.elts().min_max_key() {
             self.min_key = min;
             self.max_key = max;
-        }
-        #[cfg(feature = "pool")]
-        if let Some((min, max)) = self.elts().min_max_key() {
-            self.min_key = Some(min);
-            self.max_key = Some(max);
         }
         self.height_and_size = pack_height_and_size(
             1 + max(self.left.height(), self.right.height()),
@@ -1167,9 +1185,9 @@ where
             pack_height_and_size(1 + max(l.height(), r.height()), l.len() + r.len());
         let mut t = take::<Node<K, V, SIZE>>();
         let inner = Arc::get_mut(&mut t.0).unwrap();
-        inner.elts = Some(elts);
-        inner.min_key = Some(min_key);
-        inner.max_key = Some(max_key);
+        inner.elts = MaybeUninit::new(elts);
+        inner.min_key = MaybeUninit::new(min_key);
+        inner.max_key = MaybeUninit::new(max_key);
         inner.left = l.clone();
         inner.right = r.clone();
         inner.height_and_size = height_and_size;
