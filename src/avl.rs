@@ -4,8 +4,6 @@ use alloc::{
     vec::Vec,
 };
 use arrayvec::ArrayVec;
-#[cfg(feature = "pool")]
-use core::hint::unreachable_unchecked;
 use core::{
     borrow::Borrow,
     cmp::{max, min, Eq, Ord, Ordering, PartialEq, PartialOrd},
@@ -18,17 +16,6 @@ use core::{
     slice,
 };
 
-#[cfg(feature = "pool")]
-use core::{
-    mem::{self, ManuallyDrop},
-    ptr,
-};
-#[cfg(feature = "pool")]
-use poolshark::{
-    local::{insert_raw, take},
-    location_id, Discriminant, IsoPoolable, Poolable,
-};
-
 // until we get 128 bit machines with exabytes of memory
 const MAX_DEPTH: usize = 64;
 
@@ -37,18 +24,6 @@ fn pack_height_and_size(height: u8, size: usize) -> u64 {
     ((height as u64) << 56) | (size as u64)
 }
 
-#[cfg(feature = "pool")]
-#[derive(Clone, Debug)]
-pub(crate) struct NodeInner<K: Ord + Clone, V: Clone, const SIZE: usize> {
-    elts: Option<Chunk<K, V, SIZE>>, // only none in pool
-    min_key: Option<K>,              // only none in pool
-    max_key: Option<K>,              // only none in pool
-    left: Tree<K, V, SIZE>,
-    right: Tree<K, V, SIZE>,
-    height_and_size: u64,
-}
-
-#[cfg(not(feature = "pool"))]
 #[derive(Clone, Debug)]
 pub(crate) struct NodeInner<K: Ord + Clone, V: Clone, const SIZE: usize> {
     elts: Chunk<K, V, SIZE>,
@@ -59,75 +34,10 @@ pub(crate) struct NodeInner<K: Ord + Clone, V: Clone, const SIZE: usize> {
     height_and_size: u64,
 }
 
-#[cfg(feature = "pool")]
-pub(crate) struct Node<K: Ord + Clone, V: Clone, const SIZE: usize>(
-    ManuallyDrop<Arc<NodeInner<K, V, SIZE>>>,
-);
-
-#[cfg(not(feature = "pool"))]
 pub(crate) struct Node<K: Ord + Clone, V: Clone, const SIZE: usize>(
     Arc<NodeInner<K, V, SIZE>>,
 );
 
-#[cfg(feature = "pool")]
-impl<K: Ord + Clone, V: Clone, const SIZE: usize> Poolable for Node<K, V, SIZE> {
-    fn capacity(&self) -> usize {
-        1
-    }
-
-    fn empty() -> Self {
-        let n = NodeInner {
-            elts: None,
-            min_key: None,
-            max_key: None,
-            left: Tree::Empty,
-            right: Tree::Empty,
-            height_and_size: 0,
-        };
-        Node(ManuallyDrop::new(Arc::new(n)))
-    }
-
-    fn really_dropped(&mut self) -> bool {
-        Arc::get_mut(&mut *self.0).is_some()
-    }
-
-    fn reset(&mut self) {
-        Arc::get_mut(&mut self.0).unwrap().reset()
-    }
-}
-
-#[cfg(feature = "pool")]
-unsafe impl<K: Ord + Clone, V: Clone, const SIZE: usize> IsoPoolable
-    for Node<K, V, SIZE>
-{
-    const DISCRIMINANT: Option<Discriminant> =
-        Discriminant::new_p2_size::<K, V, SIZE>(location_id!());
-}
-
-#[cfg(feature = "pool")]
-impl<K: Ord + Clone, V: Clone, const SIZE: usize> Drop for Node<K, V, SIZE> {
-    fn drop(&mut self) {
-        match Arc::get_mut(&mut self.0) {
-            None => unsafe { ManuallyDrop::drop(&mut self.0) },
-            Some(inner) => {
-                inner.reset();
-                if let Some(mut n) = unsafe { insert_raw(ptr::read(self)) } {
-                    unsafe { ManuallyDrop::drop(&mut n.0) };
-                    mem::forget(n); // don't call ourselves recursively
-                }
-            }
-        }
-    }
-}
-
-#[cfg(feature = "pool")]
-impl<K: Ord + Clone, V: Clone, const SIZE: usize> Clone for Node<K, V, SIZE> {
-    fn clone(&self) -> Self {
-        Self(ManuallyDrop::new(Arc::clone(&*self.0)))
-    }
-}
-
-#[cfg(not(feature = "pool"))]
 impl<K: Ord + Clone, V: Clone, const SIZE: usize> Clone for Node<K, V, SIZE> {
     fn clone(&self) -> Self {
         Self(Arc::clone(&self.0))
@@ -147,20 +57,6 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> Node<K, V, SIZE> {
         WeakNode(Arc::downgrade(&self.0))
     }
 
-    #[cfg(feature = "pool")]
-    fn make_mut<'a>(&'a mut self) -> &'a mut NodeInner<K, V, SIZE> {
-        match Arc::get_mut(&mut *self.0).map(|n| n as *mut _) {
-            Some(t) => unsafe { &mut *t },
-            None => {
-                let mut n = take::<Node<K, V, SIZE>>();
-                *Arc::get_mut(&mut *n.0).unwrap() = (**self.0).clone();
-                *self = n;
-                Arc::get_mut(&mut *self.0).unwrap()
-            }
-        }
-    }
-
-    #[cfg(not(feature = "pool"))]
     fn make_mut(&mut self) -> &mut NodeInner<K, V, SIZE> {
         Arc::make_mut(&mut self.0)
     }
@@ -173,14 +69,7 @@ pub(crate) struct WeakNode<K: Ord + Clone, V: Clone, const SIZE: usize>(
 
 impl<K: Ord + Clone, V: Clone, const SIZE: usize> WeakNode<K, V, SIZE> {
     fn upgrade(&self) -> Option<Node<K, V, SIZE>> {
-        #[cfg(feature = "pool")]
-        {
-            Weak::upgrade(&self.0).map(|n| Node(ManuallyDrop::new(n)))
-        }
-        #[cfg(not(feature = "pool"))]
-        {
-            Weak::upgrade(&self.0).map(Node)
-        }
+        Weak::upgrade(&self.0).map(Node)
     }
 }
 
@@ -189,76 +78,18 @@ where
     K: Ord + Clone,
     V: Clone,
 {
-    #[cfg(feature = "pool")]
-    fn reset(&mut self) {
-        let Self {
-            elts,
-            min_key,
-            max_key,
-            left,
-            right,
-            height_and_size,
-        } = self;
-        *elts = None;
-        *min_key = None;
-        *max_key = None;
-        *left = Tree::Empty;
-        *right = Tree::Empty;
-        *height_and_size = 0
-    }
-
-    // a node that is not in the pool will never have elts set to None
-    #[cfg(feature = "pool")]
-    fn elts(&self) -> &Chunk<K, V, SIZE> {
-        match &self.elts {
-            Some(e) => e,
-            None => unsafe { unreachable_unchecked() },
-        }
-    }
-
-    #[cfg(not(feature = "pool"))]
     fn elts(&self) -> &Chunk<K, V, SIZE> {
         &self.elts
     }
 
-    // a node that is not in the pool will never have elts set to None
-    #[cfg(feature = "pool")]
-    fn elts_mut(&mut self) -> &mut Chunk<K, V, SIZE> {
-        match &mut self.elts {
-            Some(e) => e,
-            None => unsafe { unreachable_unchecked() },
-        }
-    }
-
-    #[cfg(not(feature = "pool"))]
     fn elts_mut(&mut self) -> &mut Chunk<K, V, SIZE> {
         &mut self.elts
     }
 
-    // a node that is not in the pool will never have min_key set to None
-    #[cfg(feature = "pool")]
-    fn min_key(&self) -> &K {
-        match &self.min_key {
-            Some(k) => k,
-            None => unsafe { unreachable_unchecked() },
-        }
-    }
-
-    #[cfg(not(feature = "pool"))]
     fn min_key(&self) -> &K {
         &self.min_key
     }
 
-    // a node that is not in the pool will never have max_key set to None
-    #[cfg(feature = "pool")]
-    fn max_key(&self) -> &K {
-        match &self.max_key {
-            Some(k) => k,
-            None => unsafe { unreachable_unchecked() },
-        }
-    }
-
-    #[cfg(not(feature = "pool"))]
     fn max_key(&self) -> &K {
         &self.max_key
     }
@@ -268,15 +99,9 @@ where
     }
 
     fn mutated(&mut self) {
-        #[cfg(not(feature = "pool"))]
         if let Some((min, max)) = self.elts().min_max_key() {
             self.min_key = min;
             self.max_key = max;
-        }
-        #[cfg(feature = "pool")]
-        if let Some((min, max)) = self.elts().min_max_key() {
-            self.min_key = Some(min);
-            self.max_key = Some(max);
         }
         self.height_and_size = pack_height_and_size(
             1 + max(self.left.height(), self.right.height()),
@@ -1156,27 +981,6 @@ where
         }
     }
 
-    #[cfg(feature = "pool")]
-    fn create(
-        l: &Tree<K, V, SIZE>,
-        elts: Chunk<K, V, SIZE>,
-        r: &Tree<K, V, SIZE>,
-    ) -> Self {
-        let (min_key, max_key) = elts.min_max_key().unwrap();
-        let height_and_size =
-            pack_height_and_size(1 + max(l.height(), r.height()), l.len() + r.len());
-        let mut t = take::<Node<K, V, SIZE>>();
-        let inner = Arc::get_mut(&mut t.0).unwrap();
-        inner.elts = Some(elts);
-        inner.min_key = Some(min_key);
-        inner.max_key = Some(max_key);
-        inner.left = l.clone();
-        inner.right = r.clone();
-        inner.height_and_size = height_and_size;
-        Tree::Node(t)
-    }
-
-    #[cfg(not(feature = "pool"))]
     fn create(
         l: &Tree<K, V, SIZE>,
         elts: Chunk<K, V, SIZE>,
@@ -1392,7 +1196,6 @@ where
                 }
             },
             Tree::Node(ref mut tn) => {
-                // CR estokes: problem? doesn't use the pool. check chunk as well.
                 let tn = tn.make_mut();
                 let leaf = match (&tn.left, &tn.right) {
                     (&Tree::Empty, &Tree::Empty) => true,

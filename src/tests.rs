@@ -73,11 +73,30 @@ macro_rules! make_tests {
                 $name::<(Arc<str>, Arc<str>), usize>();
             }
         }
+
+        paste::item! {
+            #[test]
+            fn [<$name _i32_map_usize_usize>]() {
+                $name::<i32, crate::map::Map<usize, usize, 32>>();
+            }
+        }
     };
 }
 
 trait Rand: Sized {
     fn rand<R: Rng>(r: &mut R) -> Self;
+}
+
+impl Rand for crate::map::Map<usize, usize, 32> {
+    fn rand<R: Rng>(r: &mut R) -> Self {
+        let mut m = crate::map::Map::new();
+        for _ in 0..64 {
+            let k = r.gen();
+            let v = r.gen();
+            m.insert_cow(k, v);
+        }
+        m
+    }
 }
 
 impl<T: Rand, U: Rand> Rand for (T, U) {
