@@ -1,5 +1,7 @@
 use crate::{avl, chunk::DEFAULT_SIZE, map::MapM, set::SetM};
 use alloc::{collections::BTreeMap, string::String, sync::Arc, vec, vec::Vec};
+use arcstr::ArcStr;
+use compact_str::CompactString;
 use core::{
     borrow::Borrow,
     cmp::Ordering,
@@ -9,10 +11,12 @@ use core::{
     iter::{FromIterator, IntoIterator},
     ops::Bound::{Excluded, Included},
 };
+
 use hashbrown::{HashMap, HashSet};
+use netidx_value::{ValArray, Value};
 use rand::{thread_rng, Rng};
 
-const STRSIZE: usize = 10;
+const STRSIZE_MAX: usize = 80;
 const SIZE: usize = 500000;
 const CHECK: usize = 5000;
 
@@ -80,6 +84,20 @@ macro_rules! make_tests {
                 $name::<i32, crate::map::Map<usize, usize, 32>>();
             }
         }
+
+        paste::item! {
+            #[test]
+            fn [<$name _cstring_usize>]() {
+                $name::<CompactString, usize>();
+            }
+        }
+
+        paste::item! {
+            #[test]
+            fn [<$name _value_usize>]() {
+                $name::<Value, usize>();
+            }
+        }
     };
 }
 
@@ -99,6 +117,44 @@ impl Rand for crate::map::Map<usize, usize, 32> {
     }
 }
 
+impl Rand for Value {
+    fn rand<R: Rng>(r: &mut R) -> Self {
+        match r.gen_range(0..5) {
+            0 => Value::I64(r.gen()),
+            1 => Value::F64(r.gen()),
+            2 => {
+                let a = ValArray::from_iter_exact(
+                    (0..r.gen_range(0..5)).into_iter().map(|_| Value::rand(r)),
+                );
+                Value::Array(a)
+            }
+            3 => Value::String(ArcStr::rand(r)),
+            4 => Value::Null,
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl Rand for CompactString {
+    fn rand<R: Rng>(r: &mut R) -> Self {
+        let mut s = String::new();
+        for _ in 0..r.gen_range(0..STRSIZE_MAX) {
+            s.push(r.gen())
+        }
+        CompactString::from(s.as_str())
+    }
+}
+
+impl Rand for ArcStr {
+    fn rand<R: Rng>(r: &mut R) -> Self {
+        let mut s = String::new();
+        for _ in 0..r.gen_range(0..STRSIZE_MAX) {
+            s.push(r.gen())
+        }
+        ArcStr::from(s.as_str())
+    }
+}
+
 impl<T: Rand, U: Rand> Rand for (T, U) {
     fn rand<R: Rng>(r: &mut R) -> Self {
         (T::rand(r), U::rand(r))
@@ -108,7 +164,7 @@ impl<T: Rand, U: Rand> Rand for (T, U) {
 impl Rand for Arc<str> {
     fn rand<R: Rng>(r: &mut R) -> Self {
         let mut s = String::new();
-        for _ in 0..STRSIZE {
+        for _ in 0..r.gen_range(0..STRSIZE_MAX) {
             s.push(r.gen())
         }
         Arc::from(s.as_str())
