@@ -193,6 +193,20 @@ where
         t
     }
 
+    #[cfg(feature = "pool")]
+    fn make_mut<'a>(&'a mut self) -> &'a mut ChunkInner<K, V, SIZE> {
+        match Arc::get_mut(&mut *self.0).map(|i| i as *mut _) {
+            Some(i) => unsafe { &mut *i },
+            None => {
+                let mut ni = Self::empty();
+                *Arc::get_mut(&mut *ni.0).unwrap() = (**self.0).clone();
+                *self = ni;
+                Arc::get_mut(&mut *self.0).unwrap()
+            }
+        }
+    }
+
+    #[cfg(not(feature = "pool"))]
     fn make_mut<'a>(&'a mut self) -> &'a mut ChunkInner<K, V, SIZE> {
         Arc::make_mut(&mut self.0)
     }
