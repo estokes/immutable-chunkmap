@@ -511,6 +511,7 @@ where
         assert_eq!(v, v_);
         i = i + 1;
     }
+    assert_eq!(i, vals.len())
 }
 
 make_tests!(test_map_iter_gen);
