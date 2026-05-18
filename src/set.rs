@@ -49,6 +49,7 @@ use rayon::{
 /// for k in &m { println!("{}", k) }
 /// ```
 #[derive(Clone)]
+#[repr(transparent)]
 pub struct Set<K: Ord + Clone, const SIZE: usize>(Tree<K, (), SIZE>);
 
 /// set with a smaller chunk size, faster to update, slower to search

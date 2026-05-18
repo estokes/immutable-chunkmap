@@ -65,6 +65,7 @@ use rayon::{
 /// }
 /// ```
 #[derive(Clone)]
+#[repr(transparent)]
 pub struct Map<K: Ord + Clone, V: Clone, const SIZE: usize>(Tree<K, V, SIZE>);
 
 /// Map using a smaller chunk size, faster to update, slower to search
