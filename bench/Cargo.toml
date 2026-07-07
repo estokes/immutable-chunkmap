@@ -19,4 +19,4 @@ immutable-chunkmap = { path = "../" }
 rand = "0.8"
 num_cpus = ">= 1.0"
 arcstr = "1"
-netidx-value = "0.29"
+netidx-value = "0.32"
