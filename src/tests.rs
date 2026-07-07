@@ -1064,3 +1064,39 @@ fn test_remove_many_patterns() {
     let (r, map_r) = remove_maybe_nonexist_entries(&map);
     check_removed(&v, &r, &map_r);
 }
+
+// Arbitrary VALUE nesting (a map whose values contain maps, N deep)
+// must be droppable without overflowing the thread stack: node
+// destruction re-enters `Node::drop` once per nesting level, and the
+// re-entrancy guard (avl.rs `MAX_DROP_DEPTH`) defers past-threshold
+// nodes to a thread-local queue drained iteratively by the outermost
+// frame. 500k levels on a 256KiB stack — without the guard this
+// overflows in well under 10k levels. Pool-only: the guard needs
+// thread-locals (std), which the pool configuration implies.
+#[cfg(feature = "pool")]
+#[test]
+fn test_deeply_nested_map_drop() {
+    #[derive(Clone)]
+    enum Nest {
+        Leaf,
+        M(crate::map::Map<usize, Nest, 8>),
+    }
+    std::thread::Builder::new()
+        .stack_size(1024 * 1024)
+        .spawn(|| {
+            let mut v = Nest::Leaf;
+            for _ in 0..500_000 {
+                let m = crate::map::Map::<usize, Nest, 8>::new();
+                let (m, _) = m.insert(0, v);
+                v = Nest::M(m);
+            }
+            // A shared clone's drop is shallow regardless.
+            let shared = v.clone();
+            drop(shared);
+            // The LAST reference: the full re-entrant destruction.
+            drop(v);
+        })
+        .expect("spawn")
+        .join()
+        .expect("deep nested map drop overflowed the stack");
+}

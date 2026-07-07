@@ -32,6 +32,42 @@ use poolshark::{
 // until we get 128 bit machines with exabytes of memory
 const MAX_DEPTH: usize = 64;
 
+/// Bound on the RE-ENTRANT depth of node destruction. A map whose
+/// keys or values themselves contain maps drops re-entrantly — each
+/// nesting level's K/V drop calls back into [`Node::drop`] — so the
+/// Rust stack consumed is proportional to the VALUE nesting depth,
+/// not the (chunked, shallow) AVL height: ~100k nesting levels
+/// overflow a 2MiB thread stack in drop glue. Past this many
+/// re-entrant frames a node is moved to a thread-local deferred
+/// queue instead, and the OUTERMOST drop frame destroys the queue
+/// iteratively, bounding stack use for arbitrary nesting. Requires
+/// std (thread-locals), so it is implemented for the `pool`
+/// configuration; the plain no_std configuration keeps the recursive
+/// drop.
+#[cfg(feature = "pool")]
+const MAX_DROP_DEPTH: usize = 256;
+
+#[cfg(feature = "pool")]
+std::thread_local! {
+    static DROP_DEPTH: core::cell::Cell<usize> = core::cell::Cell::new(0);
+    static DROP_DEFERRED: core::cell::RefCell<Vec<(unsafe fn(*mut ()), *mut ())>> =
+        core::cell::RefCell::new(Vec::new());
+}
+
+/// Monomorphized destructor for a deferred node. The queue is
+/// type-erased `(drop fn, box ptr)` pairs so one thread-local serves
+/// every `K, V, SIZE` instantiation.
+///
+/// SAFETY: `p` must be a `Box<Node<K, V, SIZE>>` leaked by the defer
+/// path in [`Node::drop`] for exactly this `K, V, SIZE`. The lifetime
+/// erasure is sound because the queue is fully drained before the
+/// outermost `Node::drop` frame returns — every borrow a deferred
+/// node could hold is still live further down the same stack.
+#[cfg(feature = "pool")]
+unsafe fn drop_deferred_node<K: Ord + Clone, V: Clone, const SIZE: usize>(p: *mut ()) {
+    drop(alloc::boxed::Box::from_raw(p as *mut Node<K, V, SIZE>))
+}
+
 fn pack_height_and_size(height: u8, size: usize) -> u64 {
     assert!((size & 0x00ffffff_ffffffff) == size);
     ((height as u64) << 56) | (size as u64)
@@ -124,6 +160,42 @@ unsafe impl<K: Ord + Clone, V: Clone, const SIZE: usize> IsoPoolable
 #[cfg(feature = "pool")]
 impl<K: Ord + Clone, V: Clone, const SIZE: usize> Drop for Node<K, V, SIZE> {
     fn drop(&mut self) {
+        // Re-entrancy guard: see MAX_DROP_DEPTH. Past the limit, move
+        // this node to the deferred queue and return — the field is
+        // ManuallyDrop, so no glue runs and ownership transfers to the
+        // queue; the outermost frame below destroys it iteratively.
+        // `try_with`: during THREAD TEARDOWN the TLS is gone (and
+        // poolshark's own thread-local pool drops its cached — empty,
+        // recursion-free — nodes exactly then), so fall back to the
+        // unguarded drop rather than panicking in a destructor.
+        // TLS destructor ORDER during thread teardown is arbitrary:
+        // poolshark's thread-local pool drops its cached nodes then,
+        // and either guard TLS may already be gone (mixed liveness) —
+        // so EVERY access is `try_with`, degrading to the plain
+        // recursive drop when unavailable (the teardown drops are
+        // pool-cached empty nodes, recursion-free).
+        let depth = DROP_DEPTH.try_with(|d| d.get()).ok();
+        if let Some(depth) = depth {
+            if depth >= MAX_DROP_DEPTH {
+                let b = alloc::boxed::Box::new(unsafe { ptr::read(self) });
+                let raw = alloc::boxed::Box::into_raw(b) as *mut ();
+                let pushed = DROP_DEFERRED.try_with(|q| {
+                    q.borrow_mut().push((
+                        drop_deferred_node::<K, V, SIZE> as unsafe fn(*mut ()),
+                        raw,
+                    ))
+                });
+                if pushed.is_err() {
+                    // Queue TLS gone (thread teardown): reclaim and
+                    // drop recursively — the unguarded fallback.
+                    drop(unsafe {
+                        alloc::boxed::Box::from_raw(raw as *mut Node<K, V, SIZE>)
+                    });
+                }
+                return;
+            }
+            let _ = DROP_DEPTH.try_with(|d| d.set(depth + 1));
+        }
         match Arc::get_mut(&mut self.0) {
             None => unsafe { ManuallyDrop::drop(&mut self.0) },
             Some(inner) => {
@@ -131,6 +203,20 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> Drop for Node<K, V, SIZE> {
                 if let Some(mut n) = unsafe { insert_raw(ptr::read(self)) } {
                     unsafe { ManuallyDrop::drop(&mut n.0) };
                     mem::forget(n); // don't call ourselves recursively
+                }
+            }
+        }
+        if let Some(depth) = depth {
+            let _ = DROP_DEPTH.try_with(|d| d.set(depth));
+            if depth == 0 {
+                // Drain iteratively. Pop OUTSIDE the RefCell borrow —
+                // each destruction re-enters this Drop (bounded by the
+                // guard) and may push deeper nodes back onto the queue.
+                loop {
+                    match DROP_DEFERRED.try_with(|q| q.borrow_mut().pop()) {
+                        Ok(Some((f, p))) => unsafe { f(p) },
+                        Ok(None) | Err(_) => break,
+                    }
                 }
             }
         }
