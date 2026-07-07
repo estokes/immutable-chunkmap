@@ -1076,6 +1076,9 @@ fn test_remove_many_patterns() {
 #[cfg(feature = "pool")]
 #[test]
 fn test_deeply_nested_map_drop() {
+    // constructed and dropped, never read — the fields exist for
+    // their drop behavior
+    #[allow(dead_code)]
     #[derive(Clone)]
     enum Nest {
         Leaf,
@@ -1112,6 +1115,9 @@ fn test_deeply_nested_map_drop() {
 #[test]
 fn test_deeply_nested_map_drop_at_thread_teardown() {
     use std::cell::RefCell;
+    // constructed and dropped, never read — the fields exist for
+    // their drop behavior
+    #[allow(dead_code)]
     #[derive(Clone)]
     enum Nest {
         Leaf,
@@ -1177,6 +1183,9 @@ fn test_panic_during_nested_map_drop() {
             }
         }
     }
+    // constructed and dropped, never read — the fields exist for
+    // their drop behavior
+    #[allow(dead_code)]
     #[derive(Clone)]
     enum Nest {
         Leaf(Canary),
