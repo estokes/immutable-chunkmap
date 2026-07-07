@@ -1100,3 +1100,119 @@ fn test_deeply_nested_map_drop() {
         .join()
         .expect("deep nested map drop overflowed the stack");
 }
+
+// A deeply nested map dropped by a TLS destructor DURING THREAD
+// TEARDOWN. The drop guard must keep working there: DROP_DEPTH is a
+// const-init no-destructor TLS (accessible while other TLS
+// destructors run) and the deferred queue is a global — a TLS queue's
+// own destructor could run before SLOT's, and the old fallback for
+// that case recursed unbounded and overflowed the stack (aborting the
+// process, not just failing the test).
+#[cfg(feature = "pool")]
+#[test]
+fn test_deeply_nested_map_drop_at_thread_teardown() {
+    use std::cell::RefCell;
+    #[derive(Clone)]
+    enum Nest {
+        Leaf,
+        M(crate::map::Map<usize, Nest, 8>),
+    }
+    std::thread_local! {
+        static SLOT: RefCell<Option<Nest>> = RefCell::new(None);
+    }
+    std::thread::Builder::new()
+        .stack_size(1024 * 1024)
+        .spawn(|| {
+            SLOT.with(|s| assert!(s.borrow().is_none()));
+            let mut v = Nest::Leaf;
+            for _ in 0..500_000 {
+                let m = crate::map::Map::<usize, Nest, 8>::new();
+                let (m, _) = m.insert(0, v);
+                v = Nest::M(m);
+            }
+            SLOT.with(|s| *s.borrow_mut() = Some(v));
+            // dropped by SLOT's TLS destructor after thread exit
+        })
+        .expect("spawn")
+        .join()
+        .expect("teardown drop of deep nested map overflowed the stack");
+}
+
+// A K/V destructor that PANICS mid-destruction must not break the
+// drop machinery: the DepthGuard restores DROP_DEPTH and drains the
+// deferred queue during the unwind. Without it the depth stays
+// inflated — the outermost drain never runs again on the thread, so
+// every node deferred afterwards (and any queued at panic time)
+// leaks. And when MANY deferred nodes panic, each is caught
+// individually and the first panic resumes after the drain — several
+// panicking entries must not double-panic (abort) the process. LIVE
+// counts every Canary not yet dropped; it must reach zero after each
+// catch_unwind, and the thread must remain able to destroy another
+// deep map.
+#[cfg(feature = "pool")]
+#[test]
+fn test_panic_during_nested_map_drop() {
+    use std::{
+        panic::{catch_unwind, AssertUnwindSafe},
+        sync::atomic::{AtomicUsize, Ordering},
+    };
+    static LIVE: AtomicUsize = AtomicUsize::new(0);
+    struct Canary(bool);
+    impl Canary {
+        fn new(bomb: bool) -> Self {
+            LIVE.fetch_add(1, Ordering::Relaxed);
+            Canary(bomb)
+        }
+    }
+    impl Clone for Canary {
+        fn clone(&self) -> Self {
+            Self::new(self.0)
+        }
+    }
+    impl Drop for Canary {
+        fn drop(&mut self) {
+            LIVE.fetch_sub(1, Ordering::Relaxed);
+            if self.0 && !std::thread::panicking() {
+                panic!("canary bomb")
+            }
+        }
+    }
+    #[derive(Clone)]
+    enum Nest {
+        Leaf(Canary),
+        M(crate::map::Map<usize, Nest, 8>, Canary),
+    }
+    // a bomb at the leaf, plus one every `stride` levels (0 = leaf only)
+    let build = |levels: usize, stride: usize| {
+        let mut v = Nest::Leaf(Canary::new(stride > 0));
+        for i in 0..levels {
+            let m = crate::map::Map::<usize, Nest, 8>::new();
+            let (m, _) = m.insert(0, v);
+            v = Nest::M(m, Canary::new(stride > 0 && i % stride == 0));
+        }
+        v
+    };
+    std::thread::Builder::new()
+        .stack_size(1024 * 1024)
+        .spawn(move || {
+            // bomb in the recursive region (depth < MAX_DROP_DEPTH)
+            let v = build(100, 1000);
+            assert!(catch_unwind(AssertUnwindSafe(|| drop(v))).is_err());
+            assert_eq!(LIVE.load(Ordering::Relaxed), 0);
+            // bomb deep in the deferred region
+            let v = build(100_000, 200_000);
+            assert!(catch_unwind(AssertUnwindSafe(|| drop(v))).is_err());
+            assert_eq!(LIVE.load(Ordering::Relaxed), 0);
+            // bombs all through the deferred region: every deferred
+            // segment's drop panics, each caught by the drain
+            let v = build(100_000, 500);
+            assert!(catch_unwind(AssertUnwindSafe(|| drop(v))).is_err());
+            assert_eq!(LIVE.load(Ordering::Relaxed), 0);
+            // and the machinery still works afterwards
+            drop(build(500_000, 0));
+            assert_eq!(LIVE.load(Ordering::Relaxed), 0);
+        })
+        .expect("spawn")
+        .join()
+        .expect("panic during nested drop broke the drop machinery");
+}

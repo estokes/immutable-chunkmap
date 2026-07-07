@@ -38,34 +38,158 @@ const MAX_DEPTH: usize = 64;
 /// Rust stack consumed is proportional to the VALUE nesting depth,
 /// not the (chunked, shallow) AVL height: ~100k nesting levels
 /// overflow a 2MiB thread stack in drop glue. Past this many
-/// re-entrant frames a node is moved to a thread-local deferred
-/// queue instead, and the OUTERMOST drop frame destroys the queue
+/// re-entrant frames a node is moved to the global deferred queue
+/// instead, and the OUTERMOST drop frame destroys the queue
 /// iteratively, bounding stack use for arbitrary nesting. Requires
-/// std (thread-locals), so it is implemented for the `pool`
-/// configuration; the plain no_std configuration keeps the recursive
-/// drop.
+/// std, so it is implemented for the `pool` configuration; the plain
+/// no_std configuration keeps the recursive drop.
 #[cfg(feature = "pool")]
 const MAX_DROP_DEPTH: usize = 256;
 
 #[cfg(feature = "pool")]
 std::thread_local! {
-    static DROP_DEPTH: core::cell::Cell<usize> = core::cell::Cell::new(0);
-    static DROP_DEFERRED: core::cell::RefCell<Vec<(unsafe fn(*mut ()), *mut ())>> =
-        core::cell::RefCell::new(Vec::new());
+    // const-init with no drop glue: std registers NO TLS destructor
+    // for this cell, so on native-TLS platforms it stays accessible
+    // even while other TLS destructors run during thread teardown —
+    // the guard keeps working for maps dropped by TLS destructors.
+    static DROP_DEPTH: core::cell::Cell<usize> = const { core::cell::Cell::new(0) };
 }
 
-/// Monomorphized destructor for a deferred node. The queue is
-/// type-erased `(drop fn, box ptr)` pairs so one thread-local serves
+/// A deferred node: the owning thread's tag, its monomorphized
+/// destructor, and the leaked box. Type-erased so one queue serves
 /// every `K, V, SIZE` instantiation.
+///
+/// The tag is the address of the owning thread's DROP_DEPTH cell, and
+/// only that thread ever pops its entries: K and V may be non-'static,
+/// and the same-stack lifetime argument of [`drop_deferred_node`] only
+/// holds on the thread that pushed. The erased pointers never actually
+/// move between threads, which is why the `Send` impl is sound.
+#[cfg(feature = "pool")]
+struct Deferred(usize, unsafe fn(*mut ()), *mut ());
+
+#[cfg(feature = "pool")]
+unsafe impl Send for Deferred {}
+
+/// The deferred-drop queue. Global rather than thread-local: pushes
+/// only happen past MAX_DROP_DEPTH re-entrant frames — a degenerate
+/// case, so the mutex is not on any hot path (the per-drop probe is
+/// the relaxed load of DROP_DEFERRED_LEN) — and a global queue keeps
+/// working during thread teardown, when a TLS queue's own destructor
+/// may already have run (dropping a deep map from another TLS
+/// destructor then recursed unbounded).
+#[cfg(feature = "pool")]
+static DROP_DEFERRED: std::sync::Mutex<Vec<Deferred>> =
+    std::sync::Mutex::new(Vec::new());
+
+/// Cheap emptiness probe so an outermost drop with nothing deferred
+/// never touches the mutex. Relaxed suffices: only the pushing thread
+/// drains its own entries, and it sees its own increments in program
+/// order.
+#[cfg(feature = "pool")]
+static DROP_DEFERRED_LEN: core::sync::atomic::AtomicUsize =
+    core::sync::atomic::AtomicUsize::new(0);
+
+#[cfg(feature = "pool")]
+fn deferred_lock() -> std::sync::MutexGuard<'static, Vec<Deferred>> {
+    // a poisoned queue is structurally intact and MUST still be
+    // drained — leaking it would strand erased lifetimes
+    match DROP_DEFERRED.lock() {
+        Ok(g) => g,
+        Err(e) => e.into_inner(),
+    }
+}
+
+/// Monomorphized destructor for a deferred node.
 ///
 /// SAFETY: `p` must be a `Box<Node<K, V, SIZE>>` leaked by the defer
 /// path in [`Node::drop`] for exactly this `K, V, SIZE`. The lifetime
-/// erasure is sound because the queue is fully drained before the
-/// outermost `Node::drop` frame returns — every borrow a deferred
+/// erasure is sound because the owning thread's entries are fully
+/// drained before its outermost `Node::drop` frame returns — normally
+/// or by unwinding (the [`DepthGuard`]) — so every borrow a deferred
 /// node could hold is still live further down the same stack.
 #[cfg(feature = "pool")]
 unsafe fn drop_deferred_node<K: Ord + Clone, V: Clone, const SIZE: usize>(p: *mut ()) {
     drop(alloc::boxed::Box::from_raw(p as *mut Node<K, V, SIZE>))
+}
+
+/// Restores DROP_DEPTH and, at the outermost frame, drains the
+/// deferred queue. An RAII guard rather than straight-line code in
+/// [`Node::drop`] so it also runs when a K/V destructor panics:
+/// unwinding out with the depth inflated would permanently disable
+/// the outermost drain on this thread, leaking the queued nodes — or
+/// worse, handing them to a LATER unrelated drop after their erased
+/// lifetimes may have ended.
+#[cfg(feature = "pool")]
+struct DepthGuard {
+    depth: usize,
+    tag: usize,
+}
+
+#[cfg(feature = "pool")]
+impl Drop for DepthGuard {
+    fn drop(&mut self) {
+        let _ = DROP_DEPTH.try_with(|d| d.set(self.depth));
+        if self.depth == 0
+            && DROP_DEFERRED_LEN.load(core::sync::atomic::Ordering::Relaxed) > 0
+        {
+            drain_deferred(self.tag)
+        }
+    }
+}
+
+/// Destroy every deferred node pushed by this thread. Runs only at
+/// the outermost drop frame — including while it is unwinding —
+/// because the queued pointers must not outlive it (see
+/// [`drop_deferred_node`]).
+///
+/// The depth is HELD AT 1 for the duration so a drained node's own
+/// drop (entering at depth 1) never sees 0 and never drains NESTED
+/// inside this loop: every deferred node is destroyed by this frame's
+/// loop and the stack stays flat. A nested drain grows the stack by a
+/// few frames per deferred entry — linear in the total nesting depth,
+/// which is exactly the overflow this machinery exists to prevent.
+///
+/// Each entry is destroyed under `catch_unwind` so a panicking K/V
+/// destructor can neither strand later entries in the queue (their
+/// erased lifetimes end when this frame's caller resumes) nor
+/// double-panic the process when several entries panic. The first
+/// panic resumes once the queue is empty; later ones are dropped, and
+/// if a panic is already unwinding through this frame the resume is
+/// suppressed entirely — resuming would double-panic and abort.
+#[cfg(feature = "pool")]
+fn drain_deferred(tag: usize) {
+    let _ = DROP_DEPTH.try_with(|d| d.set(1));
+    let mut panic = None;
+    loop {
+        // pop outside the lock — destruction may re-enter and push
+        let entry = {
+            let mut q = deferred_lock();
+            q.iter().position(|e| e.0 == tag).map(|i| {
+                DROP_DEFERRED_LEN
+                    .fetch_sub(1, core::sync::atomic::Ordering::Relaxed);
+                q.swap_remove(i)
+            })
+        };
+        match entry {
+            None => break,
+            Some(Deferred(_, f, p)) => {
+                let r = std::panic::catch_unwind(
+                    std::panic::AssertUnwindSafe(|| unsafe { f(p) }),
+                );
+                if let Err(e) = r {
+                    if panic.is_none() {
+                        panic = Some(e)
+                    }
+                }
+            }
+        }
+    }
+    let _ = DROP_DEPTH.try_with(|d| d.set(0));
+    if let Some(e) = panic {
+        if !std::thread::panicking() {
+            std::panic::resume_unwind(e)
+        }
+    }
 }
 
 fn pack_height_and_size(height: u8, size: usize) -> u64 {
@@ -163,39 +287,40 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> Drop for Node<K, V, SIZE> {
         // Re-entrancy guard: see MAX_DROP_DEPTH. Past the limit, move
         // this node to the deferred queue and return — the field is
         // ManuallyDrop, so no glue runs and ownership transfers to the
-        // queue; the outermost frame below destroys it iteratively.
-        // `try_with`: during THREAD TEARDOWN the TLS is gone (and
-        // poolshark's own thread-local pool drops its cached — empty,
-        // recursion-free — nodes exactly then), so fall back to the
-        // unguarded drop rather than panicking in a destructor.
-        // TLS destructor ORDER during thread teardown is arbitrary:
-        // poolshark's thread-local pool drops its cached nodes then,
-        // and either guard TLS may already be gone (mixed liveness) —
-        // so EVERY access is `try_with`, degrading to the plain
-        // recursive drop when unavailable (the teardown drops are
-        // pool-cached empty nodes, recursion-free).
-        let depth = DROP_DEPTH.try_with(|d| d.get()).ok();
-        if let Some(depth) = depth {
-            if depth >= MAX_DROP_DEPTH {
-                let b = alloc::boxed::Box::new(unsafe { ptr::read(self) });
-                let raw = alloc::boxed::Box::into_raw(b) as *mut ();
-                let pushed = DROP_DEFERRED.try_with(|q| {
-                    q.borrow_mut().push((
-                        drop_deferred_node::<K, V, SIZE> as unsafe fn(*mut ()),
-                        raw,
-                    ))
-                });
-                if pushed.is_err() {
-                    // Queue TLS gone (thread teardown): reclaim and
-                    // drop recursively — the unguarded fallback.
-                    drop(unsafe {
-                        alloc::boxed::Box::from_raw(raw as *mut Node<K, V, SIZE>)
-                    });
-                }
-                return;
-            }
-            let _ = DROP_DEPTH.try_with(|d| d.set(depth + 1));
+        // queue; the outermost frame below destroys it iteratively
+        // (via its DepthGuard, so the drain also runs when unwinding).
+        // DROP_DEPTH is const-init with no drop glue and normally
+        // survives thread teardown; only if it is inaccessible
+        // (platforms without native TLS) degrade to the plain
+        // recursive drop.
+        let cell = DROP_DEPTH
+            .try_with(|d| (d.get(), d as *const core::cell::Cell<usize> as usize))
+            .ok();
+        let Some((depth, tag)) = cell else {
+            return self.really_drop();
+        };
+        if depth >= MAX_DROP_DEPTH {
+            let b = alloc::boxed::Box::new(unsafe { ptr::read(self) });
+            let raw = alloc::boxed::Box::into_raw(b) as *mut ();
+            deferred_lock().push(Deferred(
+                tag,
+                drop_deferred_node::<K, V, SIZE> as unsafe fn(*mut ()),
+                raw,
+            ));
+            DROP_DEFERRED_LEN.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+            return;
         }
+        let _guard = DepthGuard { depth, tag };
+        let _ = DROP_DEPTH.try_with(|d| d.set(depth + 1));
+        self.really_drop()
+    }
+}
+
+#[cfg(feature = "pool")]
+impl<K: Ord + Clone, V: Clone, const SIZE: usize> Node<K, V, SIZE> {
+    /// The unguarded destructor body; only called from `drop`, under
+    /// the DepthGuard whenever the TLS is accessible.
+    fn really_drop(&mut self) {
         match Arc::get_mut(&mut self.0) {
             None => unsafe { ManuallyDrop::drop(&mut self.0) },
             Some(inner) => {
@@ -203,20 +328,6 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> Drop for Node<K, V, SIZE> {
                 if let Some(mut n) = unsafe { insert_raw(ptr::read(self)) } {
                     unsafe { ManuallyDrop::drop(&mut n.0) };
                     mem::forget(n); // don't call ourselves recursively
-                }
-            }
-        }
-        if let Some(depth) = depth {
-            let _ = DROP_DEPTH.try_with(|d| d.set(depth));
-            if depth == 0 {
-                // Drain iteratively. Pop OUTSIDE the RefCell borrow —
-                // each destruction re-enters this Drop (bounded by the
-                // guard) and may push deeper nodes back onto the queue.
-                loop {
-                    match DROP_DEFERRED.try_with(|q| q.borrow_mut().pop()) {
-                        Ok(Some((f, p))) => unsafe { f(p) },
-                        Ok(None) | Err(_) => break,
-                    }
                 }
             }
         }
