@@ -171,7 +171,13 @@ impl Drop for DepthGuard {
 fn drain_deferred(tag: usize) {
     let _ = DROP_DEPTH.try_with(|d| d.set(1));
     let mut panic = None;
-    while let Some(batch) = deferred_lock().remove(&tag) {
+    loop {
+        // NOT `while let`: a match scrutinee's temporaries live through
+        // the body, so the guard would be held while entries are
+        // destroyed — and a drained entry's drop that defers a deeper
+        // node re-locks the queue → same-thread deadlock. The `let`
+        // ends the guard's life before the destroy loop.
+        let Some(batch) = deferred_lock().remove(&tag) else { break };
         DROP_DEFERRED_LEN.fetch_sub(batch.len(), AOrdering::Relaxed);
         for Deferred(f, p) in batch {
             let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| unsafe {
