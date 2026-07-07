@@ -20,13 +20,21 @@ use core::{
 
 #[cfg(feature = "pool")]
 use core::{
+    cell::Cell,
     mem::{self, ManuallyDrop},
     ptr,
+    sync::atomic::{AtomicUsize, Ordering as AOrdering},
 };
 #[cfg(feature = "pool")]
 use poolshark::{
     local::{insert_raw, take},
     location_id, Discriminant, IsoPoolable, Poolable,
+};
+#[cfg(feature = "pool")]
+use std::{
+    boxed::Box,
+    collections::BTreeMap,
+    sync::{Mutex, MutexGuard},
 };
 
 // until we get 128 bit machines with exabytes of memory
@@ -52,45 +60,44 @@ std::thread_local! {
     // for this cell, so on native-TLS platforms it stays accessible
     // even while other TLS destructors run during thread teardown —
     // the guard keeps working for maps dropped by TLS destructors.
-    static DROP_DEPTH: core::cell::Cell<usize> = const { core::cell::Cell::new(0) };
+    static DROP_DEPTH: Cell<usize> = const { Cell::new(0) };
 }
 
-/// A deferred node: the owning thread's tag, its monomorphized
-/// destructor, and the leaked box. Type-erased so one queue serves
-/// every `K, V, SIZE` instantiation.
+/// A deferred node: its monomorphized destructor and the leaked box.
+/// Type-erased so one queue serves every `K, V, SIZE` instantiation.
 ///
-/// The tag is the address of the owning thread's DROP_DEPTH cell, and
-/// only that thread ever pops its entries: K and V may be non-'static,
-/// and the same-stack lifetime argument of [`drop_deferred_node`] only
-/// holds on the thread that pushed. The erased pointers never actually
-/// move between threads, which is why the `Send` impl is sound.
+/// Entries never actually move between threads — only the owning
+/// thread takes its tag's bucket (K and V may be non-'static, and the
+/// same-stack lifetime argument of [`drop_deferred_node`] only holds
+/// on the thread that pushed) — which is why the `Send` impl is sound.
 #[cfg(feature = "pool")]
-struct Deferred(usize, unsafe fn(*mut ()), *mut ());
+struct Deferred(unsafe fn(*mut ()), *mut ());
 
 #[cfg(feature = "pool")]
 unsafe impl Send for Deferred {}
 
-/// The deferred-drop queue. Global rather than thread-local: pushes
-/// only happen past MAX_DROP_DEPTH re-entrant frames — a degenerate
-/// case, so the mutex is not on any hot path (the per-drop probe is
-/// the relaxed load of DROP_DEFERRED_LEN) — and a global queue keeps
-/// working during thread teardown, when a TLS queue's own destructor
-/// may already have run (dropping a deep map from another TLS
-/// destructor then recursed unbounded).
+/// The deferred-drop queue, bucketed by owner tag (the address of the
+/// owning thread's DROP_DEPTH cell). Global rather than thread-local:
+/// pushes only happen past MAX_DROP_DEPTH re-entrant frames — a
+/// degenerate case, so the mutex is not on any hot path (the per-drop
+/// probe is the relaxed load of DROP_DEFERRED_LEN) — and a global
+/// queue keeps working during thread teardown, when a TLS queue's own
+/// destructor may already have run (dropping a deep map from another
+/// TLS destructor then recursed unbounded). Bucketing lets the drain
+/// take its ENTIRE bucket in one mutex op and destroy the entries
+/// outside the lock, in push order.
 #[cfg(feature = "pool")]
-static DROP_DEFERRED: std::sync::Mutex<Vec<Deferred>> =
-    std::sync::Mutex::new(Vec::new());
+static DROP_DEFERRED: Mutex<BTreeMap<usize, Vec<Deferred>>> = Mutex::new(BTreeMap::new());
 
 /// Cheap emptiness probe so an outermost drop with nothing deferred
 /// never touches the mutex. Relaxed suffices: only the pushing thread
 /// drains its own entries, and it sees its own increments in program
 /// order.
 #[cfg(feature = "pool")]
-static DROP_DEFERRED_LEN: core::sync::atomic::AtomicUsize =
-    core::sync::atomic::AtomicUsize::new(0);
+static DROP_DEFERRED_LEN: AtomicUsize = AtomicUsize::new(0);
 
 #[cfg(feature = "pool")]
-fn deferred_lock() -> std::sync::MutexGuard<'static, Vec<Deferred>> {
+fn deferred_lock() -> MutexGuard<'static, BTreeMap<usize, Vec<Deferred>>> {
     // a poisoned queue is structurally intact and MUST still be
     // drained — leaking it would strand erased lifetimes
     match DROP_DEFERRED.lock() {
@@ -109,7 +116,7 @@ fn deferred_lock() -> std::sync::MutexGuard<'static, Vec<Deferred>> {
 /// node could hold is still live further down the same stack.
 #[cfg(feature = "pool")]
 unsafe fn drop_deferred_node<K: Ord + Clone, V: Clone, const SIZE: usize>(p: *mut ()) {
-    drop(alloc::boxed::Box::from_raw(p as *mut Node<K, V, SIZE>))
+    drop(Box::from_raw(p as *mut Node<K, V, SIZE>))
 }
 
 /// Restores DROP_DEPTH and, at the outermost frame, drains the
@@ -129,9 +136,7 @@ struct DepthGuard {
 impl Drop for DepthGuard {
     fn drop(&mut self) {
         let _ = DROP_DEPTH.try_with(|d| d.set(self.depth));
-        if self.depth == 0
-            && DROP_DEFERRED_LEN.load(core::sync::atomic::Ordering::Relaxed) > 0
-        {
+        if self.depth == 0 && DROP_DEFERRED_LEN.load(AOrdering::Relaxed) > 0 {
             drain_deferred(self.tag)
         }
     }
@@ -149,6 +154,12 @@ impl Drop for DepthGuard {
 /// few frames per deferred entry — linear in the total nesting depth,
 /// which is exactly the overflow this machinery exists to prevent.
 ///
+/// Each round takes the tag's ENTIRE bucket in one mutex op and
+/// destroys the entries outside the lock, in push order (a stable,
+/// deterministic drop order); destruction can re-enter and defer
+/// deeper nodes, opening a fresh bucket, so the loop runs until the
+/// bucket stays absent.
+///
 /// Each entry is destroyed under `catch_unwind` so a panicking K/V
 /// destructor can neither strand later entries in the queue (their
 /// erased lifetimes end when this frame's caller resumes) nor
@@ -160,26 +171,15 @@ impl Drop for DepthGuard {
 fn drain_deferred(tag: usize) {
     let _ = DROP_DEPTH.try_with(|d| d.set(1));
     let mut panic = None;
-    loop {
-        // pop outside the lock — destruction may re-enter and push
-        let entry = {
-            let mut q = deferred_lock();
-            q.iter().position(|e| e.0 == tag).map(|i| {
-                DROP_DEFERRED_LEN
-                    .fetch_sub(1, core::sync::atomic::Ordering::Relaxed);
-                q.swap_remove(i)
-            })
-        };
-        match entry {
-            None => break,
-            Some(Deferred(_, f, p)) => {
-                let r = std::panic::catch_unwind(
-                    std::panic::AssertUnwindSafe(|| unsafe { f(p) }),
-                );
-                if let Err(e) = r {
-                    if panic.is_none() {
-                        panic = Some(e)
-                    }
+    while let Some(batch) = deferred_lock().remove(&tag) {
+        DROP_DEFERRED_LEN.fetch_sub(batch.len(), AOrdering::Relaxed);
+        for Deferred(f, p) in batch {
+            let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| unsafe {
+                f(p)
+            }));
+            if let Err(e) = r {
+                if panic.is_none() {
+                    panic = Some(e)
                 }
             }
         }
@@ -294,20 +294,19 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> Drop for Node<K, V, SIZE> {
         // (platforms without native TLS) degrade to the plain
         // recursive drop.
         let cell = DROP_DEPTH
-            .try_with(|d| (d.get(), d as *const core::cell::Cell<usize> as usize))
+            .try_with(|d| (d.get(), d as *const Cell<usize> as usize))
             .ok();
         let Some((depth, tag)) = cell else {
             return self.really_drop();
         };
         if depth >= MAX_DROP_DEPTH {
-            let b = alloc::boxed::Box::new(unsafe { ptr::read(self) });
-            let raw = alloc::boxed::Box::into_raw(b) as *mut ();
-            deferred_lock().push(Deferred(
-                tag,
+            let b = Box::new(unsafe { ptr::read(self) });
+            let raw = Box::into_raw(b) as *mut ();
+            deferred_lock().entry(tag).or_default().push(Deferred(
                 drop_deferred_node::<K, V, SIZE> as unsafe fn(*mut ()),
                 raw,
             ));
-            DROP_DEFERRED_LEN.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+            DROP_DEFERRED_LEN.fetch_add(1, AOrdering::Relaxed);
             return;
         }
         let _guard = DepthGuard { depth, tag };
