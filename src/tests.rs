@@ -1225,3 +1225,157 @@ fn test_panic_during_nested_map_drop() {
         .join()
         .expect("panic during nested drop broke the drop machinery");
 }
+
+mod structure {
+    use crate::map::{Map, NodeHandle, NodeRef, StructureError};
+    use alloc::{vec, vec::Vec};
+    use hashbrown::HashMap;
+
+    type M = Map<i32, i32, 32>;
+
+    /// A postorder instruction stream over a forest of shared trees:
+    /// what a sharing-preserving codec writes.
+    #[derive(Debug, PartialEq, Eq)]
+    enum Op {
+        Empty,
+        Ref(usize),
+        Node(Vec<(i32, i32)>),
+    }
+
+    struct Encoder {
+        seen: HashMap<usize, (usize, NodeHandle<i32, i32, 32>)>,
+        ops: Vec<Op>,
+    }
+
+    impl Encoder {
+        fn tree(&mut self, n: Option<NodeRef<'_, i32, i32, 32>>) {
+            let Some(n) = n else {
+                return self.ops.push(Op::Empty);
+            };
+            if let Some((id, _)) = self.seen.get(&n.identity()) {
+                return self.ops.push(Op::Ref(*id));
+            }
+            self.tree(n.left());
+            self.tree(n.right());
+            let id = self.seen.len();
+            self.seen.insert(n.identity(), (id, n.keep()));
+            self.ops
+                .push(Op::Node(n.pairs().map(|(k, v)| (*k, *v)).collect()));
+        }
+    }
+
+    fn decode(
+        ops: &[Op],
+        nodes: &mut Vec<NodeHandle<i32, i32, 32>>,
+    ) -> Vec<Option<NodeHandle<i32, i32, 32>>> {
+        let mut stack: Vec<Option<NodeHandle<i32, i32, 32>>> = Vec::new();
+        for op in ops {
+            match op {
+                Op::Empty => stack.push(None),
+                Op::Ref(id) => stack.push(Some(nodes[*id].clone())),
+                Op::Node(pairs) => {
+                    let right = stack.pop().unwrap();
+                    let left = stack.pop().unwrap();
+                    let h =
+                        NodeHandle::create(left, pairs.iter().copied(), right).unwrap();
+                    nodes.push(h.clone());
+                    stack.push(Some(h));
+                }
+            }
+        }
+        stack
+    }
+
+    #[test]
+    fn round_trip_preserves_sharing() {
+        let m0: M = (0..5000).map(|i| (i, i * 2)).collect();
+        let (m1, _) = m0.insert(2500, -1);
+        let (m2, _) = m1.insert(-7, 7);
+        let maps = [m0, m1, m2];
+        let mut enc = Encoder {
+            seen: HashMap::new(),
+            ops: Vec::new(),
+        };
+        let mut roots = Vec::new();
+        for m in &maps {
+            let at = enc.ops.len();
+            enc.tree(m.root());
+            roots.push(enc.ops.len() - at);
+        }
+        let defs = enc.ops.iter().filter(|o| matches!(o, Op::Node(_))).count();
+        let refs = enc.ops.iter().filter(|o| matches!(o, Op::Ref(_))).count();
+        assert_eq!(defs, enc.seen.len());
+        assert!(refs > 0, "a one-key update must share most of the tree");
+        let mut nodes = Vec::new();
+        let decoded: Vec<M> = {
+            let stack = decode(&enc.ops, &mut nodes);
+            assert_eq!(stack.len(), maps.len());
+            stack.into_iter().map(M::from_root).collect()
+        };
+        for (m, d) in maps.iter().zip(&decoded) {
+            assert_eq!(m.len(), d.len());
+            assert!(m.into_iter().eq(d.into_iter()));
+            assert_eq!(d.get(&2500).copied(), m.get(&2500).copied());
+        }
+        // the decoded forest has the same sharing structure: encoding it
+        // again yields the same instruction stream
+        let mut again = Encoder {
+            seen: HashMap::new(),
+            ops: Vec::new(),
+        };
+        for d in &decoded {
+            again.tree(d.root());
+        }
+        assert_eq!(again.ops, enc.ops);
+        // and the decoded maps stay valid persistent maps
+        let (d3, prev) = decoded[2].insert(2500, 9);
+        assert_eq!(prev, Some(-1));
+        assert_eq!(d3.get(&2500), Some(&9));
+        assert_eq!(decoded[2].get(&2500), Some(&-1));
+        assert_eq!(d3.len(), decoded[2].len());
+    }
+
+    #[test]
+    fn empty_map_has_no_root() {
+        let m: M = M::new();
+        assert!(m.root().is_none());
+        assert_eq!(M::from_root(None).len(), 0);
+    }
+
+    #[test]
+    fn create_checks_the_invariants() {
+        type H = NodeHandle<i32, i32, 4>;
+        let leaf = |ks: &[i32]| H::create(None, ks.iter().map(|k| (*k, 0)), None);
+        assert_eq!(leaf(&[]).unwrap_err(), StructureError::ChunkSize);
+        assert_eq!(
+            leaf(&[1, 2, 3, 4, 5]).unwrap_err(),
+            StructureError::ChunkSize
+        );
+        assert_eq!(leaf(&[2, 1]).unwrap_err(), StructureError::ChunkOrder);
+        assert_eq!(leaf(&[1, 1]).unwrap_err(), StructureError::ChunkOrder);
+        let low = leaf(&[1, 2]).unwrap();
+        let high = leaf(&[8, 9]).unwrap();
+        assert_eq!(
+            H::create(Some(low.clone()), vec![(2, 0)], None).unwrap_err(),
+            StructureError::KeyOrder
+        );
+        assert_eq!(
+            H::create(None, vec![(8, 0)], Some(high.clone())).unwrap_err(),
+            StructureError::KeyOrder
+        );
+        let root = H::create(Some(low), vec![(5, 0)], Some(high)).unwrap();
+        assert_eq!(root.view().len(), 1);
+        assert_eq!(root.view().left().unwrap().len(), 2);
+        let m: crate::map::Map<i32, i32, 4> = crate::map::Map::from_root(Some(root));
+        assert!((&m).into_iter().map(|(k, _)| *k).eq([1, 2, 5, 8, 9]));
+        // a left spine three levels deep against an empty right subtree
+        let mut spine = leaf(&[1]).unwrap();
+        for k in 2..4 {
+            spine = H::create(Some(spine), vec![(k, 0)], None).unwrap();
+        }
+        assert_eq!(
+            H::create(Some(spine), vec![(4, 0)], None).unwrap_err(),
+            StructureError::Unbalanced
+        );
+    }
+}

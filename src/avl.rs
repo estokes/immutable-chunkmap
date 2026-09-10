@@ -177,7 +177,9 @@ fn drain_deferred(tag: usize) {
         // destroyed — and a drained entry's drop that defers a deeper
         // node re-locks the queue → same-thread deadlock. The `let`
         // ends the guard's life before the destroy loop.
-        let Some(batch) = deferred_lock().remove(&tag) else { break };
+        let Some(batch) = deferred_lock().remove(&tag) else {
+            break;
+        };
         DROP_DEFERRED_LEN.fetch_sub(batch.len(), AOrdering::Relaxed);
         for Deferred(f, p) in batch {
             let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| unsafe {
@@ -2033,6 +2035,168 @@ where
         let len = self.len();
         if len != tlen {
             panic!("len is wrong {} vs {}", len, tlen)
+        }
+    }
+}
+
+/// Why [`NodeHandle::create`] refused a node.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StructureError {
+    /// A node holds between one and `SIZE` pairs.
+    ChunkSize,
+    /// The keys within a node are strictly increasing.
+    ChunkOrder,
+    /// Every key in the left subtree is below the node's keys and every
+    /// key in the right subtree is above them.
+    KeyOrder,
+    /// The subtrees' heights differ by more than two.
+    Unbalanced,
+}
+
+impl fmt::Display for StructureError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            Self::ChunkSize => "a node holds between one and SIZE pairs",
+            Self::ChunkOrder => "keys within a node must be strictly increasing",
+            Self::KeyOrder => "subtree keys must lie outside the node's key range",
+            Self::Unbalanced => "subtree heights differ by more than two",
+        };
+        f.write_str(s)
+    }
+}
+
+/// A borrowed node of a map's tree, for a codec that must reproduce
+/// the tree's sharing. Two views with the same [`identity`] are the
+/// same node; a [`NodeHandle`] from [`keep`] pins that identity for as
+/// long as it is held.
+///
+/// [`identity`]: NodeRef::identity
+/// [`keep`]: NodeRef::keep
+pub struct NodeRef<'a, K: Ord + Clone, V: Clone, const SIZE: usize>(&'a Node<K, V, SIZE>);
+
+impl<'a, K: Ord + Clone, V: Clone, const SIZE: usize> NodeRef<'a, K, V, SIZE> {
+    /// The node's allocation address: equal for two views of one node,
+    /// distinct for two nodes that are both alive.
+    pub fn identity(&self) -> usize {
+        Arc::as_ptr(self.0.arc()) as *const () as usize
+    }
+
+    /// An owned reference to this node.
+    pub fn keep(&self) -> NodeHandle<K, V, SIZE> {
+        NodeHandle(self.0.clone())
+    }
+
+    /// The number of pairs held in this node (not its subtrees).
+    pub fn len(&self) -> usize {
+        self.0.elts().len()
+    }
+
+    /// The node's pairs in key order.
+    pub fn pairs(&self) -> impl Iterator<Item = (&'a K, &'a V)> + 'a {
+        let node: &'a Node<K, V, SIZE> = self.0;
+        let chunk: &'a Chunk<K, V, SIZE> = node.elts();
+        (0..chunk.len()).map(move |i| chunk.kv(i))
+    }
+
+    pub fn left(&self) -> Option<NodeRef<'a, K, V, SIZE>> {
+        let node: &'a Node<K, V, SIZE> = self.0;
+        node.left.root()
+    }
+
+    pub fn right(&self) -> Option<NodeRef<'a, K, V, SIZE>> {
+        let node: &'a Node<K, V, SIZE> = self.0;
+        node.right.root()
+    }
+}
+
+/// An owned node, built by [`create`] or kept from a [`NodeRef`]. A
+/// map is assembled from handles with `Map::from_root`.
+///
+/// [`create`]: NodeHandle::create
+pub struct NodeHandle<K: Ord + Clone, V: Clone, const SIZE: usize>(Node<K, V, SIZE>);
+
+impl<K: Ord + Clone, V: Clone, const SIZE: usize> Debug for NodeHandle<K, V, SIZE> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let v = self.view();
+        write!(f, "NodeHandle({:#x}, {} pairs)", v.identity(), v.len())
+    }
+}
+
+impl<K: Ord + Clone, V: Clone, const SIZE: usize> Clone for NodeHandle<K, V, SIZE> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl<K: Ord + Clone, V: Clone, const SIZE: usize> NodeHandle<K, V, SIZE> {
+    pub fn view(&self) -> NodeRef<'_, K, V, SIZE> {
+        NodeRef(&self.0)
+    }
+
+    /// A node holding `pairs` above `left` and below `right`. The
+    /// arguments must describe a node a map could have built: the
+    /// checks are exactly the map's invariants, so a handle that
+    /// passes them is a valid subtree.
+    pub fn create<I: IntoIterator<Item = (K, V)>>(
+        left: Option<Self>,
+        pairs: I,
+        right: Option<Self>,
+    ) -> Result<Self, StructureError> {
+        let mut n = 0usize;
+        let chunk = Chunk::empty().append(pairs.into_iter().inspect(|_| n += 1));
+        if n == 0 || n > SIZE {
+            return Err(StructureError::ChunkSize);
+        }
+        if (1..chunk.len()).any(|i| chunk.key(i - 1) >= chunk.key(i)) {
+            return Err(StructureError::ChunkOrder);
+        }
+        let l = Tree::from_root(left);
+        let r = Tree::from_root(right);
+        let below = match &l {
+            Tree::Node(ln) => ln.max_key() < chunk.key(0),
+            Tree::Empty => true,
+        };
+        let above = match &r {
+            Tree::Node(rn) => rn.min_key() > chunk.key(chunk.len() - 1),
+            Tree::Empty => true,
+        };
+        if !below || !above {
+            return Err(StructureError::KeyOrder);
+        }
+        if !Tree::in_bal(&l, &r) {
+            return Err(StructureError::Unbalanced);
+        }
+        match Tree::create(&l, chunk, &r) {
+            Tree::Node(node) => Ok(NodeHandle(node)),
+            Tree::Empty => unreachable!("create of a non-empty chunk"),
+        }
+    }
+}
+
+impl<K: Ord + Clone, V: Clone, const SIZE: usize> Node<K, V, SIZE> {
+    #[cfg(feature = "pool")]
+    fn arc(&self) -> &Arc<NodeInner<K, V, SIZE>> {
+        &self.0
+    }
+
+    #[cfg(not(feature = "pool"))]
+    fn arc(&self) -> &Arc<NodeInner<K, V, SIZE>> {
+        &self.0
+    }
+}
+
+impl<K: Ord + Clone, V: Clone, const SIZE: usize> Tree<K, V, SIZE> {
+    pub(crate) fn root(&self) -> Option<NodeRef<'_, K, V, SIZE>> {
+        match self {
+            Tree::Empty => None,
+            Tree::Node(n) => Some(NodeRef(n)),
+        }
+    }
+
+    pub(crate) fn from_root(root: Option<NodeHandle<K, V, SIZE>>) -> Self {
+        match root {
+            None => Tree::Empty,
+            Some(h) => Tree::Node(h.0),
         }
     }
 }

@@ -1,3 +1,10 @@
+2.2.0
+
+* expose the tree's structure for codecs that preserve sharing:
+  `Map::root`/`Set::root` give a `NodeRef` (identity, pairs, subtrees,
+  `keep`), `NodeHandle::create` rebuilds a node under the map's
+  invariants, `Map::from_root`/`Set::from_root` assemble the map
+
 2.1.3
 
 * when pool is on add support for droping deeply nested

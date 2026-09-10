@@ -1,4 +1,4 @@
-use crate::avl::{Iter, Tree, WeakTree};
+use crate::avl::{Iter, NodeHandle, NodeRef, Tree, WeakTree};
 pub use crate::chunk::DEFAULT_SIZE;
 use core::{
     borrow::Borrow,
@@ -283,6 +283,17 @@ where
     /// Create a new empty set
     pub fn new() -> Self {
         Set(Tree::new())
+    }
+
+    /// The root of the set's tree, `None` when empty; see
+    /// [`Map::root`](crate::map::Map::root).
+    pub fn root(&self) -> Option<NodeRef<'_, K, (), SIZE>> {
+        self.0.root()
+    }
+
+    /// A set over the tree rooted at `root`.
+    pub fn from_root(root: Option<NodeHandle<K, (), SIZE>>) -> Self {
+        Set(Tree::from_root(root))
     }
 
     /// Create a weak reference to this set

@@ -68,6 +68,8 @@ use rayon::{
 #[repr(transparent)]
 pub struct Map<K: Ord + Clone, V: Clone, const SIZE: usize>(Tree<K, V, SIZE>);
 
+pub use crate::avl::{NodeHandle, NodeRef, StructureError};
+
 /// Map using a smaller chunk size, faster to update, slower to search
 pub type MapS<K, V> = Map<K, V, { DEFAULT_SIZE / 2 }>;
 
@@ -312,6 +314,18 @@ where
     /// Create a new empty map
     pub fn new() -> Self {
         Map(Tree::new())
+    }
+
+    /// The root of the map's tree, `None` when empty. With
+    /// [`from_root`](Map::from_root) this exposes the tree's structure
+    /// to a codec that must reproduce its sharing; see [`NodeRef`].
+    pub fn root(&self) -> Option<NodeRef<'_, K, V, SIZE>> {
+        self.0.root()
+    }
+
+    /// A map over the tree rooted at `root`.
+    pub fn from_root(root: Option<NodeHandle<K, V, SIZE>>) -> Self {
+        Map(Tree::from_root(root))
     }
 
     /// Create a weak reference to this map
