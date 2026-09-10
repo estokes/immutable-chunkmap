@@ -2039,32 +2039,6 @@ where
     }
 }
 
-/// Why [`NodeHandle::create`] refused a node.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StructureError {
-    /// A node holds between one and `SIZE` pairs.
-    ChunkSize,
-    /// The keys within a node are strictly increasing.
-    ChunkOrder,
-    /// Every key in the left subtree is below the node's keys and every
-    /// key in the right subtree is above them.
-    KeyOrder,
-    /// The subtrees' heights differ by more than two.
-    Unbalanced,
-}
-
-impl fmt::Display for StructureError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let s = match self {
-            Self::ChunkSize => "a node holds between one and SIZE pairs",
-            Self::ChunkOrder => "keys within a node must be strictly increasing",
-            Self::KeyOrder => "subtree keys must lie outside the node's key range",
-            Self::Unbalanced => "subtree heights differ by more than two",
-        };
-        f.write_str(s)
-    }
-}
-
 /// A borrowed node of a map's tree, for a codec that must reproduce
 /// the tree's sharing. Two views with the same [`identity`] are the
 /// same node; a [`NodeHandle`] from [`keep`] pins that identity for as
@@ -2133,41 +2107,26 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> NodeHandle<K, V, SIZE> {
         NodeRef(&self.0)
     }
 
-    /// A node holding `pairs` above `left` and below `right`. The
-    /// arguments must describe a node a map could have built: the
-    /// checks are exactly the map's invariants, so a handle that
-    /// passes them is a valid subtree.
-    pub fn create<I: IntoIterator<Item = (K, V)>>(
+    /// A node holding `pairs` above `left` and below `right`.
+    ///
+    /// # Safety
+    ///
+    /// The arguments must describe a node the map could have built,
+    /// exactly as a [`NodeRef`] reported it: between one and `SIZE`
+    /// pairs in strictly increasing key order, every key of `left`
+    /// below them and every key of `right` above, and the subtrees'
+    /// heights within two of each other. Nothing is checked; a map
+    /// over a node that breaks these is wrong in lookups and updates.
+    pub unsafe fn create<I: IntoIterator<Item = (K, V)>>(
         left: Option<Self>,
         pairs: I,
         right: Option<Self>,
-    ) -> Result<Self, StructureError> {
-        let mut n = 0usize;
-        let chunk = Chunk::empty().append(pairs.into_iter().inspect(|_| n += 1));
-        if n == 0 || n > SIZE {
-            return Err(StructureError::ChunkSize);
-        }
-        if (1..chunk.len()).any(|i| chunk.key(i - 1) >= chunk.key(i)) {
-            return Err(StructureError::ChunkOrder);
-        }
+    ) -> Self {
+        let chunk = Chunk::empty().append(pairs);
         let l = Tree::from_root(left);
         let r = Tree::from_root(right);
-        let below = match &l {
-            Tree::Node(ln) => ln.max_key() < chunk.key(0),
-            Tree::Empty => true,
-        };
-        let above = match &r {
-            Tree::Node(rn) => rn.min_key() > chunk.key(chunk.len() - 1),
-            Tree::Empty => true,
-        };
-        if !below || !above {
-            return Err(StructureError::KeyOrder);
-        }
-        if !Tree::in_bal(&l, &r) {
-            return Err(StructureError::Unbalanced);
-        }
         match Tree::create(&l, chunk, &r) {
-            Tree::Node(node) => Ok(NodeHandle(node)),
+            Tree::Node(node) => NodeHandle(node),
             Tree::Empty => unreachable!("create of a non-empty chunk"),
         }
     }

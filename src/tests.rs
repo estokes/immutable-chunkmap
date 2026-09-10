@@ -1227,8 +1227,8 @@ fn test_panic_during_nested_map_drop() {
 }
 
 mod structure {
-    use crate::map::{Map, NodeHandle, NodeRef, StructureError};
-    use alloc::{vec, vec::Vec};
+    use crate::map::{Map, NodeHandle, NodeRef};
+    use alloc::vec::Vec;
     use hashbrown::HashMap;
 
     type M = Map<i32, i32, 32>;
@@ -1277,7 +1277,7 @@ mod structure {
                     let right = stack.pop().unwrap();
                     let left = stack.pop().unwrap();
                     let h =
-                        NodeHandle::create(left, pairs.iter().copied(), right).unwrap();
+                        unsafe { NodeHandle::create(left, pairs.iter().copied(), right) };
                     nodes.push(h.clone());
                     stack.push(Some(h));
                 }
@@ -1340,42 +1340,5 @@ mod structure {
         let m: M = M::new();
         assert!(m.root().is_none());
         assert_eq!(M::from_root(None).len(), 0);
-    }
-
-    #[test]
-    fn create_checks_the_invariants() {
-        type H = NodeHandle<i32, i32, 4>;
-        let leaf = |ks: &[i32]| H::create(None, ks.iter().map(|k| (*k, 0)), None);
-        assert_eq!(leaf(&[]).unwrap_err(), StructureError::ChunkSize);
-        assert_eq!(
-            leaf(&[1, 2, 3, 4, 5]).unwrap_err(),
-            StructureError::ChunkSize
-        );
-        assert_eq!(leaf(&[2, 1]).unwrap_err(), StructureError::ChunkOrder);
-        assert_eq!(leaf(&[1, 1]).unwrap_err(), StructureError::ChunkOrder);
-        let low = leaf(&[1, 2]).unwrap();
-        let high = leaf(&[8, 9]).unwrap();
-        assert_eq!(
-            H::create(Some(low.clone()), vec![(2, 0)], None).unwrap_err(),
-            StructureError::KeyOrder
-        );
-        assert_eq!(
-            H::create(None, vec![(8, 0)], Some(high.clone())).unwrap_err(),
-            StructureError::KeyOrder
-        );
-        let root = H::create(Some(low), vec![(5, 0)], Some(high)).unwrap();
-        assert_eq!(root.view().len(), 1);
-        assert_eq!(root.view().left().unwrap().len(), 2);
-        let m: crate::map::Map<i32, i32, 4> = crate::map::Map::from_root(Some(root));
-        assert!((&m).into_iter().map(|(k, _)| *k).eq([1, 2, 5, 8, 9]));
-        // a left spine three levels deep against an empty right subtree
-        let mut spine = leaf(&[1]).unwrap();
-        for k in 2..4 {
-            spine = H::create(Some(spine), vec![(k, 0)], None).unwrap();
-        }
-        assert_eq!(
-            H::create(Some(spine), vec![(4, 0)], None).unwrap_err(),
-            StructureError::Unbalanced
-        );
     }
 }

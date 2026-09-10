@@ -68,7 +68,7 @@ use rayon::{
 #[repr(transparent)]
 pub struct Map<K: Ord + Clone, V: Clone, const SIZE: usize>(Tree<K, V, SIZE>);
 
-pub use crate::avl::{NodeHandle, NodeRef, StructureError};
+pub use crate::avl::{NodeHandle, NodeRef};
 
 /// Map using a smaller chunk size, faster to update, slower to search
 pub type MapS<K, V> = Map<K, V, { DEFAULT_SIZE / 2 }>;
