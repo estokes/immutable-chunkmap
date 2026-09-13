@@ -1,4 +1,4 @@
-2.2.0
+2.1.4
 
 * expose the tree's structure for codecs that preserve sharing:
   `Map::root`/`Set::root` give a `NodeRef` (identity, pairs, subtrees,
