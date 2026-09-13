@@ -1291,6 +1291,9 @@ mod structure {
         let m0: M = (0..5000).map(|i| (i, i * 2)).collect();
         let (m1, _) = m0.insert(2500, -1);
         let (m2, _) = m1.insert(-7, 7);
+        m0.invariant();
+        m1.invariant();
+        m2.invariant();
         let maps = [m0, m1, m2];
         let mut enc = Encoder {
             seen: HashMap::new(),
@@ -1310,7 +1313,14 @@ mod structure {
         let decoded: Vec<M> = {
             let stack = decode(&enc.ops, &mut nodes);
             assert_eq!(stack.len(), maps.len());
-            stack.into_iter().map(M::from_root).collect()
+            stack
+                .into_iter()
+                .map(|r| {
+                    let m = M::from_root(r);
+                    m.invariant();
+                    m
+                })
+                .collect()
         };
         for (m, d) in maps.iter().zip(&decoded) {
             assert_eq!(m.len(), d.len());
