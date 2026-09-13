@@ -385,6 +385,16 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> Node<K, V, SIZE> {
     fn make_mut(&mut self) -> &mut NodeInner<K, V, SIZE> {
         Arc::make_mut(&mut self.0)
     }
+
+    #[cfg(feature = "pool")]
+    fn arc(&self) -> &Arc<NodeInner<K, V, SIZE>> {
+        &self.0
+    }
+
+    #[cfg(not(feature = "pool"))]
+    fn arc(&self) -> &Arc<NodeInner<K, V, SIZE>> {
+        &self.0
+    }
 }
 
 #[derive(Clone)]
@@ -1935,6 +1945,20 @@ where
             }
         }
     }
+
+    pub(crate) fn root(&self) -> Option<NodeRef<'_, K, V, SIZE>> {
+        match self {
+            Tree::Empty => None,
+            Tree::Node(n) => Some(NodeRef(n)),
+        }
+    }
+
+    pub(crate) fn from_root(root: Option<NodeHandle<K, V, SIZE>>) -> Self {
+        match root {
+            None => Tree::Empty,
+            Some(h) => Tree::Node(h.0),
+        }
+    }
 }
 
 impl<K, V, const SIZE: usize> Tree<K, V, SIZE>
@@ -2128,34 +2152,6 @@ impl<K: Ord + Clone, V: Clone, const SIZE: usize> NodeHandle<K, V, SIZE> {
         match Tree::create(&l, chunk, &r) {
             Tree::Node(node) => NodeHandle(node),
             Tree::Empty => unreachable!("create of a non-empty chunk"),
-        }
-    }
-}
-
-impl<K: Ord + Clone, V: Clone, const SIZE: usize> Node<K, V, SIZE> {
-    #[cfg(feature = "pool")]
-    fn arc(&self) -> &Arc<NodeInner<K, V, SIZE>> {
-        &self.0
-    }
-
-    #[cfg(not(feature = "pool"))]
-    fn arc(&self) -> &Arc<NodeInner<K, V, SIZE>> {
-        &self.0
-    }
-}
-
-impl<K: Ord + Clone, V: Clone, const SIZE: usize> Tree<K, V, SIZE> {
-    pub(crate) fn root(&self) -> Option<NodeRef<'_, K, V, SIZE>> {
-        match self {
-            Tree::Empty => None,
-            Tree::Node(n) => Some(NodeRef(n)),
-        }
-    }
-
-    pub(crate) fn from_root(root: Option<NodeHandle<K, V, SIZE>>) -> Self {
-        match root {
-            None => Tree::Empty,
-            Some(h) => Tree::Node(h.0),
         }
     }
 }
