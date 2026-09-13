@@ -11,6 +11,12 @@ documentation = "https://docs.rs/immutable-chunkmap"
 repository = "https://github.com/estokes/immutable-chunkmap"
 edition = "2018"
 
+[profile.release]
+codegen-units = 1
+opt-level = 3
+lto = true
+debug = false
+
 [features]
 default = []
 serde = ["dep:serde"]

@@ -3,349 +3,349 @@
   "repository": "/home/eric/proj/immutable-chunkmap",
   "files": {
     ".github/FUNDING.yml": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     ".gitignore": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "Cargo.toml": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "Changelog": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "LICENSE-APACHE": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "LICENSE-MIT": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "README.md": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench-ocaml/.merlin": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench-ocaml/build.sh": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench-ocaml/test.ml": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/Cargo.toml": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/bench.py": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/apple_m2/256/data.json": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/apple_m2/baseline/data.json": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/apple_m2/baseline/str_get.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/apple_m2/baseline/str_get_parallel.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/apple_m2/baseline/str_insert.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/apple_m2/baseline/str_insert_many.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/apple_m2/baseline/str_insert_many_par.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/apple_m2/baseline/str_remove.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/apple_m2/baseline/usize_get.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/apple_m2/baseline/usize_get_parallel.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/apple_m2/baseline/usize_insert.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/apple_m2/baseline/usize_insert_many.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/apple_m2/baseline/usize_insert_many_par.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/apple_m2/baseline/usize_remove.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/apple_m2/custom_pool/data.json": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/apple_m2/custom_pool_shark/data.json": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/apple_m2/pool/data.json": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/apple_m2/pool_256/data.json": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/apple_m2/separate_avec/data.json": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/apple_m2/separate_avec_pool/data.json": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/apple_m2/vec_empty/data.json": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/apple_m2/vec_empty_pool/data.json": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/apple_m2/vec_pre/data.json": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/apple_m2/vec_pre_pool/data.json": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/ibm_power9_02CY089/data.json": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/ibm_power9_02CY089/str_get.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/ibm_power9_02CY089/str_get_parallel.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/ibm_power9_02CY089/str_insert.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/ibm_power9_02CY089/str_insert_many.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/ibm_power9_02CY089/str_insert_many_par.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/ibm_power9_02CY089/str_remove.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/ibm_power9_02CY089/usize_get.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/ibm_power9_02CY089/usize_get_parallel.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/ibm_power9_02CY089/usize_insert.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/ibm_power9_02CY089/usize_insert_many.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/ibm_power9_02CY089/usize_insert_many_par.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/ibm_power9_02CY089/usize_remove.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-7820X-C128/data.json": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-7820X-C256/data.json": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-7820X-C512/data.json": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-7820X-C64/data.json": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-7820X/data.json": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-7820X/str_get.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-7820X/str_get_parallel.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-7820X/str_insert.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-7820X/str_insert_many.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-7820X/str_insert_many_par.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-7820X/str_remove.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-7820X/usize_get.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-7820X/usize_get_parallel.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-7820X/usize_insert.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-7820X/usize_insert_many.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-7820X/usize_insert_many_par.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-7820X/usize_remove.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U/data.json": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U/str_get.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U/str_get_parallel.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U/str_insert.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U/str_insert_many.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U/str_insert_many_par.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U/str_remove.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U/usize_get.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U/usize_get_parallel.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U/usize_insert.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U/usize_insert_many.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U/usize_insert_many_par.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U/usize_remove.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U_arrayvec/data.json": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U_arrayvec/str_get.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U_arrayvec/str_get_parallel.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U_arrayvec/str_insert.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U_arrayvec/str_insert_many.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U_arrayvec/str_insert_many_par.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U_arrayvec/str_remove.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U_arrayvec/usize_get.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U_arrayvec/usize_get_parallel.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U_arrayvec/usize_insert.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U_arrayvec/usize_insert_many.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U_arrayvec/usize_insert_many_par.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U_arrayvec/usize_remove.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U_arrayvec_compact/data.json": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U_arrayvec_compact/str_get.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U_arrayvec_compact/str_get_parallel.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U_arrayvec_compact/str_insert.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U_arrayvec_compact/str_insert_many.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U_arrayvec_compact/str_insert_many_par.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U_arrayvec_compact/str_remove.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U_arrayvec_compact/usize_get.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U_arrayvec_compact/usize_get_parallel.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U_arrayvec_compact/usize_insert.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U_arrayvec_compact/usize_insert_many.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U_arrayvec_compact/usize_insert_many_par.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/charts/intel_corei7-8550U_arrayvec_compact/usize_remove.png": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/compare.py": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/src/main.rs": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "bench/src/utils.rs": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "rustfmt.toml": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "src/avl.rs": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "src/chunk.rs": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "src/lib.rs": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "src/map.rs": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "src/set.rs": {
-      "reviewed_at": "7171b7bc9fdf8b11652a3399d5e4ed6685583296"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     },
     "src/tests.rs": {
-      "reviewed_at": "451205676d01652e3dd9b28b01f45ca6cfbdf196"
+      "reviewed_at": "a7388922a7550e5795529a7f89137825cf70a8b5"
     }
   }
 }

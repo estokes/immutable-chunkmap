@@ -1227,7 +1227,10 @@ fn test_panic_during_nested_map_drop() {
 }
 
 mod structure {
-    use crate::map::{Map, NodeHandle, NodeRef};
+    use crate::{
+        map::{Map, NodeHandle, NodeRef},
+        tests::{dedup_with, randvec},
+    };
     use alloc::vec::Vec;
     use hashbrown::HashMap;
 
@@ -1288,12 +1291,20 @@ mod structure {
 
     #[test]
     fn round_trip_preserves_sharing() {
-        let m0: M = (0..5000).map(|i| (i, i * 2)).collect();
-        let (m1, _) = m0.insert(2500, -1);
-        let (m2, _) = m1.insert(-7, 7);
+        let mut kv: Vec<i32> = randvec(5000);
+        dedup_with(&mut kv, |i| i);
+        kv.retain(|i| *i > i32::MIN && *i < i32::MAX);
+        let m0: M = kv.iter().map(|i| (*i, *i)).collect();
+        let k0 = m0.into_iter().next().unwrap().0 - 1;
+        let k1 = m0.into_iter().next_back().unwrap().0 + 1;
+        let (m1, _) = m0.insert(k0, k0);
+        let (m2, _) = m1.insert(k1, k1);
         m0.invariant();
         m1.invariant();
         m2.invariant();
+        for k in &kv {
+            assert_eq!(Some(k), m2.get(k));
+        }
         let maps = [m0, m1, m2];
         let mut enc = Encoder {
             seen: HashMap::new(),
@@ -1325,7 +1336,11 @@ mod structure {
         for (m, d) in maps.iter().zip(&decoded) {
             assert_eq!(m.len(), d.len());
             assert!(m.into_iter().eq(d.into_iter()));
-            assert_eq!(d.get(&2500).copied(), m.get(&2500).copied());
+            assert_eq!(d.get(&k0).copied(), m.get(&k0).copied());
+            assert_eq!(d.get(&k1).copied(), m.get(&k1).copied());
+            for k in &kv {
+                assert_eq!(Some(k), d.get(k));
+            }
         }
         // the decoded forest has the same sharing structure: encoding it
         // again yields the same instruction stream
@@ -1338,10 +1353,10 @@ mod structure {
         }
         assert_eq!(again.ops, enc.ops);
         // and the decoded maps stay valid persistent maps
-        let (d3, prev) = decoded[2].insert(2500, 9);
-        assert_eq!(prev, Some(-1));
-        assert_eq!(d3.get(&2500), Some(&9));
-        assert_eq!(decoded[2].get(&2500), Some(&-1));
+        let (d3, prev) = decoded[2].insert(k0, 9);
+        assert_eq!(prev, Some(k0));
+        assert_eq!(d3.get(&k0), Some(&9));
+        assert_eq!(decoded[2].get(&k0), Some(&k0));
         assert_eq!(d3.len(), decoded[2].len());
     }
 
